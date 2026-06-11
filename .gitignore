@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# beets
+*.db
+*.db-shm
+*.db-wal
+
+# reports
+reports/*.csv
+reports/*.json
+reports/*.log
+
+# local music folders
+Unsorted/
+Sorted/
+Duplicates_To_Check/
+
+# OS
+.DS_Store
+Thumbs.db

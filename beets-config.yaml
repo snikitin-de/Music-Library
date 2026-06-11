@@ -1,0 +1,47 @@
+directory: D:\Music\Sorted
+library: D:\Music\beets.db
+
+import:
+  copy: yes
+  move: no
+  write: yes
+  timid: yes
+  resume: ask
+  incremental: yes
+  duplicate_action: ask
+
+plugins:
+  - fetchart
+  - embedart
+  - lastgenre
+  - duplicates
+  - missing
+  - info
+
+paths:
+  default: $albumartist/$year - $album/$track - $title
+  singleton: Singles/$artist/$title
+  comp: Compilations/$year - $album/$track - $title
+
+duplicates:
+  keys:
+    - albumartist
+    - album
+    - track
+    - title
+  tiebreak:
+    items:
+      - format
+      - bitrate
+      - samplerate
+      - bitdepth
+
+fetchart:
+  auto: yes
+
+embedart:
+  auto: yes
+
+lastgenre:
+  auto: yes
+  source: track
