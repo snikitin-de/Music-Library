@@ -456,44 +456,132 @@ def render_format_bars(formats: dict) -> str:
     return "".join(parts)
 
 
-def render_genre_bars(genres: dict) -> str:
+def genre_coverage(tracks: list[dict]) -> tuple[int, int]:
+    total = len(tracks)
+    with_genre = 0
+    for track in tracks:
+        has_genre = any(
+            isinstance(tag, dict)
+            and tag.get("kind") == "genre"
+            and str(tag.get("value", "")).strip()
+            for tag in track.get("tags", [])
+        )
+        if has_genre:
+            with_genre += 1
+    return with_genre, max(0, total - with_genre)
+
+
+def render_genre_bars(genres: dict, tracks: list[dict] | None = None) -> str:
     if not genres:
         return '<div class="format-empty">Жанры не определены.</div>'
 
-    max_count = max(genres.values()) if genres else 1
+    colors = ["#2563eb", "#dc2626", "#f59e0b", "#16a34a", "#9333ea", "#0891b2", "#db2777", "#65a30d", "#b91c1c"]
+    total = sum(genres.values())
+    top_items = list(genres.items())[:7]
+    other_count = sum(genres.values()) - sum(count for _, count in top_items)
+    chart_items = top_items + ([("Прочие", other_count)] if other_count else [])
+    start = 0.0
+    segments = []
     parts = []
-    for genre, count in list(genres.items())[:12]:
-        width = max(4, round(count / max_count * 100))
+    for index, (genre, count) in enumerate(chart_items):
+        color = colors[index % len(colors)]
+        end = start + (count / total * 100)
+        segments.append(f"{color} {start:.2f}% {end:.2f}%")
+        percent = count / total * 100
         parts.append(
             f"""
-            <div class="genre-row">
-              <div class="genre-name" title="{html.escape(genre)}">{html.escape(genre)}</div>
-              <div class="format-bar"><span style="width:{width}%"></span></div>
-              <div class="format-count">{format_number(count)}</div>
+            <div class="chart-legend-row">
+              <span class="chart-dot" style="background:{color}"></span>
+              <span class="chart-label" title="{html.escape(genre)}">{html.escape(genre)}</span>
+              <strong>{percent:.0f}%</strong>
+              <span>{format_number(count)}</span>
             </div>
             """
         )
-    return "".join(parts)
+        start = end
+
+    top_genre, top_count = top_items[0]
+    top_percent = round(top_count / total * 100)
+    gradient = ", ".join(segments)
+    coverage = ""
+    if tracks is not None:
+        with_genre, without_genre = genre_coverage(tracks)
+        coverage = (
+            '<p class="chart-note">'
+            f'Жанры указаны у <strong>{format_number(with_genre)}</strong> из '
+            f'<strong>{len(tracks)}</strong> файлов. '
+            f'Без жанра: <strong>{format_number(without_genre)}</strong>.'
+            '</p>'
+        )
+    return f"""
+    {coverage}
+    <div class="donut-layout">
+      <div class="donut-chart" style="background: conic-gradient({gradient});">
+        <div class="donut-hole">
+          <strong>{top_percent}%</strong>
+          <span>{html.escape(top_genre)}</span>
+        </div>
+      </div>
+      <div class="chart-legend">
+        {"".join(parts)}
+      </div>
+    </div>
+    """
 
 
 def render_year_bars(years: dict) -> str:
     if not years:
         return '<div class="format-empty">Годы не определены.</div>'
 
-    max_count = max(years.values()) if years else 1
-    parts = []
-    for year, count in years.items():
-        width = max(4, round(count / max_count * 100))
-        parts.append(
+    all_year_items = sorted(
+        ((int(year), count) for year, count in years.items() if str(year).isdigit()),
+        key=lambda item: item[0],
+    )
+    if not all_year_items:
+        return '<div class="format-empty">Годы не определены.</div>'
+
+    year_items = sorted(all_year_items, key=lambda item: (-item[1], -item[0]))[:12]
+    year_items = sorted(year_items, key=lambda item: item[0])
+    max_count = max(count for _, count in year_items)
+    bar_width = 16
+    gap = 10
+    left = 16
+    top = 16
+    chart_height = 116
+    label_y = top + chart_height + 20
+    width = 300
+    height = 188
+    inner_width = width - left - 14
+    gap = max(6, (inner_width - len(year_items) * bar_width) / max(1, len(year_items) - 1))
+    bars = []
+    for index, (year, count) in enumerate(year_items):
+        bar_height = max(3, round(count / max_count * chart_height))
+        x = left + index * (bar_width + gap)
+        y = top + chart_height - bar_height
+        year_label = str(year) if index in {0, 4, 8, len(year_items) - 1} else ""
+        bars.append(
             f"""
-            <div class="year-row">
-              <div class="year-name">{html.escape(year)}</div>
-              <div class="format-bar"><span style="width:{width}%"></span></div>
-              <div class="format-count">{format_number(count)}</div>
-            </div>
+            <g>
+              <title>{year}: {format_number(count)}</title>
+              <rect class="year-chart-bar" x="{x}" y="{y}" width="{bar_width}" height="{bar_height}" rx="4"></rect>
+              <text class="year-chart-label" x="{x + bar_width / 2}" y="{label_y}" text-anchor="middle">{html.escape(year_label)}</text>
+            </g>
             """
         )
-    return "".join(parts)
+
+    peak_year, peak_count = max(all_year_items, key=lambda item: item[1])
+    return f"""
+    <div class="year-chart-summary">
+      <strong>{html.escape(str(peak_year))}</strong>
+      <span>самый плотный год: {format_number(peak_count)} файлов</span>
+    </div>
+    <div class="year-chart-scroll" aria-label="Топ годов по количеству файлов">
+      <svg class="year-chart" viewBox="0 0 {width} {height}" role="img">
+        <line class="year-chart-axis" x1="{left - 8}" y1="{top + chart_height}" x2="{width - 8}" y2="{top + chart_height}"></line>
+        {"".join(bars)}
+      </svg>
+    </div>
+    """
 
 
 def render_music_list(tracks: list[dict], duplicate_paths: set[str] | None = None) -> str:
@@ -674,6 +762,29 @@ def render_html(payload: dict) -> str:
     .format-bar {{ height: 10px; border-radius: 999px; background: #e5e7eb; overflow: hidden; }}
     .format-bar span {{ display: block; height: 100%; background: var(--accent); }}
     .format-count {{ text-align: right; color: var(--muted); }}
+    .donut-layout {{ display: grid; grid-template-columns: 1fr; gap: 14px; justify-items: center; }}
+    .donut-chart {{ width: 146px; aspect-ratio: 1; border-radius: 50%; display: grid; place-items: center; box-shadow: inset 0 0 0 1px rgba(17, 24, 39, 0.08); }}
+    .donut-hole {{ width: 82px; aspect-ratio: 1; border-radius: 50%; display: grid; place-items: center; align-content: center; padding: 8px; background: var(--panel); text-align: center; box-shadow: 0 0 0 1px var(--line); }}
+    .donut-hole strong {{ font-size: 24px; line-height: 1; }}
+    .donut-hole span {{ display: block; max-width: 68px; margin-top: 5px; overflow: hidden; color: var(--muted); font-size: 11px; line-height: 1.15; text-overflow: ellipsis; white-space: nowrap; }}
+    .chart-legend {{ display: grid; gap: 7px; width: 100%; min-width: 0; }}
+    .chart-legend-row {{ display: grid; grid-template-columns: 10px minmax(0, 1fr) 42px 44px; gap: 8px; align-items: center; min-width: 0; font-size: 13px; }}
+    .chart-dot {{ width: 10px; height: 10px; border-radius: 50%; }}
+    .chart-label {{ overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
+    .chart-legend-row strong {{ text-align: right; }}
+    .chart-legend-row span:last-child {{ color: var(--muted); text-align: right; }}
+    .chart-note {{ width: 100%; margin: -4px 0 12px; color: var(--muted); font-size: 13px; line-height: 1.4; }}
+    .chart-note strong {{ color: var(--text); }}
+    .year-chart-summary {{ display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; }}
+    .year-chart-summary strong {{ font-size: 24px; }}
+    .year-chart-summary span {{ color: var(--muted); font-size: 13px; }}
+    .year-chart-scroll {{ max-width: 100%; overflow: hidden; padding-bottom: 2px; }}
+    .year-chart {{ display: block; width: 100%; height: 188px; }}
+    .year-chart-axis {{ stroke: #d1d5db; stroke-width: 1; }}
+    .year-chart-bar {{ fill: var(--accent); }}
+    .year-chart-bar:hover {{ fill: #1d4ed8; }}
+    .year-chart-label {{ fill: var(--muted); font-size: 11px; }}
+    .year-chart-value {{ fill: var(--text); font-size: 11px; font-weight: 700; }}
     .toolbar {{ display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }}
     input, select, button.small {{
       height: 42px;
@@ -793,6 +904,7 @@ def render_html(payload: dict) -> str:
     .footer {{ margin-top: 18px; color: var(--muted); text-align: center; font-size: 12px; }}
     @media (max-width: 900px) {{
       .summary, .analysis-grid {{ grid-template-columns: 1fr 1fr; }}
+      .donut-chart {{ width: 132px; }}
       .comparison {{ grid-template-columns: 1fr; }}
       .divider {{ min-height: 48px; }}
       .arrow {{ transform: rotate(90deg); }}
@@ -835,7 +947,7 @@ def render_html(payload: dict) -> str:
       </section>
       <section class="panel">
         <h2>Жанры</h2>
-        {render_genre_bars(genres)}
+        {render_genre_bars(genres, library.get("tracks", []))}
       </section>
       <section class="panel">
         <h2>Годы</h2>
