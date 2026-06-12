@@ -571,10 +571,10 @@ def render_year_bars(years: dict) -> str:
 
     peak_year, peak_count = max(all_year_items, key=lambda item: item[1])
     return f"""
-    <div class="year-chart-summary">
-      <strong>{html.escape(str(peak_year))}</strong>
-      <span>самый плотный год: {format_number(peak_count)} файлов</span>
-    </div>
+    <p class="chart-note">
+      Самый плотный год: <strong>{html.escape(str(peak_year))}</strong>,
+      <strong>{format_number(peak_count)}</strong> файлов.
+    </p>
     <div class="year-chart-scroll" aria-label="Топ годов по количеству файлов">
       <svg class="year-chart" viewBox="0 0 {width} {height}" role="img">
         <line class="year-chart-axis" x1="{left - 8}" y1="{top + chart_height}" x2="{width - 8}" y2="{top + chart_height}"></line>
@@ -753,9 +753,11 @@ def render_html(payload: dict) -> str:
     .metric strong {{ display: block; margin-top: 6px; font-size: 28px; }}
     .analysis-grid {{ display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-top: 14px; }}
     .panel {{ padding: 18px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }}
-    .panel h2, .section-title {{ margin: 0 0 12px; font-size: 20px; }}
+    .panel h2, .section-title {{ margin: 0; font-size: 20px; }}
+    .panel-body {{ margin-top: 14px; }}
     .note {{ color: var(--muted); line-height: 1.55; }}
     .format-row {{ display: grid; grid-template-columns: 60px 1fr 60px; gap: 10px; align-items: center; margin-top: 10px; }}
+    .panel-body > .format-row:first-child {{ margin-top: 0; }}
     .genre-row {{ display: grid; grid-template-columns: minmax(90px, 150px) 1fr 44px; gap: 10px; align-items: center; margin-top: 10px; }}
     .genre-name {{ min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
     .year-row {{ display: grid; grid-template-columns: 54px 1fr 44px; gap: 10px; align-items: center; margin-top: 10px; }}
@@ -773,11 +775,8 @@ def render_html(payload: dict) -> str:
     .chart-label {{ overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
     .chart-legend-row strong {{ text-align: right; }}
     .chart-legend-row span:last-child {{ color: var(--muted); text-align: right; }}
-    .chart-note {{ width: 100%; margin: -4px 0 12px; color: var(--muted); font-size: 13px; line-height: 1.4; }}
+    .chart-note {{ width: 100%; margin: 0 0 12px; color: var(--muted); font-size: 13px; line-height: 1.4; }}
     .chart-note strong {{ color: var(--text); }}
-    .year-chart-summary {{ display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; }}
-    .year-chart-summary strong {{ font-size: 24px; }}
-    .year-chart-summary span {{ color: var(--muted); font-size: 13px; }}
     .year-chart-scroll {{ max-width: 100%; overflow: hidden; padding-bottom: 2px; }}
     .year-chart {{ display: block; width: 100%; height: 188px; }}
     .year-chart-axis {{ stroke: #d1d5db; stroke-width: 1; }}
@@ -935,7 +934,7 @@ def render_html(payload: dict) -> str:
     <div class="analysis-grid">
       <section class="panel">
         <h2>Сводка</h2>
-        <div class="note">
+        <div class="panel-body note">
           Групп дублей: <strong>{format_number(summary["groups"])}</strong><br>
           Файлов, предлагаемых в карантин: <strong>{format_number(summary["duplicates"])}</strong><br>
           Нечитаемых аудиофайлов: <strong>{format_number(library.get("unreadable_files"))}</strong>
@@ -943,15 +942,21 @@ def render_html(payload: dict) -> str:
       </section>
       <section class="panel">
         <h2>Форматы файлов</h2>
-        {render_format_bars(library.get("formats", {}))}
+        <div class="panel-body">
+          {render_format_bars(library.get("formats", {}))}
+        </div>
       </section>
       <section class="panel">
         <h2>Жанры</h2>
-        {render_genre_bars(genres, library.get("tracks", []))}
+        <div class="panel-body">
+          {render_genre_bars(genres, library.get("tracks", []))}
+        </div>
       </section>
       <section class="panel">
         <h2>Годы</h2>
-        {render_year_bars(years)}
+        <div class="panel-body">
+          {render_year_bars(years)}
+        </div>
       </section>
     </div>
 
