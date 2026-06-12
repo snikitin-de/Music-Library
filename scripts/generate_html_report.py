@@ -13,6 +13,7 @@ import re
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from pathlib import Path, PureWindowsPath
+from urllib.parse import quote
 
 from mutagen import File as MutagenFile
 
@@ -421,6 +422,20 @@ def render_quality(quality: dict[str, str]) -> str:
     ) + "</div>"
 
 
+def audio_player(file_path: str, label: str) -> str:
+    if not file_path:
+        return ""
+
+    src = f"/api/audio?file={quote(file_path, safe='')}"
+    return (
+        '<div class="audio-player-wrap">'
+        f'<audio class="audio-player" controls preload="none" src="{html.escape(src)}">'
+        f"{html.escape(label)}"
+        "</audio>"
+        "</div>"
+    )
+
+
 def render_format_bars(formats: dict) -> str:
     if not formats:
         return '<div class="format-empty">Форматы не определены.</div>'
@@ -528,11 +543,13 @@ def render_music_list(tracks: list[dict], duplicate_paths: set[str] | None = Non
             card_classes.append("music-card-duplicate")
         if "не читается" in status_text or "не распознан" in status_text:
             card_classes.append("music-card-unreadable")
+        player_html = audio_player(track.get("path", ""), f'Прослушать {track.get("name", "")}')
         items.append(
             f"""
             <article class="{html.escape(" ".join(card_classes))}" data-music-search="{html.escape(search_text)}" data-sort-name="{html.escape(track.get("name", "").lower())}" data-sort-artist="{html.escape(sort_artist)}" data-sort-album="{html.escape(sort_album)}" data-sort-year="{html.escape(sort_year)}" data-sort-format="{html.escape(sort_format)}" {tag_attributes}>
               <div class="music-title">{html.escape(track.get("name", ""))}</div>
               <div class="music-path" title="{html.escape(track.get("path", ""))}">{html.escape(track.get("folder", ""))}</div>
+              {player_html}
               <div class="music-pills">{tags}</div>
             </article>
             """
@@ -577,6 +594,7 @@ def render_html(payload: dict) -> str:
                     <div class="track-label">Оставлен</div>
                     <div class="track-title">{html.escape(item["kept_name"])}</div>
                     <div class="track-path" title="{html.escape(item["kept_file"])}">{html.escape(item["kept_folder"])}</div>
+                    {audio_player(item["kept_file"], f'Прослушать оставленный файл: {item["kept_name"]}')}
                     {render_quality(item["kept_quality"])}
                   </div>
                   <div class="divider">
@@ -587,6 +605,7 @@ def render_html(payload: dict) -> str:
                     <div class="track-label">В карантин</div>
                     <div class="track-title">{html.escape(item["moved_name"])}</div>
                     <div class="track-path" title="{html.escape(item["moved_file"])}">{html.escape(item["moved_folder"])}</div>
+                    {audio_player(item["moved_file"], f'Прослушать файл для карантина: {item["moved_name"]}')}
                     {render_quality(item["moved_quality"])}
                     <button class="small danger-button quarantine-one" type="button" data-moved-file="{html.escape(item["moved_file"])}">Переместить этот файл</button>
                   </div>
@@ -701,6 +720,13 @@ def render_html(payload: dict) -> str:
     .quarantine-panel p:last-child {{ margin-bottom: 0; }}
     .quarantine-command {{ display: block; padding: 10px; border: 1px solid #fecaca; border-radius: 6px; background: #fff; overflow-x: auto; white-space: pre; }}
     .copy-status {{ margin-left: 10px; color: #991b1b; font-size: 13px; }}
+    .music-section.collapsed .music-toolbar,
+    .music-section.collapsed .music-list {{
+      display: none;
+    }}
+    .music-section.collapsed #musicEmpty {{
+      display: none !important;
+    }}
     .music-list {{ display: grid; gap: 10px; }}
     .music-card {{ padding: 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }}
     .music-card-duplicate {{ border-color: #f59e0b; background: #fffbeb; }}
@@ -754,6 +780,8 @@ def render_html(payload: dict) -> str:
     .move .track-label {{ color: var(--bad); }}
     .track-title {{ font-weight: 700; overflow-wrap: anywhere; }}
     .track-path {{ margin-top: 6px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }}
+    .audio-player-wrap {{ margin-top: 10px; }}
+    .audio-player {{ display: block; width: 100%; max-width: 100%; height: 36px; }}
     .quality-grid {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }}
     .quality-grid div {{ padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: rgba(255, 255, 255, 0.7); }}
     .quality-grid span {{ display: block; color: var(--muted); font-size: 11px; }}
@@ -815,7 +843,14 @@ def render_html(payload: dict) -> str:
       </section>
     </div>
 
-    <h2 class="section-title">Музыка</h2>
+    <section class="music-section collapsed" id="musicSection">
+      <div class="duplicates-heading music-heading">
+        <h2 class="section-title">Музыка</h2>
+        <div class="duplicates-actions">
+          <button class="small" id="expandMusic" type="button">Развернуть список музыки</button>
+          <button class="small" id="collapseMusic" type="button">Свернуть список музыки</button>
+        </div>
+      </div>
     <div class="toolbar music-toolbar">
       <input id="musicSearch" type="search" placeholder="Поиск по исполнителю, альбому или названию">
       <select id="tagFilter">
@@ -842,6 +877,7 @@ def render_html(payload: dict) -> str:
     </div>
     <div class="music-list" id="musicList">{music_html}</div>
     <div class="empty" id="musicEmpty">Ничего не найдено по текущему фильтру музыки.</div>
+    </section>
 
     <div class="duplicates-heading">
       <h2 class="section-title">Дубли</h2>
@@ -875,6 +911,9 @@ def render_html(payload: dict) -> str:
     const quarantineCommandText = document.getElementById('quarantineCommandText');
     const copyStatus = document.getElementById('copyStatus');
     const quarantineStatus = document.getElementById('quarantineStatus');
+    const musicSection = document.getElementById('musicSection');
+    const expandMusic = document.getElementById('expandMusic');
+    const collapseMusic = document.getElementById('collapseMusic');
 
     function applySort() {{
       const sorted = [...musicCards];
@@ -929,6 +968,14 @@ def render_html(payload: dict) -> str:
       runQuarantine('/api/quarantine-all', null, 'Переношу все худшие дубли в карантин...');
     }});
 
+    document.querySelectorAll('.audio-player').forEach(player => {{
+      player.addEventListener('play', () => {{
+        document.querySelectorAll('.audio-player').forEach(other => {{
+          if (other !== player) other.pause();
+        }});
+      }});
+    }});
+
     document.querySelectorAll('.quarantine-one').forEach(button => {{
       button.addEventListener('click', event => {{
         event.stopPropagation();
@@ -944,6 +991,12 @@ def render_html(payload: dict) -> str:
     musicSearch.addEventListener('input', applyMusicFilters);
     tagFilter.addEventListener('change', applyMusicFilters);
     sort.addEventListener('change', applySort);
+    if (expandMusic) {{
+      expandMusic.addEventListener('click', () => musicSection.classList.remove('collapsed'));
+    }}
+    if (collapseMusic) {{
+      collapseMusic.addEventListener('click', () => musicSection.classList.add('collapsed'));
+    }}
     applySort();
     applyMusicFilters();
     if (cards.length <= 8) cards.forEach(card => card.classList.add('open'));

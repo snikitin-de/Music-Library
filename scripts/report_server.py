@@ -11,12 +11,15 @@ import argparse
 import csv
 import html
 import json
+import mimetypes
+import unicodedata
 import re
 import shutil
 import subprocess
 import sys
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path, PureWindowsPath
+from urllib.parse import parse_qs, urlparse
 
 from generate_html_report import ReportRow, build_payload, render_html
 
@@ -25,9 +28,103 @@ ROOT = Path(__file__).resolve().parents[1]
 REPORT_HTML = ROOT / "reports" / "duplicates.html"
 REPORT_CSV = ROOT / "reports" / "duplicates.csv"
 
+AUDIO_EXTENSIONS = {
+    ".flac",
+    ".alac",
+    ".wav",
+    ".aiff",
+    ".aif",
+    ".mp3",
+    ".m4a",
+    ".aac",
+    ".ogg",
+    ".opus",
+    ".wma",
+}
+
+_REPORT_CACHE: dict[str, object] = {}
+_AUDIO_PATH_CACHE: dict[tuple[tuple[tuple[int, int], tuple[int, int]], str], str | None] = {}
+
 
 def norm_path(value: str) -> str:
     return str(PureWindowsPath(value)).replace("/", "\\").casefold()
+
+
+def report_cache_key() -> tuple[tuple[int, int], tuple[int, int]]:
+    def file_key(path: Path) -> tuple[int, int]:
+        try:
+            stat = path.stat()
+            return (stat.st_mtime_ns, stat.st_size)
+        except OSError:
+            return (0, 0)
+
+    return (file_key(REPORT_HTML), file_key(REPORT_CSV))
+
+
+def report_metadata() -> dict[str, object]:
+    key = report_cache_key()
+    if _REPORT_CACHE.get("key") == key:
+        return _REPORT_CACHE["metadata"]  # type: ignore[return-value]
+
+    paths: list[str] = []
+    roots: list[Path] = []
+
+    for row in read_duplicate_rows():
+        for item_key in ("kept_file", "moved_file"):
+            value = row.get(item_key, "")
+            if value:
+                paths.append(value)
+
+    try:
+        payload = read_payload()
+        library = payload.get("library", {}) if isinstance(payload, dict) else {}
+        library_root = library.get("path", "")
+        if library_root:
+            roots.append(Path(library_root))
+        for track in library.get("tracks", []):
+            value = track.get("path", "")
+            if value:
+                paths.append(value)
+    except Exception:
+        pass
+
+    unique_paths: list[str] = []
+    seen_paths: set[str] = set()
+    by_norm: dict[str, str] = {}
+    by_name: dict[str, list[str]] = {}
+    by_stem: dict[str, list[str]] = {}
+
+    for value in paths:
+        key_norm = norm_path(value)
+        if not key_norm or key_norm in seen_paths:
+            continue
+        unique_paths.append(value)
+        seen_paths.add(key_norm)
+        by_norm[key_norm] = value
+
+        name = PureWindowsPath(value).name or Path(value).name
+        by_name.setdefault(name.casefold(), []).append(value)
+        by_stem.setdefault(normalize_audio_name(PureWindowsPath(name).stem), []).append(value)
+
+    unique_roots: list[Path] = []
+    seen_roots: set[str] = set()
+    for root in roots:
+        root_key = norm_path(str(root))
+        if root_key not in seen_roots:
+            unique_roots.append(root)
+            seen_roots.add(root_key)
+
+    metadata: dict[str, object] = {
+        "paths": unique_paths,
+        "path_set": set(seen_paths),
+        "by_norm": by_norm,
+        "by_name": by_name,
+        "by_stem": by_stem,
+        "roots": unique_roots,
+    }
+    _REPORT_CACHE.clear()
+    _REPORT_CACHE.update({"key": key, "metadata": metadata})
+    return metadata
 
 
 def read_payload() -> dict:
@@ -250,6 +347,229 @@ def quarantine_duplicates(only_file: str | None = None) -> dict:
     return move_from_csv(only_file)
 
 
+def normalize_audio_name(value: str) -> str:
+    value = unicodedata.normalize("NFKC", value or "")
+    value = value.lower().replace("ё", "е")
+    value = re.sub(r"\b(feat|ft|featuring)\.?\b", " ", value)
+    value = value.replace("&", " and ")
+    value = re.sub(r"[^a-zа-я0-9]+", " ", value)
+    value = re.sub(r"\s+", " ", value).strip()
+    return value
+
+
+def path_exists(path: Path) -> bool:
+    try:
+        return path.exists() and path.is_file()
+    except OSError:
+        return False
+
+
+def report_audio_paths() -> list[str]:
+    metadata = report_metadata()
+    return list(metadata["paths"])  # type: ignore[arg-type]
+
+
+def library_roots_from_report() -> list[Path]:
+    metadata = report_metadata()
+    return list(metadata["roots"])  # type: ignore[arg-type]
+
+
+def candidates_for_audio_path(requested: str) -> list[Path]:
+    requested = (requested or "").strip().strip('"')
+    candidates: list[Path] = []
+
+    if not requested:
+        return candidates
+
+    raw = requested.replace("/", "\\")
+    requested_name = PureWindowsPath(raw).name or Path(requested).name
+    requested_stem_norm = normalize_audio_name(PureWindowsPath(requested_name).stem)
+    metadata = report_metadata()
+    by_norm = metadata["by_norm"]  # type: ignore[assignment]
+    by_name = metadata["by_name"]  # type: ignore[assignment]
+    by_stem = metadata["by_stem"]  # type: ignore[assignment]
+
+    # 1. Exact candidates.
+    candidates.append(Path(requested))
+    candidates.append(Path(raw))
+    candidates.append(Path(str(PureWindowsPath(raw))))
+
+    # 2. Paths already embedded in report / CSV.
+    exact = by_norm.get(norm_path(requested)) or by_norm.get(norm_path(raw))
+    if exact:
+        candidates.append(Path(exact))
+
+    for value in by_name.get(requested_name.casefold(), []):
+        candidates.append(Path(value))
+
+    for value in by_stem.get(requested_stem_norm, []):
+        candidates.append(Path(value))
+
+    unique: list[Path] = []
+    seen: set[str] = set()
+    for path in candidates:
+        key = str(path).casefold()
+        if key not in seen:
+            unique.append(path)
+            seen.add(key)
+
+    return unique
+
+
+def search_audio_in_libraries(requested: str) -> Path | None:
+    raw = (requested or "").strip().strip('"').replace("/", "\\")
+    requested_name = PureWindowsPath(raw).name or Path(requested).name
+    requested_stem_norm = normalize_audio_name(PureWindowsPath(requested_name).stem)
+
+    for root in library_roots_from_report():
+        try:
+            if not root.exists():
+                continue
+
+            for path in root.rglob("*"):
+                if not path.is_file() or path.suffix.lower() not in AUDIO_EXTENSIONS:
+                    continue
+
+                if (
+                    path.name.casefold() == requested_name.casefold()
+                    or normalize_audio_name(path.stem) == requested_stem_norm
+                ):
+                    return path
+        except Exception:
+            continue
+    return None
+
+
+def quarantine_candidate_for_audio_path(requested: str) -> Path | None:
+    raw = (requested or "").strip().strip('"').replace("/", "\\")
+    requested_path = Path(raw)
+
+    for root in library_roots_from_report():
+        try:
+            relative = requested_path.relative_to(root)
+        except ValueError:
+            continue
+
+        candidate = Path(quarantine_path(str(root))) / relative
+        if path_exists(candidate):
+            return candidate
+
+    return None
+
+
+def resolve_audio_path(requested: str) -> Path | None:
+    cache_key = (report_cache_key(), norm_path(requested))
+    if cache_key in _AUDIO_PATH_CACHE:
+        cached = _AUDIO_PATH_CACHE[cache_key]
+        return Path(cached) if cached else None
+
+    resolved: Path | None = None
+    for candidate in candidates_for_audio_path(requested):
+        if path_exists(candidate):
+            resolved = candidate
+            break
+
+    if resolved is None:
+        resolved = quarantine_candidate_for_audio_path(requested)
+
+    if resolved is None:
+        resolved = search_audio_in_libraries(requested)
+
+    _AUDIO_PATH_CACHE[cache_key] = str(resolved) if resolved else None
+    return resolved
+
+
+def source_inside_library(source: Path) -> bool:
+    source_key = norm_path(str(source))
+    for root in library_roots_from_report():
+        root_key = norm_path(str(root)).rstrip("\\")
+        if source_key == root_key or source_key.startswith(root_key + "\\"):
+            return True
+
+        quarantine_key = norm_path(quarantine_path(str(root))).rstrip("\\")
+        if source_key == quarantine_key or source_key.startswith(quarantine_key + "\\"):
+            return True
+    return False
+
+
+def send_audio_file(handler: SimpleHTTPRequestHandler, head_only: bool = False) -> None:
+    parsed = urlparse(handler.path)
+    params = parse_qs(parsed.query)
+    requested = params.get("file", [""])[0]
+
+    if not requested:
+        handler.send_error(400, "Missing file")
+        return
+
+    source = resolve_audio_path(requested)
+
+    if source is None:
+        checked = " | ".join(str(path) for path in candidates_for_audio_path(requested)[:40])
+        handler.send_error(404, f"Audio file not found. Requested: {requested}. Checked: {checked}")
+        return
+
+    # Allow exact files from report, or resolved files that are inside the report library.
+    metadata = report_metadata()
+    allowed_exact = norm_path(requested) in metadata["path_set"]  # type: ignore[operator]
+    if not allowed_exact and not source_inside_library(source):
+        handler.send_error(403, "File is not listed in the current report or library")
+        return
+
+    if source.suffix.lower() not in AUDIO_EXTENSIONS:
+        handler.send_error(415, "Unsupported audio file type")
+        return
+
+    file_size = source.stat().st_size
+    content_type = mimetypes.guess_type(str(source))[0] or "application/octet-stream"
+    range_header = handler.headers.get("Range")
+
+    if range_header:
+        match = re.match(r"bytes=(\d+)-(\d*)", range_header)
+        if not match:
+            handler.send_error(416, "Invalid range")
+            return
+
+        start = int(match.group(1))
+        end = int(match.group(2)) if match.group(2) else file_size - 1
+        end = min(end, file_size - 1)
+
+        if start >= file_size or start > end:
+            handler.send_error(416, "Range not satisfiable")
+            return
+
+        length = end - start + 1
+        handler.send_response(206)
+        handler.send_header("Content-Type", content_type)
+        handler.send_header("Accept-Ranges", "bytes")
+        handler.send_header("Content-Range", f"bytes {start}-{end}/{file_size}")
+        handler.send_header("Content-Length", str(length))
+        handler.end_headers()
+        if head_only:
+            return
+
+        with source.open("rb") as f:
+            f.seek(start)
+            remaining = length
+            while remaining > 0:
+                chunk = f.read(min(1024 * 1024, remaining))
+                if not chunk:
+                    break
+                handler.wfile.write(chunk)
+                remaining -= len(chunk)
+        return
+
+    handler.send_response(200)
+    handler.send_header("Content-Type", content_type)
+    handler.send_header("Accept-Ranges", "bytes")
+    handler.send_header("Content-Length", str(file_size))
+    handler.end_headers()
+    if head_only:
+        return
+
+    with source.open("rb") as f:
+        shutil.copyfileobj(f, handler.wfile)
+
+
 class ReportHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT), **kwargs)
@@ -267,6 +587,26 @@ class ReportHandler(SimpleHTTPRequestHandler):
         if length <= 0:
             return {}
         return json.loads(self.rfile.read(length).decode("utf-8"))
+
+    def do_GET(self) -> None:
+        if self.path.startswith("/api/audio"):
+            send_audio_file(self)
+            return
+
+        if self.path in {"/", ""}:
+            self.send_response(302)
+            self.send_header("Location", "/reports/duplicates.html")
+            self.end_headers()
+            return
+
+        super().do_GET()
+
+    def do_HEAD(self) -> None:
+        if self.path.startswith("/api/audio"):
+            send_audio_file(self, head_only=True)
+            return
+
+        super().do_HEAD()
 
     def do_POST(self) -> None:
         try:
@@ -299,10 +639,15 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)
+    parser.add_argument("--open", action="store_true", help="Open report in browser")
     args = parser.parse_args()
 
     server = ThreadingHTTPServer((args.host, args.port), ReportHandler)
-    print(f"Report server: http://{args.host}:{args.port}/reports/duplicates.html")
+    url = f"http://{args.host}:{args.port}/reports/duplicates.html"
+    print(f"Report server: {url}")
+    if args.open:
+        import webbrowser
+        webbrowser.open(url)
     server.serve_forever()
     return 0
 
