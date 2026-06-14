@@ -498,16 +498,21 @@ def render_genre_bars(genres: dict, tracks: list[dict] | None = None) -> str:
 
     colors = ["#2563eb", "#dc2626", "#f59e0b", "#16a34a", "#9333ea", "#0891b2", "#db2777", "#65a30d", "#b91c1c"]
     total = sum(genres.values())
-    top_items = list(genres.items())[:7]
-    other_count = sum(genres.values()) - sum(count for _, count in top_items)
+    legend_items = list(genres.items())
+    top_items = legend_items[:9]
+    other_count = total - sum(count for _, count in top_items)
     chart_items = top_items + ([("Прочие", other_count)] if other_count else [])
     start = 0.0
     segments = []
     parts = []
     for index, (genre, count) in enumerate(chart_items):
-        color = colors[index % len(colors)]
+        color = "#9ca3af" if genre == "Прочие" else colors[index % len(colors)]
         end = start + (count / total * 100)
         segments.append(f"{color} {start:.2f}% {end:.2f}%")
+        start = end
+
+    for index, (genre, count) in enumerate(legend_items):
+        color = colors[index] if index < len(colors) else "#9ca3af"
         percent = count / total * 100
         parts.append(
             f"""
@@ -519,9 +524,8 @@ def render_genre_bars(genres: dict, tracks: list[dict] | None = None) -> str:
             </div>
             """
         )
-        start = end
 
-    top_genre, top_count = top_items[0]
+    top_genre, top_count = legend_items[0]
     top_percent = round(top_count / total * 100)
     gradient = ", ".join(segments)
     coverage = ""
@@ -825,7 +829,7 @@ def render_html(payload: dict) -> str:
     .donut-hole {{ width: 82px; aspect-ratio: 1; border-radius: 50%; display: grid; place-items: center; align-content: center; padding: 8px; background: var(--panel); text-align: center; box-shadow: 0 0 0 1px var(--line); }}
     .donut-hole strong {{ font-size: 24px; line-height: 1; }}
     .donut-hole span {{ display: block; max-width: 68px; margin-top: 5px; overflow: hidden; color: var(--muted); font-size: 11px; line-height: 1.15; text-overflow: ellipsis; white-space: nowrap; }}
-    .chart-legend {{ display: grid; gap: 7px; width: 100%; min-width: 0; }}
+    .chart-legend {{ display: grid; gap: 7px; width: 100%; min-width: 0; max-height: 209px; overflow-y: auto; padding-right: 4px; scrollbar-gutter: stable; }}
     .chart-legend-row {{ display: grid; grid-template-columns: 10px minmax(0, 1fr) 42px 44px; gap: 8px; align-items: center; min-width: 0; font-size: 13px; }}
     .chart-dot {{ width: 10px; height: 10px; border-radius: 50%; }}
     .chart-label {{ overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
