@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import re
 import shutil
 import sys
@@ -64,6 +65,18 @@ FORMAT_PRIORITY = {
 
 
 @dataclass
+class ScanStats:
+    audio_files: int = 0
+    tagged_tracks: int = 0
+    filename_fallback_tracks: int = 0
+    skipped_tracks: int = 0
+    filename_groups: int = 0
+    hash_groups: int = 0
+    hashed_files: int = 0
+    review_groups: int = 0
+
+
+@dataclass
 class TrackInfo:
     path: Path
     artist: str
@@ -78,25 +91,19 @@ class TrackInfo:
     tag_score: int
     has_cover: bool
     size: int
+    metadata_source: str = "tags"
 
     @property
-    def duplicate_key(self) -> tuple[str, ...]:
-        if self.album and self.track:
-            return (
-                normalize(self.albumartist or self.artist),
-                normalize(self.album),
-                normalize(self.track),
-                normalize(self.title),
-            )
+    def tag_duplicate_key(self) -> tuple[str, ...]:
+        return artist_title_key(self)
 
-        return (
-            normalize(self.artist),
-            normalize(self.title),
-        )
+    @property
+    def filename_duplicate_key(self) -> tuple[str, ...]:
+        return ("filename", normalize_filename_key(self.path.stem))
 
     @property
     def filename_preference(self) -> int:
-        copy_markers = ("копия", "copy", "duplicate", "дубликат")
+        copy_markers = ("\u043a\u043e\u043f\u0438\u044f", "copy", "duplicate", "\u0434\u0443\u0431\u043b\u0438\u043a\u0430\u0442")
         name = normalize(self.path.stem)
         return 0 if any(marker in name for marker in copy_markers) else 1
 
@@ -109,8 +116,8 @@ class TrackInfo:
             self.sample_rate,
             self.tag_score,
             int(self.has_cover),
-            self.size,
             self.filename_preference,
+            self.size,
         )
 
     @property
@@ -128,11 +135,46 @@ class TrackInfo:
 
 def normalize(value: str) -> str:
     value = value or ""
-    value = value.lower().replace("ё", "е")
+    value = value.lower().replace("\u0451", "\u0435")
     value = re.sub(r"\s+", " ", value)
     value = re.sub(r"[\\/_|]+", " ", value)
     value = value.strip()
     return value
+
+
+def normalize_filename_key(value: str) -> str:
+    value = normalize(value)
+    copy_words = "copy|duplicate|\u043a\u043e\u043f\u0438\u044f|\u0434\u0443\u0431\u043b\u0438\u043a\u0430\u0442"
+    value = re.sub(rf"\(({copy_words}|\d+)\)", " ", value)
+    value = re.sub(rf"\[({copy_words}|\d+)\]", " ", value)
+    value = re.sub(rf"\b({copy_words})\b", " ", value)
+    value = re.sub(r"\(\s*\)|\[\s*\]", " ", value)
+    value = re.sub(r"\s+", " ", value).strip(" -_")
+    return value
+
+
+def normalize_artist_credit(value: str) -> str:
+    value = normalize(value)
+    value = re.sub(r"\b(feat|featuring|ft)\.?\b", ",", value)
+    value = value.replace("&", ",").replace(";", ",").replace("/", ",")
+    value = re.sub(r"\s+and\s+", ",", value)
+
+    parts = []
+    for part in value.split(","):
+        part = re.sub(r"[^\w\s.]+", "", part)
+        part = re.sub(r"\s+", " ", part).strip()
+        if part:
+            parts.append(part)
+
+    return " + ".join(sorted(set(parts)))
+
+
+def artist_title_key(track: TrackInfo) -> tuple[str, ...]:
+    artist = normalize_artist_credit(track.artist or track.albumartist)
+    title = normalize(track.title)
+    if not artist or not title:
+        return ()
+    return ("artist_title", artist, title)
 
 
 def first_tag(tags: dict, names: Iterable[str]) -> str:
@@ -145,16 +187,58 @@ def first_tag(tags: dict, names: Iterable[str]) -> str:
     return ""
 
 
+def split_filename_title_artist(stem: str) -> tuple[str, str]:
+    normalized = normalize_filename_key(stem)
+    if " - " in stem:
+        left, right = stem.rsplit(" - ", 1)
+        return normalize_filename_key(right), normalize_filename_key(left)
+    if " — " in stem:
+        left, right = stem.rsplit(" — ", 1)
+        return normalize_filename_key(right), normalize_filename_key(left)
+    return "", normalized
+
+
+def track_from_filename(path: Path, reason: str) -> TrackInfo | None:
+    artist, title = split_filename_title_artist(path.stem)
+    if not title:
+        print(f"WARNING: skipped audio file without usable filename: {path}")
+        return None
+
+    try:
+        size = path.stat().st_size
+    except OSError as exc:
+        print(f"WARNING: skipped inaccessible audio file: {path} ({exc})")
+        return None
+
+    if reason:
+        print(f"WARNING: using filename fallback for audio file: {path} ({reason})")
+
+    return TrackInfo(
+        path=path,
+        artist=artist,
+        albumartist=artist,
+        album="",
+        title=title,
+        track="",
+        fmt=path.suffix.lower().lstrip("."),
+        bitrate=0,
+        sample_rate=0,
+        bit_depth=0,
+        tag_score=0,
+        has_cover=False,
+        size=size,
+        metadata_source="filename",
+    )
+
+
 def read_track(path: Path) -> TrackInfo | None:
     try:
         audio = MutagenFile(path, easy=True)
-        audio_full = MutagenFile(path, easy=False)
     except Exception as exc:
-        print(f"WARNING: skipped unreadable audio file: {path} ({exc})")
-        return None
+        return track_from_filename(path, str(exc))
 
     if audio is None:
-        return None
+        return track_from_filename(path, "mutagen returned no audio metadata")
 
     tags = audio.tags or {}
 
@@ -178,6 +262,11 @@ def read_track(path: Path) -> TrackInfo | None:
 
     tag_score = sum(bool(x) for x in [artist, albumartist, album, title, track])
 
+    try:
+        audio_full = MutagenFile(path, easy=False)
+    except Exception:
+        audio_full = None
+
     has_cover = False
     if audio_full is not None and audio_full.tags is not None:
         raw_tags = audio_full.tags
@@ -190,7 +279,7 @@ def read_track(path: Path) -> TrackInfo | None:
         )
 
     if not title:
-        return None
+        return track_from_filename(path, "missing title tag")
 
     return TrackInfo(
         path=path,
@@ -226,16 +315,203 @@ def scan_library(library: Path) -> list[TrackInfo]:
     return tracks
 
 
-def group_duplicates(tracks: list[TrackInfo]) -> dict[tuple[str, ...], list[TrackInfo]]:
+def scan_library_with_stats(library: Path) -> tuple[list[TrackInfo], ScanStats]:
+    tracks: list[TrackInfo] = []
+    stats = ScanStats()
+
+    for path in library.rglob("*"):
+        if not path.is_file():
+            continue
+
+        if path.suffix.lower() not in AUDIO_EXTENSIONS:
+            continue
+
+        stats.audio_files += 1
+        track = read_track(path)
+        if track is None:
+            stats.skipped_tracks += 1
+            continue
+
+        if track.metadata_source == "filename":
+            stats.filename_fallback_tracks += 1
+        else:
+            stats.tagged_tracks += 1
+
+        tracks.append(track)
+
+    return tracks, stats
+
+
+def duplicate_key(track: TrackInfo) -> tuple[str, ...]:
+    tag_key = track.tag_duplicate_key
+    if all(tag_key):
+        return ("tags",) + tag_key
+
+    filename_key = track.filename_duplicate_key
+    if all(filename_key):
+        return filename_key
+
+    return ()
+
+
+def group_duplicates(tracks: list[TrackInfo], stats: ScanStats | None = None) -> dict[tuple[str, ...], list[TrackInfo]]:
     groups: dict[tuple[str, ...], list[TrackInfo]] = {}
 
     for track in tracks:
-        key = track.duplicate_key
-        if not all(key):
+        key = duplicate_key(track)
+        if not key or not all(key):
+            if stats is not None:
+                stats.skipped_tracks += 1
             continue
         groups.setdefault(key, []).append(track)
 
-    return {key: items for key, items in groups.items() if len(items) > 1}
+    duplicate_groups = {key: items for key, items in groups.items() if len(items) > 1}
+    if stats is not None:
+        stats.filename_groups = sum(1 for key in duplicate_groups if key and key[0] == "filename")
+    return duplicate_groups
+
+
+def file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def group_content_duplicates(
+    tracks: list[TrackInfo],
+    duplicate_groups: dict[tuple[str, ...], list[TrackInfo]],
+    stats: ScanStats | None = None,
+) -> dict[tuple[str, ...], list[TrackInfo]]:
+    exact_group_sets = {frozenset(item.path for item in items) for items in duplicate_groups.values()}
+    by_size: dict[int, list[TrackInfo]] = {}
+    for track in tracks:
+        by_size.setdefault(track.size, []).append(track)
+
+    groups: dict[tuple[str, ...], list[TrackInfo]] = {}
+    for size, same_size_items in by_size.items():
+        if size <= 0 or len(same_size_items) < 2:
+            continue
+
+        by_hash: dict[str, list[TrackInfo]] = {}
+        for track in same_size_items:
+            try:
+                digest = file_sha256(track.path)
+            except OSError as exc:
+                print(f"WARNING: skipped hash for inaccessible audio file: {track.path} ({exc})")
+                continue
+
+            if stats is not None:
+                stats.hashed_files += 1
+            by_hash.setdefault(digest, []).append(track)
+
+        for digest, hash_items in by_hash.items():
+            if len(hash_items) < 2:
+                continue
+
+            group_set = frozenset(item.path for item in hash_items)
+            if group_set in exact_group_sets:
+                continue
+
+            groups[("sha256", digest)] = hash_items
+
+    if stats is not None:
+        stats.hash_groups = len(groups)
+
+    return groups
+
+
+def merge_duplicate_groups(
+    tag_groups: dict[tuple[str, ...], list[TrackInfo]],
+    hash_groups: dict[tuple[str, ...], list[TrackInfo]],
+) -> dict[tuple[str, ...], list[TrackInfo]]:
+    merged = dict(tag_groups)
+    merged.update(hash_groups)
+    return merged
+
+
+def group_review_candidates(
+    tracks: list[TrackInfo],
+    duplicate_groups: dict[tuple[str, ...], list[TrackInfo]],
+    stats: ScanStats | None = None,
+) -> dict[tuple[str, ...], list[TrackInfo]]:
+    exact_group_sets = {frozenset(item.path for item in items) for items in duplicate_groups.values()}
+    candidate_groups: dict[tuple[str, ...], list[TrackInfo]] = {}
+    seen_group_sets: set[frozenset[Path]] = set()
+
+    for key_builder in (artist_title_key, lambda track: track.filename_duplicate_key):
+        groups: dict[tuple[str, ...], list[TrackInfo]] = {}
+        for track in tracks:
+            key = key_builder(track)
+            if not key or not all(key):
+                continue
+            groups.setdefault(key, []).append(track)
+
+        for key, items in groups.items():
+            if len(items) < 2:
+                continue
+
+            group_set = frozenset(item.path for item in items)
+            if group_set in exact_group_sets or group_set in seen_group_sets:
+                continue
+
+            seen_group_sets.add(group_set)
+            candidate_groups[key] = items
+
+    if stats is not None:
+        stats.review_groups = len(candidate_groups)
+
+    return candidate_groups
+
+
+def review_reason(key: tuple[str, ...], items: list[TrackInfo]) -> str:
+    albums = {normalize(item.album) for item in items if normalize(item.album)}
+    tracks = {normalize(item.track) for item in items if normalize(item.track)}
+
+    if key and key[0] == "artist_title":
+        if len(albums) > 1 or len(tracks) > 1:
+            return "needs_review: same artist/title, different album or track tags"
+        return "needs_review: same artist/title, tag key is not identical"
+
+    return "needs_review: same normalized filename, tags are not identical"
+
+
+def write_review_report(report: Path, groups: dict[tuple[str, ...], list[TrackInfo]]) -> None:
+    report.parent.mkdir(parents=True, exist_ok=True)
+
+    with report.open("w", newline="", encoding="utf-8-sig") as f:
+        writer = csv.DictWriter(
+            f,
+            fieldnames=[
+                "review_group",
+                "file",
+                "reason",
+                "quality",
+                "artist",
+                "title",
+                "album",
+                "track",
+            ],
+        )
+        writer.writeheader()
+
+        for key, items in groups.items():
+            group_name = " | ".join(key)
+            reason = review_reason(key, items)
+            for item in sorted(items, key=lambda track: track.quality_tuple, reverse=True):
+                writer.writerow(
+                    {
+                        "review_group": group_name,
+                        "file": str(item.path),
+                        "reason": reason,
+                        "quality": item.quality_text,
+                        "artist": item.artist,
+                        "title": item.title,
+                        "album": item.album,
+                        "track": item.track,
+                    }
+                )
 
 
 def safe_quarantine_path(original: Path, library: Path, quarantine: Path) -> Path:
@@ -281,6 +557,7 @@ def main() -> int:
     parser.add_argument("--library", required=True, help="Music library folder")
     parser.add_argument("--quarantine", help="Folder for worse duplicates")
     parser.add_argument("--report", default="reports/duplicates.csv", help="CSV report path")
+    parser.add_argument("--review-report", help="CSV report for possible duplicates that need manual review")
     parser.add_argument("--dry-run", action="store_true", help="Do not move files")
     parser.add_argument("--only-file", help="Move only this duplicate file when it is found")
     args = parser.parse_args()
@@ -288,6 +565,11 @@ def main() -> int:
     library = Path(args.library).expanduser().resolve()
     quarantine = Path(args.quarantine).expanduser().resolve() if args.quarantine else None
     report = Path(args.report).expanduser().resolve()
+    review_report = (
+        Path(args.review_report).expanduser().resolve()
+        if args.review_report
+        else report.with_name(f"{report.stem}_needs_review{report.suffix}")
+    )
     only_file = Path(args.only_file).expanduser().resolve() if args.only_file else None
 
     if not library.exists():
@@ -296,13 +578,24 @@ def main() -> int:
     if not args.dry_run and quarantine is None:
         raise SystemExit("Use --quarantine or run with --dry-run")
 
-    tracks = scan_library(library)
-    duplicate_groups = group_duplicates(tracks)
+    tracks, stats = scan_library_with_stats(library)
+    tag_duplicate_groups = group_duplicates(tracks, stats)
+    hash_duplicate_groups = group_content_duplicates(tracks, tag_duplicate_groups, stats)
+    duplicate_groups = merge_duplicate_groups(tag_duplicate_groups, hash_duplicate_groups)
+    review_groups = group_review_candidates(tracks, duplicate_groups, stats)
 
     rows: list[dict[str, str]] = []
 
+    print(f"Audio files found: {stats.audio_files}")
     print(f"Scanned tracks: {len(tracks)}")
+    print(f"Tracks with readable tags: {stats.tagged_tracks}")
+    print(f"Tracks using filename fallback: {stats.filename_fallback_tracks}")
+    print(f"Skipped tracks: {stats.skipped_tracks}")
     print(f"Duplicate groups: {len(duplicate_groups)}")
+    print(f"Duplicate groups by filename fallback: {stats.filename_groups}")
+    print(f"Duplicate groups by exact file hash: {stats.hash_groups}")
+    print(f"Files hashed for exact-copy check: {stats.hashed_files}")
+    print(f"Needs-review candidate groups: {stats.review_groups}")
 
     for key, items in duplicate_groups.items():
         sorted_items = sorted(items, key=lambda item: item.quality_tuple, reverse=True)
@@ -317,7 +610,7 @@ def main() -> int:
             if only_file is not None and duplicate.path.resolve() != only_file:
                 continue
 
-            reason = "lower quality score"
+            reason = "exact same file content" if key and key[0] == "sha256" else "lower quality score"
             print(f"MOVE: {duplicate.path} -> {quarantine if quarantine else '[dry-run quarantine]'}")
 
             rows.append(
@@ -337,8 +630,10 @@ def main() -> int:
                 shutil.move(str(duplicate.path), str(destination))
 
     write_report(report, rows)
+    write_review_report(review_report, review_groups)
     print()
     print(f"Report written: {report}")
+    print(f"Needs-review report written: {review_report}")
 
     if args.dry_run:
         print("Dry-run mode: no files were moved.")
