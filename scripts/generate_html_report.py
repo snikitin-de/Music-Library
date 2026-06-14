@@ -427,11 +427,32 @@ def audio_player(file_path: str, label: str) -> str:
         return ""
 
     src = f"/api/audio?file={quote(file_path, safe='')}"
+    escaped_label = html.escape(label)
     return (
         '<div class="audio-player-wrap">'
-        f'<audio class="audio-player" controls preload="none" src="{html.escape(src)}">'
-        f"{html.escape(label)}"
+        '<div class="custom-audio-player">'
+        f'<audio class="audio-player" preload="none" src="{html.escape(src)}">'
+        f"{escaped_label}"
         "</audio>"
+        f'<button class="audio-play" type="button" aria-label="{escaped_label}">'
+        '<span class="audio-play-icon" aria-hidden="true"></span>'
+        "</button>"
+        '<div class="audio-time audio-current">0:00</div>'
+        '<div class="audio-seek-wrap">'
+        '<div class="audio-seek-track"><span class="audio-seek-fill"></span></div>'
+        '<input class="audio-seek" type="range" min="0" max="1000" value="0" step="1" aria-label="Позиция воспроизведения">'
+        "</div>"
+        '<button class="audio-mute" type="button" aria-label="Выключить звук">'
+        '<svg class="audio-volume-icon audio-volume-on" viewBox="0 0 24 24" aria-hidden="true">'
+        '<path class="audio-speaker" d="M4 9v6h4l5 4V5L8 9H4z"></path>'
+        '<path class="audio-volume-mark" d="M16 9.5c1.2 1.2 1.2 3.8 0 5"></path>'
+        "</svg>"
+        '<svg class="audio-volume-icon audio-volume-off" viewBox="0 0 24 24" aria-hidden="true">'
+        '<path class="audio-speaker" d="M3.5 9v6h4l5 4V5l-5 4h-4z"></path>'
+        '<path class="audio-volume-mark" d="M15.5 9l5 6m0-6l-5 6"></path>'
+        "</svg>"
+        "</button>"
+        "</div>"
         "</div>"
     )
 
@@ -951,7 +972,115 @@ def render_html(payload: dict) -> str:
     .track-title {{ font-weight: 700; overflow-wrap: anywhere; }}
     .track-path {{ margin-top: 6px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }}
     .audio-player-wrap {{ margin-top: 10px; }}
-    .audio-player {{ display: block; width: 100%; max-width: 100%; height: 36px; }}
+    .audio-player {{ display: none; }}
+    .custom-audio-player {{
+      display: grid;
+      grid-template-columns: 30px auto minmax(80px, 1fr) 30px;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      min-height: 36px;
+      padding: 0 10px;
+      border-radius: 999px;
+      background: #f1f3f5;
+      color: #111827;
+      box-sizing: border-box;
+    }}
+    .audio-play,
+    .audio-mute {{
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      padding: 0;
+      border: 0;
+      border-radius: 999px;
+      background: transparent;
+      color: #111827;
+      cursor: pointer;
+    }}
+    .audio-play:hover,
+    .audio-mute:hover {{ background: #e5e7eb; }}
+    .audio-play-icon {{
+      width: 0;
+      height: 0;
+      margin-left: 2px;
+      border-top: 6px solid transparent;
+      border-bottom: 6px solid transparent;
+      border-left: 9px solid currentColor;
+    }}
+    .audio-play.playing .audio-play-icon {{
+      width: 10px;
+      height: 12px;
+      margin-left: 0;
+      border: 0;
+      background:
+        linear-gradient(currentColor, currentColor) left center / 3px 12px no-repeat,
+        linear-gradient(currentColor, currentColor) right center / 3px 12px no-repeat;
+    }}
+    .audio-time {{
+      min-width: 36px;
+      font-size: 14px;
+      line-height: 1;
+      white-space: nowrap;
+    }}
+    .audio-seek-wrap {{
+      position: relative;
+      width: 100%;
+      min-width: 0;
+      height: 16px;
+      display: flex;
+      align-items: center;
+    }}
+    .audio-seek-track {{
+      position: relative;
+      width: 100%;
+      height: 4px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: #c7c9cc;
+      pointer-events: none;
+    }}
+    .audio-seek-fill {{
+      display: block;
+      width: var(--audio-progress, 0%);
+      height: 100%;
+      border-radius: inherit;
+      background: #9ca3af;
+    }}
+    .audio-seek {{
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      opacity: 0;
+      cursor: pointer;
+      appearance: none;
+      -webkit-appearance: none;
+      border: 0;
+    }}
+    .audio-volume-icon {{
+      display: block;
+      width: 21px;
+      height: 21px;
+      color: #4b5563;
+    }}
+    .audio-speaker {{
+      fill: currentColor;
+    }}
+    .audio-volume-mark {{
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2.4;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }}
+    .audio-volume-off {{ display: none; }}
+    .audio-mute.muted .audio-volume-on {{ display: none; }}
+    .audio-mute.muted .audio-volume-off {{ display: block; }}
     .quality-grid {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }}
     .quality-grid div {{ padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: rgba(255, 255, 255, 0.7); }}
     .quality-grid span {{ display: block; color: var(--muted); font-size: 11px; }}
@@ -1340,12 +1469,58 @@ def render_html(payload: dict) -> str:
       runQuarantine('/api/quarantine-all', {{ confirm: 'MOVE_TO_QUARANTINE' }}, 'Переношу все худшие дубли в карантин...');
     }});
 
-    document.querySelectorAll('.audio-player').forEach(player => {{
+    function formatAudioTime(seconds) {{
+      if (!Number.isFinite(seconds) || seconds < 0) return '0:00';
+      const minutes = Math.floor(seconds / 60);
+      const rest = Math.floor(seconds % 60).toString().padStart(2, '0');
+      return `${{minutes}}:${{rest}}`;
+    }}
+
+    document.querySelectorAll('.custom-audio-player').forEach(wrapper => {{
+      const player = wrapper.querySelector('.audio-player');
+      const playButton = wrapper.querySelector('.audio-play');
+      const muteButton = wrapper.querySelector('.audio-mute');
+      const currentTime = wrapper.querySelector('.audio-current');
+      const seekWrap = wrapper.querySelector('.audio-seek-wrap');
+      const seek = wrapper.querySelector('.audio-seek');
+
+      function updateProgress() {{
+        const duration = player.duration || 0;
+        const progress = duration ? Math.min(100, Math.max(0, player.currentTime / duration * 100)) : 0;
+        seek.value = Math.round(progress * 10);
+        seekWrap.style.setProperty('--audio-progress', `${{progress}}%`);
+        currentTime.textContent = formatAudioTime(player.currentTime);
+      }}
+
+      playButton.addEventListener('click', () => {{
+        if (player.paused) {{
+          player.play();
+        }} else {{
+          player.pause();
+        }}
+      }});
+
+      muteButton.addEventListener('click', () => {{
+        player.muted = !player.muted;
+      }});
+
+      seek.addEventListener('input', () => {{
+        if (!player.duration) return;
+        player.currentTime = Number(seek.value) / 1000 * player.duration;
+      }});
+
       player.addEventListener('play', () => {{
         document.querySelectorAll('.audio-player').forEach(other => {{
           if (other !== player) other.pause();
         }});
+        playButton.classList.add('playing');
       }});
+      player.addEventListener('pause', () => playButton.classList.remove('playing'));
+      player.addEventListener('ended', () => playButton.classList.remove('playing'));
+      player.addEventListener('volumechange', () => muteButton.classList.toggle('muted', player.muted || player.volume === 0));
+      player.addEventListener('loadedmetadata', updateProgress);
+      player.addEventListener('timeupdate', updateProgress);
+      updateProgress();
     }});
 
     document.querySelectorAll('.quarantine-one').forEach(button => {{
