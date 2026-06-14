@@ -12,6 +12,7 @@ import csv
 import html
 import json
 import mimetypes
+import os
 import unicodedata
 import re
 import shutil
@@ -21,12 +22,28 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path, PureWindowsPath
 from urllib.parse import parse_qs, urlparse
 
-from generate_html_report import ReportRow, build_payload, render_html
+import yaml
+
+from mutagen import File as MutagenFile
+
+from generate_html_report import (
+    DISPLAY_TAGS,
+    ReportRow,
+    build_payload,
+    collect_genres_from_tracks,
+    collect_years_from_tracks,
+    first_tag,
+    make_display_tag,
+    render_html,
+    year_from,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
 REPORT_HTML = ROOT / "reports" / "duplicates.html"
 REPORT_CSV = ROOT / "reports" / "duplicates.csv"
+BEETS_CONFIG = ROOT / "beets-config.yaml"
+WEB_BEETS_CONFIG = ROOT / "reports" / "beets-web-config.yaml"
 
 AUDIO_EXTENSIONS = {
     ".flac",
@@ -41,6 +58,8 @@ AUDIO_EXTENSIONS = {
     ".opus",
     ".wma",
 }
+
+ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
 
 _REPORT_CACHE: dict[str, object] = {}
 _AUDIO_PATH_CACHE: dict[tuple[tuple[tuple[int, int], tuple[int, int]], str], str | None] = {}
@@ -294,16 +313,24 @@ def move_from_csv(only_file: str | None = None) -> dict:
 
 
 def run_command(args: list[str]) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        args,
-        cwd=ROOT,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        timeout=300,
-    )
+    try:
+        return subprocess.run(
+            args,
+            cwd=ROOT,
+            env={
+                **dict(os.environ),
+                "NO_COLOR": "1",
+                "PYTHONIOENCODING": "utf-8",
+            },
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            timeout=300,
+        )
+    except OSError as exc:
+        raise RuntimeError(str(exc)) from exc
 
 
 def refresh_report(library: str) -> list[dict[str, object]]:
@@ -343,8 +370,607 @@ def refresh_report(library: str) -> list[dict[str, object]]:
     return results
 
 
+def refresh_html_report(library: str) -> dict[str, object]:
+    result = run_command(
+        [
+            sys.executable,
+            "scripts/generate_html_report.py",
+            "--csv",
+            str(REPORT_CSV),
+            "--library",
+            library,
+            "--out",
+            str(REPORT_HTML),
+        ]
+    )
+    if result.returncode != 0:
+        raise RuntimeError(result.stdout)
+    _REPORT_CACHE.clear()
+    _AUDIO_PATH_CACHE.clear()
+    return {
+        "command": " ".join(result.args),
+        "returncode": result.returncode,
+        "output": result.stdout,
+    }
+
+
+def track_payload_from_file(path: Path) -> dict:
+    track_tags = [
+        make_display_tag("формат", path.suffix.lower().lstrip(".").upper(), "format"),
+    ]
+
+    try:
+        audio = MutagenFile(path, easy=True)
+    except Exception:
+        audio = None
+
+    if audio is None:
+        track_tags.append(make_display_tag("статус", "не распознан", "status"))
+    else:
+        tags = audio.tags or {}
+        info = getattr(audio, "info", None)
+        bitrate = int(getattr(info, "bitrate", 0) or 0)
+        sample_rate = int(getattr(info, "sample_rate", 0) or 0)
+        bit_depth = int(getattr(info, "bits_per_sample", 0) or 0)
+        if bitrate > 0:
+            track_tags.append(make_display_tag("битрейт", f"{round(bitrate / 1000)} kbps", "bitrate"))
+        if bit_depth > 0:
+            track_tags.append(make_display_tag("разрядность", f"{bit_depth} бит", "bit_depth"))
+        if sample_rate > 0:
+            track_tags.append(make_display_tag("частота дискретизации", f"{sample_rate / 1000:g} kHz", "sample_rate"))
+
+        for tag_key, aliases, label, kind in DISPLAY_TAGS:
+            value_text = first_tag(tags, aliases)
+            if tag_key == "year":
+                value_text = year_from(value_text)
+            if value_text:
+                track_tags.append(make_display_tag(label, value_text, kind))
+
+    return {
+        "name": path.name,
+        "path": str(path),
+        "folder": str(path.parent),
+        "tags": track_tags,
+    }
+
+
+def refresh_report_tracks(files: list[str]) -> dict[str, object]:
+    payload = read_payload()
+    library = payload.get("library", {})
+    tracks = list(library.get("tracks", []))
+    selected = {norm_path(path) for path in files}
+    replaced = 0
+    refreshed_tracks: list[dict] = []
+
+    for index, track in enumerate(tracks):
+        if norm_path(track.get("path", "")) not in selected:
+            continue
+        source = resolve_audio_path(track.get("path", ""))
+        if source is None:
+            continue
+        refreshed_track = track_payload_from_file(source)
+        tracks[index] = refreshed_track
+        refreshed_tracks.append(refreshed_track)
+        replaced += 1
+
+    library["tracks"] = tracks
+    library["genres"] = collect_genres_from_tracks(tracks)
+    library["years"] = collect_years_from_tracks(tracks)
+
+    report_rows = [
+        ReportRow(
+            duplicate_group=row.get("duplicate_group", ""),
+            kept_file=row.get("kept_file", ""),
+            moved_file=row.get("moved_file", ""),
+            reason=row.get("reason", ""),
+            kept_quality=row.get("kept_quality", ""),
+            moved_quality=row.get("moved_quality", ""),
+        )
+        for row in read_duplicate_rows()
+    ]
+    REPORT_HTML.write_text(render_html(build_payload(report_rows, library)), encoding="utf-8")
+    _REPORT_CACHE.clear()
+    _AUDIO_PATH_CACHE.clear()
+    return {"updated_tracks": replaced, "tracks": refreshed_tracks}
+
+
 def quarantine_duplicates(only_file: str | None = None) -> dict:
     return move_from_csv(only_file)
+
+
+def require_quarantine_confirmation(body: dict) -> None:
+    if body.get("confirm") != "MOVE_TO_QUARANTINE":
+        raise RuntimeError("Quarantine action requires explicit confirmation.")
+
+
+def report_music_path_set() -> set[str]:
+    paths = set()
+    try:
+        payload = read_payload()
+        library = payload.get("library", {}) if isinstance(payload, dict) else {}
+        for track in library.get("tracks", []):
+            value = track.get("path", "")
+            if value:
+                paths.add(norm_path(value))
+    except Exception:
+        pass
+    return paths
+
+
+def validate_music_files(files: object) -> list[str]:
+    if not isinstance(files, list):
+        raise RuntimeError("Files must be a list.")
+
+    allowed = report_music_path_set()
+    selected: list[str] = []
+    seen: set[str] = set()
+
+    for value in files:
+        raw = str(value or "").strip()
+        if not raw:
+            continue
+        key = norm_path(raw)
+        if key in seen:
+            continue
+        if key not in allowed:
+            raise RuntimeError(f"File is not listed in the current music report: {raw}")
+
+        source = resolve_audio_path(raw)
+        if source is None or not path_exists(source):
+            raise RuntimeError(f"Audio file was not found: {raw}")
+        if source.suffix.lower() not in AUDIO_EXTENSIONS:
+            raise RuntimeError(f"Unsupported audio file type: {source}")
+        if not source_inside_library(source):
+            raise RuntimeError(f"File is outside the reported music library: {source}")
+
+        selected.append(str(source))
+        seen.add(key)
+
+    if not selected:
+        raise RuntimeError("No music files were selected.")
+    return selected
+
+
+def strip_ansi(value: str) -> str:
+    return ANSI_RE.sub("", value or "")
+
+
+def web_beets_config_path(action: str, mode: str) -> Path:
+    if not BEETS_CONFIG.exists():
+        raise RuntimeError(f"Beets config was not found: {BEETS_CONFIG}")
+
+    with BEETS_CONFIG.open("r", encoding="utf-8") as f:
+        config = yaml.safe_load(f) or {}
+
+    # Веб-операции должны работать с текущей библиотекой из отчёта,
+    # а не с примерным путём из beets-config.yaml вроде D:\Music\Sorted.
+    current_library = library_path()
+    config["directory"] = current_library
+
+    import_config = dict(config.get("import") or {})
+    import_config.update(
+        {
+            "write": True,
+            "timid": False,
+            "resume": False,
+            "incremental": False,
+            "duplicate_action": "skip",
+        }
+    )
+
+    if action == "layout" and mode == "real":
+        # Именно разложить: переместить исходный файл в структуру paths.
+        import_config.update({"copy": False, "move": True})
+    else:
+        # Для тегов и dry-run ничего физически не перемещаем.
+        # tag + real пишет теги в текущий файл, но не раскладывает его.
+        import_config.update({"copy": False, "move": False})
+
+    config["import"] = import_config
+
+    WEB_BEETS_CONFIG.parent.mkdir(parents=True, exist_ok=True)
+    with WEB_BEETS_CONFIG.open("w", encoding="utf-8") as f:
+        yaml.safe_dump(config, f, allow_unicode=True, sort_keys=False)
+    return WEB_BEETS_CONFIG
+
+
+def build_beets_args(action: str, mode: str, files: list[str]) -> list[str]:
+    if action not in {"tag", "layout"}:
+        raise RuntimeError("Unknown music operation.")
+    if mode not in {"dry-run", "real"}:
+        raise RuntimeError("Choose dry-run or real processing mode.")
+    args = [
+        "beet",
+        "-c",
+        str(web_beets_config_path(action, mode)),
+        "import",
+        "--quiet",
+        "--quiet-fallback=skip",
+    ]
+    if mode == "dry-run":
+        args.append("--pretend")
+    if action == "layout":
+        args.append("--noautotag")
+    args.extend(files)
+    return args
+
+
+def estimated_windows_command_length(args: list[str]) -> int:
+    total = 0
+    for arg in args:
+        total += len(str(arg)) + 3
+    return total
+
+
+def chunk_beets_commands(action: str, mode: str, files: list[str]) -> list[list[str]]:
+    # Keep well below Windows' command-line limit because paths can contain
+    # spaces and subprocess quoting adds extra characters.
+    max_command_length = 24000
+    base = build_beets_args(action, mode, [])
+    commands: list[list[str]] = []
+    current: list[str] = []
+
+    for file_path in files:
+        candidate = base + current + [file_path]
+        if current and estimated_windows_command_length(candidate) > max_command_length:
+            commands.append(base + current)
+            current = [file_path]
+            continue
+
+        if estimated_windows_command_length(candidate) > max_command_length:
+            raise RuntimeError(f"File path is too long for beets command: {file_path}")
+        current.append(file_path)
+
+    if current:
+        commands.append(base + current)
+    return commands
+
+
+def skipped_count_from_outputs(outputs: list[str]) -> int:
+    skipped = 0
+    for output in outputs:
+        for match in re.finditer(r"Skipped\s+(\d+)\s+paths?", output, re.I):
+            skipped += int(match.group(1))
+    return skipped
+
+
+
+
+INVALID_FILENAME_CHARS_RE = re.compile(r'[<>:"/\\|?*\x00-\x1f]+')
+
+
+def safe_path_part(value: str, fallback: str) -> str:
+    value = str(value or "").strip()
+    value = INVALID_FILENAME_CHARS_RE.sub(" ", value)
+    value = re.sub(r"\s+", " ", value).strip(" .")
+    return value or fallback
+
+
+def tag_value_for_layout(audio, names: list[str]) -> str:
+    if not audio or not getattr(audio, "tags", None):
+        return ""
+    for name in names:
+        value = first_tag(audio.tags, [name])
+        if value:
+            return str(value).strip()
+    return ""
+
+
+def track_number_for_layout(value: str) -> str:
+    value = str(value or "").strip()
+    match = re.search(r"\d+", value)
+    if not match:
+        return ""
+    return match.group(0).zfill(2)
+
+
+def year_for_layout(value: str) -> str:
+    value = str(value or "").strip()
+    match = re.search(r"\d{4}", value)
+    return match.group(0) if match else ""
+
+
+def unique_destination_path(destination: Path) -> Path:
+    if not destination.exists():
+        return destination
+
+    stem = destination.stem
+    suffix = destination.suffix
+    parent = destination.parent
+
+    for index in range(2, 10000):
+        candidate = parent / f"{stem} ({index}){suffix}"
+        if not candidate.exists():
+            return candidate
+
+    raise RuntimeError(f"Could not create a unique destination for: {destination}")
+
+
+def manual_layout_file(source_raw: str) -> dict[str, str]:
+    source = resolve_audio_path(source_raw)
+    if source is None or not path_exists(source):
+        raise RuntimeError(f"Audio file was not found: {source_raw}")
+
+    if source.suffix.lower() not in AUDIO_EXTENSIONS:
+        raise RuntimeError(f"Unsupported audio file type: {source}")
+
+    if not source_inside_library(source):
+        raise RuntimeError(f"File is outside the reported music library: {source}")
+
+    audio = MutagenFile(source, easy=True)
+
+    artist = tag_value_for_layout(audio, ["albumartist", "albumartistsort", "artist"])
+    album = tag_value_for_layout(audio, ["album"])
+    title = tag_value_for_layout(audio, ["title"])
+
+    artist_part = safe_path_part(artist, "Unknown Artist")
+    album_part = safe_path_part(album, "Unknown Album")
+    title_part = safe_path_part(title, source.stem)
+
+    folder = Path(library_path()) / artist_part / album_part
+    file_name = safe_path_part(f"{title_part} - {artist_part}", source.stem) + source.suffix.lower()
+    destination = unique_destination_path(folder / file_name)
+
+    if norm_path(str(source)) == norm_path(str(destination)):
+        return {
+            "source": str(source),
+            "destination": str(destination),
+            "status": "already_in_place",
+        }
+
+    folder.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(source), str(destination))
+
+    return {
+        "source": str(source),
+        "destination": str(destination),
+        "status": "moved",
+    }
+
+
+def run_manual_layout(files: list[str], mode: str) -> dict[str, object]:
+    planned: list[dict[str, str]] = []
+
+    for file_path in files:
+        source = resolve_audio_path(file_path)
+        if source is None:
+            raise RuntimeError(f"Audio file was not found: {file_path}")
+
+        audio = MutagenFile(source, easy=True)
+        artist = tag_value_for_layout(audio, ["albumartist", "albumartistsort", "artist"])
+        album = tag_value_for_layout(audio, ["album"])
+        title = tag_value_for_layout(audio, ["title"])
+
+        artist_part = safe_path_part(artist, "Unknown Artist")
+        album_part = safe_path_part(album, "Unknown Album")
+        title_part = safe_path_part(title, source.stem)
+
+        folder = Path(library_path()) / artist_part / album_part
+        file_name = safe_path_part(f"{title_part} - {artist_part}", source.stem) + source.suffix.lower()
+        destination = unique_destination_path(folder / file_name)
+
+        planned.append({
+            "source": str(source),
+            "destination": str(destination),
+            "status": "planned",
+        })
+
+    if mode == "dry-run":
+        return {
+            "ok": True,
+            "moved": 0,
+            "planned": len(planned),
+            "items": planned,
+        }
+
+    moved: list[dict[str, str]] = []
+    for file_path in files:
+        moved.append(manual_layout_file(file_path))
+
+    return {
+        "ok": True,
+        "moved": sum(1 for item in moved if item.get("status") == "moved"),
+        "planned": len(moved),
+        "items": moved,
+    }
+
+
+
+
+def apply_path_replacements_to_csv(replacements: dict[str, str]) -> int:
+    if not replacements or not REPORT_CSV.exists():
+        return 0
+
+    normalized = {norm_path(source): destination for source, destination in replacements.items()}
+    rows = read_duplicate_rows()
+    changed = 0
+
+    for row in rows:
+        for key in ("kept_file", "moved_file"):
+            value = row.get(key, "")
+            replacement = normalized.get(norm_path(value))
+            if replacement:
+                row[key] = replacement
+                changed += 1
+
+    if changed:
+        write_duplicate_rows(rows)
+
+    return changed
+
+
+def apply_path_replacements_to_payload(replacements: dict[str, str]) -> dict[str, object]:
+    payload = read_payload()
+    library = payload.get("library", {})
+    tracks = list(library.get("tracks", []))
+    normalized = {norm_path(source): destination for source, destination in replacements.items()}
+
+    updated_tracks = 0
+    changed_tracks: list[dict] = []
+
+    for index, track in enumerate(tracks):
+        old_path = str(track.get("path", ""))
+        new_path = normalized.get(norm_path(old_path))
+
+        if not new_path:
+            continue
+
+        source = resolve_audio_path(new_path)
+        if source is not None and path_exists(source):
+            tracks[index] = track_payload_from_file(source)
+        else:
+            track["path"] = new_path
+            track["folder"] = str(Path(new_path).parent)
+            track["name"] = Path(new_path).name
+            tracks[index] = track
+
+        changed_tracks.append(tracks[index])
+        updated_tracks += 1
+
+    library["tracks"] = tracks
+    library["genres"] = collect_genres_from_tracks(tracks)
+    library["years"] = collect_years_from_tracks(tracks)
+
+    return {
+        "payload": payload,
+        "updated_tracks": updated_tracks,
+        "tracks": changed_tracks,
+    }
+
+
+def rebuild_report_html_from_current_data(library: dict) -> None:
+    report_rows = [
+        ReportRow(
+            duplicate_group=row.get("duplicate_group", ""),
+            kept_file=row.get("kept_file", ""),
+            moved_file=row.get("moved_file", ""),
+            reason=row.get("reason", ""),
+            kept_quality=row.get("kept_quality", ""),
+            moved_quality=row.get("moved_quality", ""),
+        )
+        for row in read_duplicate_rows()
+    ]
+
+    REPORT_HTML.write_text(render_html(build_payload(report_rows, library)), encoding="utf-8")
+    _REPORT_CACHE.clear()
+    _AUDIO_PATH_CACHE.clear()
+
+
+def update_report_after_layout(layout_items: list[dict[str, str]]) -> dict[str, object]:
+    replacements = {
+        item["source"]: item["destination"]
+        for item in layout_items
+        if item.get("status") == "moved"
+        and item.get("source")
+        and item.get("destination")
+    }
+
+    if not replacements:
+        return {
+            "updated_tracks": 0,
+            "updated_csv_paths": 0,
+            "replacements": 0,
+            "tracks": [],
+        }
+
+    csv_changed = apply_path_replacements_to_csv(replacements)
+    payload_result = apply_path_replacements_to_payload(replacements)
+    payload = payload_result["payload"]
+    library = payload.get("library", {})
+
+    rebuild_report_html_from_current_data(library)
+
+    return {
+        "updated_tracks": payload_result["updated_tracks"],
+        "updated_csv_paths": csv_changed,
+        "replacements": len(replacements),
+        "tracks": payload_result.get("tracks", []),
+    }
+
+
+def run_music_operation(body: dict) -> dict:
+    action = str(body.get("action", ""))
+    mode = str(body.get("mode", "dry-run"))
+    scope = str(body.get("scope", "filtered"))
+
+    if action not in {"tag", "layout"}:
+        raise RuntimeError("Unknown music operation.")
+    if mode not in {"dry-run", "real"}:
+        raise RuntimeError("Choose dry-run or real processing mode.")
+    if scope not in {"single", "filtered"}:
+        raise RuntimeError("Unknown music operation scope.")
+
+    files = validate_music_files(body.get("files", []))
+
+    if scope == "single" and len(files) != 1:
+        raise RuntimeError("Single-record operation must contain exactly one file.")
+
+    scope_name = "одной записи" if scope == "single" else "отфильтрованного списка"
+    mode_name = "dry run" if mode == "dry-run" else "реальная обработка"
+
+    if action == "layout":
+        layout_result = run_manual_layout(files, mode)
+
+        if mode == "real":
+            refresh_result = update_report_after_layout(layout_result["items"])
+        else:
+            refresh_result = None
+
+        if mode == "dry-run":
+            sample = layout_result["items"][:3]
+            sample_text = "; ".join(f'{item["source"]} -> {item["destination"]}' for item in sample)
+            message = f"Раскладка: dry run для {scope_name}. Файлов: {len(files)}. Будет перемещено: {layout_result['planned']}."
+            if sample_text:
+                message += f" Пример: {sample_text}"
+        else:
+            message = f"Раскладка: реальная обработка для {scope_name}. Перемещено файлов: {layout_result['moved']} из {len(files)}."
+            if refresh_result:
+                message += f" Отчёт обновлён: путей в списке музыки — {refresh_result.get('updated_tracks', 0)}, путей в CSV дублей — {refresh_result.get('updated_csv_paths', 0)}."
+
+        return {
+            "ok": True,
+            "reload": mode == "real",
+            "message": message,
+            "commands": 0,
+            "skipped": 0,
+            "output": "",
+            "layout": layout_result,
+            "refresh": refresh_result,
+            "track": (refresh_result or {}).get("tracks", [None])[0] if scope == "single" and refresh_result else None,
+        }
+
+    commands = chunk_beets_commands(action, mode, files)
+    outputs = []
+    for index, command in enumerate(commands, start=1):
+        result = run_command(command)
+        output = strip_ansi(result.stdout)
+        outputs.append(output)
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"beet command failed in batch {index}/{len(commands)}:\n"
+                f"{output or 'no output'}"
+            )
+
+    refresh_result = None
+    if mode == "real":
+        refresh_result = refresh_report_tracks(files)
+
+    action_name = "Проставление тегов"
+    skipped = skipped_count_from_outputs(outputs)
+    message = f"{action_name}: {mode_name} завершена для {scope_name}. Файлов: {len(files)}. Пакетов: {len(commands)}."
+    if skipped:
+        message += f" Пропущено: {skipped}."
+
+    return {
+        "ok": True,
+        "reload": mode == "real",
+        "message": message,
+        "commands": len(commands),
+        "skipped": skipped,
+        "output": "\n".join(outputs)[-4000:],
+        "refresh": refresh_result,
+        "track": (refresh_result or {}).get("tracks", [None])[0] if scope == "single" and refresh_result else None,
+    }
 
 
 def normalize_audio_name(value: str) -> str:
@@ -492,6 +1118,10 @@ def source_inside_library(source: Path) -> bool:
     return False
 
 
+def client_closed_connection(exc: OSError) -> bool:
+    return isinstance(exc, (BrokenPipeError, ConnectionAbortedError, ConnectionResetError))
+
+
 def send_audio_file(handler: SimpleHTTPRequestHandler, head_only: bool = False) -> None:
     parsed = urlparse(handler.path)
     params = parse_qs(parsed.query)
@@ -547,15 +1177,19 @@ def send_audio_file(handler: SimpleHTTPRequestHandler, head_only: bool = False) 
         if head_only:
             return
 
-        with source.open("rb") as f:
-            f.seek(start)
-            remaining = length
-            while remaining > 0:
-                chunk = f.read(min(1024 * 1024, remaining))
-                if not chunk:
-                    break
-                handler.wfile.write(chunk)
-                remaining -= len(chunk)
+        try:
+            with source.open("rb") as f:
+                f.seek(start)
+                remaining = length
+                while remaining > 0:
+                    chunk = f.read(min(1024 * 1024, remaining))
+                    if not chunk:
+                        break
+                    handler.wfile.write(chunk)
+                    remaining -= len(chunk)
+        except OSError as exc:
+            if not client_closed_connection(exc):
+                raise
         return
 
     handler.send_response(200)
@@ -566,8 +1200,12 @@ def send_audio_file(handler: SimpleHTTPRequestHandler, head_only: bool = False) 
     if head_only:
         return
 
-    with source.open("rb") as f:
-        shutil.copyfileobj(f, handler.wfile)
+    try:
+        with source.open("rb") as f:
+            shutil.copyfileobj(f, handler.wfile)
+    except OSError as exc:
+        if not client_closed_connection(exc):
+            raise
 
 
 class ReportHandler(SimpleHTTPRequestHandler):
@@ -611,11 +1249,13 @@ class ReportHandler(SimpleHTTPRequestHandler):
     def do_POST(self) -> None:
         try:
             if self.path == "/api/quarantine-all":
+                require_quarantine_confirmation(self.read_json())
                 self.send_json(200, quarantine_duplicates())
                 return
 
             if self.path == "/api/quarantine-one":
                 body = self.read_json()
+                require_quarantine_confirmation(body)
                 moved_file = str(body.get("moved_file", ""))
                 allowed = {norm_path(path) for path in current_moved_files()}
                 if not moved_file or norm_path(moved_file) not in allowed:
@@ -630,7 +1270,13 @@ class ReportHandler(SimpleHTTPRequestHandler):
                 self.send_json(200, quarantine_duplicates(moved_file))
                 return
 
+            if self.path == "/api/music-operation":
+                self.send_json(200, run_music_operation(self.read_json()))
+                return
+
             self.send_json(404, {"ok": False, "error": "Unknown API endpoint"})
+        except RuntimeError as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
         except Exception as exc:
             self.send_json(500, {"ok": False, "error": str(exc)})
 

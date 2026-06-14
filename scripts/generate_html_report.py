@@ -634,11 +634,19 @@ def render_music_list(tracks: list[dict], duplicate_paths: set[str] | None = Non
         player_html = audio_player(track.get("path", ""), f'Прослушать {track.get("name", "")}')
         items.append(
             f"""
-            <article class="{html.escape(" ".join(card_classes))}" data-music-search="{html.escape(search_text)}" data-sort-name="{html.escape(track.get("name", "").lower())}" data-sort-artist="{html.escape(sort_artist)}" data-sort-album="{html.escape(sort_album)}" data-sort-year="{html.escape(sort_year)}" data-sort-format="{html.escape(sort_format)}" {tag_attributes}>
+            <article class="{html.escape(" ".join(card_classes))}" data-file-path="{html.escape(track.get("path", ""))}" data-music-search="{html.escape(search_text)}" data-sort-name="{html.escape(track.get("name", "").lower())}" data-sort-artist="{html.escape(sort_artist)}" data-sort-album="{html.escape(sort_album)}" data-sort-year="{html.escape(sort_year)}" data-sort-format="{html.escape(sort_format)}" {tag_attributes}>
               <div class="music-title">{html.escape(track.get("name", ""))}</div>
               <div class="music-path" title="{html.escape(track.get("path", ""))}">{html.escape(track.get("folder", ""))}</div>
               {player_html}
               <div class="music-pills">{tags}</div>
+              <div class="music-actions">
+                <button class="small music-action-single" type="button" data-action="tag" data-file-path="{html.escape(track.get("path", ""))}">Проставить теги этой записи</button>
+                <button class="small music-action-single" type="button" data-action="layout" data-file-path="{html.escape(track.get("path", ""))}">Разложить эту запись</button>
+              </div>
+              <div class="music-card-status" aria-live="polite">
+                <div class="music-card-status-text"></div>
+                <div class="music-card-progress" aria-hidden="true"><span></span></div>
+              </div>
             </article>
             """
         )
@@ -811,6 +819,18 @@ def render_html(payload: dict) -> str:
     button {{ cursor: pointer; }}
     .section-title {{ margin-top: 24px; }}
     .music-toolbar {{ margin: 24px 0 12px; }}
+    .music-operations {{
+      margin-top: 14px;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #f8fafc;
+    }}
+    .music-operations-row {{ display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }}
+    .music-operations-title {{ margin: 0 0 10px; font-weight: 750; }}
+    .mode-choice {{ display: inline-flex; align-items: center; gap: 6px; min-height: 42px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }}
+    .mode-choice input {{ flex: 0 0 auto; width: auto; }}
+    .operation-status {{ margin-top: 10px; color: var(--muted); font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; }}
     .duplicates-heading {{ display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 24px; }}
     .duplicates-heading .section-title {{ margin: 0; }}
     .duplicates-actions {{ display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }}
@@ -844,6 +864,47 @@ def render_html(payload: dict) -> str:
     .music-card[hidden] {{ display: none; }}
     .music-title {{ font-weight: 750; overflow-wrap: anywhere; }}
     .music-path {{ margin-top: 5px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }}
+    .music-actions {{ display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }}
+    .music-card-status {{ display: none; margin-top: 12px; color: var(--muted); font-size: 13px; }}
+    .music-card-status.visible {{ display: block; }}
+    .music-card-status.done {{ color: var(--good); }}
+    .music-card-status.error {{ color: var(--bad); }}
+    .music-card-progress {{
+      position: relative;
+      height: 8px;
+      margin-top: 7px;
+      overflow: hidden;
+      border-radius: 4px;
+      background: #e5e7eb;
+    }}
+    .music-card-progress span {{
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 42%;
+      border-radius: inherit;
+      background: var(--accent);
+      transform: translateX(-100%);
+    }}
+    .music-card-status.running .music-card-progress span {{
+      animation: card-progress 1.1s ease-in-out infinite;
+    }}
+    .music-card-status.done .music-card-progress span {{
+      width: 100%;
+      transform: none;
+      animation: none;
+      background: var(--good);
+    }}
+    .music-card-status.error .music-card-progress span {{
+      width: 100%;
+      transform: none;
+      animation: none;
+      background: var(--bad);
+    }}
+    @keyframes card-progress {{
+      0% {{ transform: translateX(-100%); }}
+      55% {{ transform: translateX(70%); }}
+      100% {{ transform: translateX(240%); }}
+    }}
     .music-pills {{ display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }}
     .music-pill {{
       display: inline-flex;
@@ -968,6 +1029,16 @@ def render_html(payload: dict) -> str:
           <button class="small" id="collapseMusic" type="button">Свернуть список музыки</button>
         </div>
       </div>
+    <div class="music-operations music-toolbar">
+      <p class="music-operations-title">Обработка музыки</p>
+      <div class="music-operations-row">
+        <label class="mode-choice"><input type="radio" name="processMode" value="dry-run" checked> Dry run</label>
+        <label class="mode-choice"><input type="radio" name="processMode" value="real"> Реальная обработка</label>
+        <button class="small" id="tagVisible" type="button">Проставить теги для отфильтрованных</button>
+        <button class="small" id="layoutVisible" type="button">Разложить отфильтрованные по папкам</button>
+      </div>
+      <div class="operation-status" id="operationStatus">Выбран безопасный режим dry run. Глобальные кнопки работают по отфильтрованному списку, кнопки внутри карточки — только по своей записи.</div>
+    </div>
     <div class="toolbar music-toolbar">
       <input id="musicSearch" type="search" placeholder="Поиск по исполнителю, альбому или названию">
       <select id="tagFilter">
@@ -1031,6 +1102,192 @@ def render_html(payload: dict) -> str:
     const musicSection = document.getElementById('musicSection');
     const expandMusic = document.getElementById('expandMusic');
     const collapseMusic = document.getElementById('collapseMusic');
+    const operationStatus = document.getElementById('operationStatus');
+    const tagVisible = document.getElementById('tagVisible');
+    const layoutVisible = document.getElementById('layoutVisible');
+
+    function selectedMode() {{
+      const selected = document.querySelector('input[name="processMode"]:checked');
+      return selected ? selected.value : 'dry-run';
+    }}
+
+    function updateOperationStatus() {{
+      const mode = selectedMode();
+      if (!operationStatus) return;
+
+      if (mode === 'real') {{
+        operationStatus.textContent = 'Выбрана реальная обработка. «Разложить» будет перемещать файлы в папки текущей библиотеки по исполнителю и альбому. Глобальные кнопки работают по отфильтрованному списку, кнопки внутри карточки — только по своей записи.';
+      }} else {{
+        operationStatus.textContent = 'Выбран безопасный режим dry run. Глобальные кнопки работают по отфильтрованному списку, кнопки внутри карточки — только по своей записи.';
+      }}
+    }}
+
+    function visibleMusicPaths() {{
+      return musicCards
+        .filter(card => !card.hidden)
+        .map(card => card.dataset.filePath || '')
+        .filter(Boolean);
+    }}
+
+    function singleMusicPath(button) {{
+      const card = button.closest('.music-card');
+      return button.dataset.filePath || card?.dataset.filePath || '';
+    }}
+
+    function setMusicActionDisabled(disabled, card = null) {{
+      const root = card || document;
+      const selector = card ? '.music-action-single' : '.music-action-single, #tagVisible, #layoutVisible';
+      root.querySelectorAll(selector).forEach(button => {{
+        button.disabled = disabled;
+      }});
+    }}
+
+    function setCardStatus(card, state, message) {{
+      if (!card) return;
+      const status = card.querySelector('.music-card-status');
+      const text = card.querySelector('.music-card-status-text');
+      if (!status || !text) return;
+
+      status.classList.remove('running', 'done', 'error');
+      status.classList.add('visible');
+      if (state) status.classList.add(state);
+      text.textContent = message || '';
+    }}
+
+    function clearTagAttributes(card) {{
+      Array.from(card.attributes).forEach(attribute => {{
+        if (attribute.name.startsWith('data-tag-')) card.removeAttribute(attribute.name);
+      }});
+    }}
+
+    function tagText(tag) {{
+      if (!tag || typeof tag !== 'object') return String(tag || '');
+      const label = tag.label || '';
+      const value = tag.value || '';
+      return value ? `${{label}}: ${{value}}` : label;
+    }}
+
+    function updateMusicCardFromTrack(card, track) {{
+      if (!card || !track) return;
+
+      const path = track.path || '';
+      const folder = track.folder || '';
+      const name = track.name || '';
+      const tags = Array.isArray(track.tags) ? track.tags : [];
+      const tagValuesByKind = {{}};
+      const tagSearchValues = [];
+
+      card.dataset.filePath = path;
+      card.dataset.sortName = name.toLowerCase();
+      clearTagAttributes(card);
+
+      const title = card.querySelector('.music-title');
+      const pathNode = card.querySelector('.music-path');
+      const audio = card.querySelector('.audio-player');
+      const pills = card.querySelector('.music-pills');
+      if (title) title.textContent = name;
+      if (pathNode) {{
+        pathNode.textContent = folder;
+        pathNode.title = path;
+      }}
+      if (audio) {{
+        audio.src = `/api/audio?file=${{encodeURIComponent(path)}}`;
+        audio.textContent = `Прослушать ${{name}}`;
+      }}
+
+      if (pills) {{
+        pills.textContent = '';
+        tags.forEach(tag => {{
+          const kind = (tag && typeof tag === 'object' ? (tag.kind || 'tag') : 'tag')
+            .toLowerCase()
+            .replace(/[^a-z0-9_-]/g, '') || 'tag';
+          const text = tagText(tag);
+          tagSearchValues.push(text);
+          if (!tagValuesByKind[kind]) tagValuesByKind[kind] = [];
+          tagValuesByKind[kind].push(text);
+
+          const pill = document.createElement('span');
+          pill.className = `music-pill music-pill-${{kind}}`;
+          pill.textContent = text;
+          pills.appendChild(pill);
+        }});
+      }}
+
+      Object.entries(tagValuesByKind).forEach(([kind, values]) => {{
+        card.setAttribute(`data-tag-${{kind}}`, values.join(' ').toLowerCase());
+      }});
+      card.dataset.sortArtist = (tagValuesByKind.artist || tagValuesByKind.albumartist || []).join(' ').toLowerCase();
+      card.dataset.sortAlbum = (tagValuesByKind.album || []).join(' ').toLowerCase();
+      card.dataset.sortYear = (tagValuesByKind.year || []).join(' ').toLowerCase();
+      card.dataset.sortFormat = (tagValuesByKind.format || []).join(' ').toLowerCase();
+      card.dataset.musicSearch = [name, folder, tagSearchValues.join(' ')].join(' ').toLowerCase();
+      card.querySelectorAll('.music-action-single').forEach(button => {{
+        button.dataset.filePath = path;
+      }});
+    }}
+
+    async function runMusicOperation(action, files, scope, sourceButton = null) {{
+      const mode = selectedMode();
+      const uniqueFiles = Array.from(new Set((files || []).filter(Boolean)));
+      const sourceCard = sourceButton?.closest('.music-card') || null;
+      const useCardStatus = scope === 'single' && sourceCard;
+
+      if (!uniqueFiles.length) {{
+        const message = scope === 'single'
+          ? 'Не удалось определить файл этой записи.'
+          : 'Нет файлов для обработки по текущему фильтру.';
+        if (useCardStatus) setCardStatus(sourceCard, 'error', message);
+        else operationStatus.textContent = message;
+        return;
+      }}
+
+      if (scope === 'single' && uniqueFiles.length !== 1) {{
+        operationStatus.textContent = 'Ошибка: операция одной карточки получила больше одного файла.';
+        return;
+      }}
+
+      if (mode === 'real') {{
+        const targetText = scope === 'single'
+          ? 'одну выбранную запись'
+          : `отфильтрованные записи: ${{uniqueFiles.length}}`;
+        const confirmed = window.confirm(`Запустить реальную обработку через beets для: ${{targetText}}?`);
+        if (!confirmed) return;
+      }}
+
+      setMusicActionDisabled(true, useCardStatus ? sourceCard : null);
+      if (useCardStatus) {{
+        setCardStatus(sourceCard, 'running', `${{mode === 'dry-run' ? 'Проверяю' : 'Обрабатываю'}} файлов: ${{uniqueFiles.length}}...`);
+      }} else {{
+      operationStatus.textContent = `${{mode === 'dry-run' ? 'Проверяю' : 'Обрабатываю'}} файлов: ${{uniqueFiles.length}}...`;
+
+      }}
+
+      try {{
+        const response = await fetch('/api/music-operation', {{
+          method: 'POST',
+          headers: {{ 'Content-Type': 'application/json' }},
+          body: JSON.stringify({{ action, mode, scope, files: uniqueFiles }}),
+        }});
+
+        const result = await response.json();
+        const handleInCard = useCardStatus;
+        if (response.ok && result.ok && handleInCard) {{
+          const updatedTrack = result.track || result.refresh?.tracks?.[0] || null;
+          if (updatedTrack) updateMusicCardFromTrack(sourceCard, updatedTrack);
+          setCardStatus(sourceCard, 'done', result.message || 'Операция завершена.');
+          applyMusicFilters();
+        }}
+        if (!response.ok || !result.ok) throw new Error(result.error || 'Команда не выполнена');
+
+        operationStatus.textContent = result.message || 'Операция завершена.';
+        if (!handleInCard && mode === 'real' && result.reload) setTimeout(() => window.location.reload(), 900);
+      }} catch (error) {{
+        if (useCardStatus) setCardStatus(sourceCard, 'error', error.message || String(error));
+        operationStatus.textContent = error.message || String(error);
+      }} finally {{
+        setMusicActionDisabled(false, useCardStatus ? sourceCard : null);
+      }}
+    }}
 
     function applySort() {{
       const sorted = [...musicCards];
@@ -1082,7 +1339,9 @@ def render_html(payload: dict) -> str:
     }}
 
     quarantineButton.addEventListener('click', () => {{
-      runQuarantine('/api/quarantine-all', null, 'Переношу все худшие дубли в карантин...');
+      const confirmed = window.confirm('Перенести все худшие дубли из CSV-отчёта в карантин? Файлы не удаляются.');
+      if (!confirmed) return;
+      runQuarantine('/api/quarantine-all', {{ confirm: 'MOVE_TO_QUARANTINE' }}, 'Переношу все худшие дубли в карантин...');
     }});
 
     document.querySelectorAll('.audio-player').forEach(player => {{
@@ -1098,11 +1357,26 @@ def render_html(payload: dict) -> str:
         event.stopPropagation();
         runQuarantine(
           '/api/quarantine-one',
-          {{ moved_file: button.dataset.movedFile }},
+          {{ moved_file: button.dataset.movedFile, confirm: 'MOVE_TO_QUARANTINE' }},
           'Переношу выбранный дубль в карантин...'
         );
       }});
     }});
+    document.querySelectorAll('.music-action-single').forEach(button => {{
+      button.addEventListener('click', event => {{
+        event.preventDefault();
+        event.stopPropagation();
+        runMusicOperation(button.dataset.action, [singleMusicPath(button)], 'single', button);
+      }});
+    }});
+
+    tagVisible.addEventListener('click', () => runMusicOperation('tag', visibleMusicPaths(), 'filtered'));
+    layoutVisible.addEventListener('click', () => runMusicOperation('layout', visibleMusicPaths(), 'filtered'));
+
+    document.querySelectorAll('input[name="processMode"]').forEach(input => {{
+      input.addEventListener('change', updateOperationStatus);
+    }});
+    updateOperationStatus();
     document.getElementById('expandAll').addEventListener('click', () => cards.forEach(card => {{ if (!card.hidden) card.classList.add('open'); }}));
     document.getElementById('collapseAll').addEventListener('click', () => cards.forEach(card => card.classList.remove('open')));
     musicSearch.addEventListener('input', applyMusicFilters);

@@ -13,6 +13,7 @@ venv/
 reports/*.csv
 reports/*.json
 reports/*.log
+reports/beets-web-config.yaml
 
 # local music folders
 Unsorted/
