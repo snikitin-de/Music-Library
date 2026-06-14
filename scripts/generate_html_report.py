@@ -753,7 +753,6 @@ def render_html(payload: dict) -> str:
     .page {{ width: min(1240px, calc(100% - 32px)); margin: 0 auto; padding: 32px 0 56px; }}
     .header {{ padding: 24px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }}
     h1 {{ margin: 0; font-size: 32px; line-height: 1.15; }}
-    .lead {{ margin: 10px 0 0; color: var(--muted); line-height: 1.5; }}
     .library-path {{ margin-top: 12px; overflow-wrap: anywhere; color: var(--muted); font-size: 13px; }}
     .summary {{ display: grid; grid-template-columns: repeat(4, minmax(140px, 1fr)); gap: 12px; margin-top: 18px; }}
     .metric {{ padding: 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--soft); }}
@@ -961,7 +960,6 @@ def render_html(payload: dict) -> str:
     .arrow {{ font-size: 24px; color: var(--accent); }}
     .empty {{ display: none; margin-top: 12px; padding: 24px; border: 1px dashed var(--line); border-radius: 8px; text-align: center; color: var(--muted); background: #fff; }}
     .empty.visible {{ display: block; }}
-    .footer {{ margin-top: 18px; color: var(--muted); text-align: center; font-size: 12px; }}
     @media (max-width: 900px) {{
       .summary, .analysis-grid {{ grid-template-columns: 1fr 1fr; }}
       .donut-chart {{ width: 132px; }}
@@ -982,7 +980,6 @@ def render_html(payload: dict) -> str:
   <main class="page">
     <section class="header">
       <h1>Отчёт по музыкальной библиотеке</h1>
-      <p class="lead">Безопасный отчёт: файлы не удалялись, теги не менялись, перенос в карантин не выполнялся.</p>
       <div class="library-path">{library_path}</div>
       <div class="summary">
         <div class="metric"><span>Всего файлов</span><strong>{format_number(library.get("total_files"))}</strong></div>
@@ -1082,7 +1079,6 @@ def render_html(payload: dict) -> str:
     </div>
     <div id="cards">{''.join(groups_html)}</div>
     <div class="empty" id="empty">Ничего не найдено по текущему фильтру.</div>
-    <div class="footer">Сгенерировано локально. Отчёт не содержит действий удаления файлов.</div>
   </main>
 
   <script id="payload" type="application/json">{html.escape(json_payload)}</script>
