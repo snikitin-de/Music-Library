@@ -13,8 +13,6 @@ import json
 import re
 from pathlib import Path
 
-from generate_html_report import render_html
-
 
 def main() -> int:
     parser = argparse.ArgumentParser()
@@ -32,6 +30,10 @@ def main() -> int:
         raise SystemExit(f"Embedded payload was not found: {html_path}")
 
     payload = json.loads(html.unescape(match.group(1)))
+    generator_path = Path(__file__).with_name("generate_html_report.py")
+    namespace: dict[str, object] = {}
+    exec(compile(generator_path.read_text(encoding="utf-8"), str(generator_path), "exec"), namespace)
+    render_html = namespace["render_html"]
     html_path.write_text(render_html(payload), encoding="utf-8")
     print(f"HTML report re-rendered: {html_path}")
     return 0

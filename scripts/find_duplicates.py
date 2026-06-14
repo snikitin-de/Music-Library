@@ -12,7 +12,7 @@ Example:
 
     python scripts/find_duplicates.py ^
       --library "D:\\Music\\Sorted" ^
-      --quarantine "D:\\Music\\Duplicates_To_Check" ^
+      --quarantine "D:\\Music\\Duplicates" ^
       --report "reports\\duplicates.csv"
 """
 

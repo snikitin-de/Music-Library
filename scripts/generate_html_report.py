@@ -593,7 +593,7 @@ def render_year_bars(years: dict) -> str:
     peak_year, peak_count = max(all_year_items, key=lambda item: item[1])
     return f"""
     <p class="chart-note">
-      Самый плотный год: <strong>{html.escape(str(peak_year))}</strong>,
+      Самый музыкальный год: <strong>{html.escape(str(peak_year))}</strong>,
       <strong>{format_number(peak_count)}</strong> файлов.
     </p>
     <div class="year-chart-scroll" aria-label="Топ годов по количеству файлов">
@@ -605,7 +605,23 @@ def render_year_bars(years: dict) -> str:
     """
 
 
-def render_music_list(tracks: list[dict], duplicate_paths: set[str] | None = None) -> str:
+def already_layouted(track_path: str, library_path: str) -> bool:
+    if not track_path or not library_path:
+        return False
+
+    try:
+        relative = PureWindowsPath(track_path).relative_to(PureWindowsPath(library_path))
+    except ValueError:
+        try:
+            relative = Path(track_path).relative_to(Path(library_path))
+        except ValueError:
+            return False
+
+    # Artist / Album / file is already outside the library root and organized.
+    return len(relative.parts) >= 3
+
+
+def render_music_list(tracks: list[dict], duplicate_paths: set[str] | None = None, library_path: str = "") -> str:
     if not tracks:
         return '<div class="empty visible">Музыкальные файлы не найдены.</div>'
 
@@ -652,17 +668,25 @@ def render_music_list(tracks: list[dict], duplicate_paths: set[str] | None = Non
             card_classes.append("music-card-duplicate")
         if "не читается" in status_text or "не распознан" in status_text:
             card_classes.append("music-card-unreadable")
+        is_layouted = already_layouted(track.get("path", ""), library_path)
+        layout_status = "done" if is_layouted else "ready"
+        layout_disabled = (
+            ' disabled aria-disabled="true" title="Файл уже находится в папках исполнителя и альбома"'
+            if is_layouted
+            else ""
+        )
         player_html = audio_player(track.get("path", ""), f'Прослушать {track.get("name", "")}')
         items.append(
             f"""
-            <article class="{html.escape(" ".join(card_classes))}" data-file-path="{html.escape(track.get("path", ""))}" data-music-search="{html.escape(search_text)}" data-sort-name="{html.escape(track.get("name", "").lower())}" data-sort-artist="{html.escape(sort_artist)}" data-sort-album="{html.escape(sort_album)}" data-sort-year="{html.escape(sort_year)}" data-sort-format="{html.escape(sort_format)}" {tag_attributes}>
+            <article class="{html.escape(" ".join(card_classes))}" data-file-path="{html.escape(track.get("path", ""))}" data-layout-status="{layout_status}" data-music-search="{html.escape(search_text)}" data-sort-name="{html.escape(track.get("name", "").lower())}" data-sort-artist="{html.escape(sort_artist)}" data-sort-album="{html.escape(sort_album)}" data-sort-year="{html.escape(sort_year)}" data-sort-format="{html.escape(sort_format)}" {tag_attributes}>
               <div class="music-title">{html.escape(track.get("name", ""))}</div>
               <div class="music-path" title="{html.escape(track.get("path", ""))}">{html.escape(track.get("folder", ""))}</div>
               {player_html}
               <div class="music-pills">{tags}</div>
               <div class="music-actions">
-                <button class="small music-action-single" type="button" data-action="tag" data-file-path="{html.escape(track.get("path", ""))}">Проставить теги этой записи</button>
-                <button class="small music-action-single" type="button" data-action="layout" data-file-path="{html.escape(track.get("path", ""))}">Разложить эту запись</button>
+                <button class="small music-action-single" type="button" data-action="tag" data-file-path="{html.escape(track.get("path", ""))}">Проставить теги</button>
+                <button class="small music-action-single" type="button" data-action="layout" data-file-path="{html.escape(track.get("path", ""))}"{layout_disabled}>Разложить по папкам</button>
+                <button class="small danger-button trash-one" type="button" data-file-path="{html.escape(track.get("path", ""))}">В корзину</button>
               </div>
               <div class="music-card-status" aria-live="polite">
                 <div class="music-card-status-text"></div>
@@ -684,13 +708,6 @@ def render_html(payload: dict) -> str:
     library["years"] = years
     library_raw_path = library.get("path", "")
     library_path = html.escape(library_raw_path)
-    quarantine_path = ""
-    if library_raw_path:
-        quarantine_path = str(PureWindowsPath(library_raw_path).parent / "Duplicates_To_Check")
-    quarantine_command = (
-        f'python scripts\\find_duplicates.py --library "{library_raw_path}" '
-        f'--quarantine "{quarantine_path}" --report reports\\duplicates.csv'
-    )
     duplicate_paths = {
         path
         for group in payload.get("groups", [])
@@ -698,7 +715,7 @@ def render_html(payload: dict) -> str:
         for path in (item.get("kept_file", ""), item.get("moved_file", ""))
         if path
     }
-    music_html = render_music_list(library.get("tracks", []), duplicate_paths)
+    music_html = render_music_list(library.get("tracks", []), duplicate_paths, library_raw_path)
     groups_html = []
 
     for group in payload["groups"]:
@@ -706,25 +723,36 @@ def render_html(payload: dict) -> str:
         for item in group["items"]:
             items_html.append(
                 f"""
-                <div class="comparison">
-                  <div class="track keep">
+                <div class="comparison" data-kept-file="{html.escape(item["kept_file"])}" data-moved-file="{html.escape(item["moved_file"])}">
+                  <div class="track keep" data-file-path="{html.escape(item["kept_file"])}">
                     <div class="track-label">Оставлен</div>
                     <div class="track-title">{html.escape(item["kept_name"])}</div>
                     <div class="track-path" title="{html.escape(item["kept_file"])}">{html.escape(item["kept_folder"])}</div>
                     {audio_player(item["kept_file"], f'Прослушать оставленный файл: {item["kept_name"]}')}
                     {render_quality(item["kept_quality"])}
+                    <div class="track-actions">
+                      <button class="small quarantine-one" type="button" data-file="{html.escape(item["kept_file"])}">В карантин</button>
+                      <button class="small danger-button trash-one" type="button" data-file-path="{html.escape(item["kept_file"])}">В корзину</button>
+                    </div>
                   </div>
                   <div class="divider">
                     <div class="arrow">→</div>
                     <div class="reason">{html.escape(translate_reason(item["reason"]))}</div>
                   </div>
-                  <div class="track move">
+                  <div class="track move" data-file-path="{html.escape(item["moved_file"])}">
                     <div class="track-label">В карантин</div>
                     <div class="track-title">{html.escape(item["moved_name"])}</div>
                     <div class="track-path" title="{html.escape(item["moved_file"])}">{html.escape(item["moved_folder"])}</div>
                     {audio_player(item["moved_file"], f'Прослушать файл для карантина: {item["moved_name"]}')}
                     {render_quality(item["moved_quality"])}
-                    <button class="small danger-button quarantine-one" type="button" data-moved-file="{html.escape(item["moved_file"])}">Переместить этот файл</button>
+                    <div class="track-actions">
+                      <button class="small quarantine-one" type="button" data-file="{html.escape(item["moved_file"])}">В карантин</button>
+                      <button class="small danger-button trash-one" type="button" data-file-path="{html.escape(item["moved_file"])}">В корзину</button>
+                    </div>
+                  </div>
+                  <div class="duplicate-card-status" aria-live="polite">
+                    <div class="duplicate-card-status-text"></div>
+                    <div class="music-card-progress" aria-hidden="true"><span></span></div>
                   </div>
                 </div>
                 """
@@ -822,6 +850,12 @@ def render_html(payload: dict) -> str:
       padding: 0 12px;
       font: inherit;
     }}
+    button.small {{
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      white-space: nowrap;
+    }}
     input {{ flex: 1 1 300px; }}
     select {{
       flex: 0 0 250px;
@@ -837,6 +871,10 @@ def render_html(payload: dict) -> str:
       background-repeat: no-repeat;
     }}
     button {{ cursor: pointer; }}
+    button:disabled {{
+      cursor: not-allowed;
+      opacity: 0.55;
+    }}
     .section-title {{ margin-top: 24px; }}
     .music-toolbar {{ margin: 24px 0 12px; }}
     .music-operations {{
@@ -846,17 +884,47 @@ def render_html(payload: dict) -> str:
       border-radius: 8px;
       background: #f8fafc;
     }}
-    .music-operations-row {{ display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }}
+    .music-operations-row {{
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }}
+    .music-operations-row > button.small,
+    .music-operations-row > .mode-choice {{
+      min-width: 0;
+      height: 42px;
+      justify-content: center;
+    }}
+    .music-operations-row > button.small {{ flex: 0 1 auto; }}
     .music-operations-title {{ margin: 0 0 10px; font-weight: 750; }}
     .mode-choice {{ display: inline-flex; align-items: center; gap: 6px; min-height: 42px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }}
-    .mode-choice input {{ flex: 0 0 auto; width: auto; }}
+    .mode-choice input {{ flex: 0 0 auto; width: auto; height: auto; margin: 0; }}
     .operation-status {{ margin-top: 10px; color: var(--muted); font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; }}
     .duplicates-heading {{ display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 24px; }}
     .duplicates-heading .section-title {{ margin: 0; }}
     .duplicates-actions {{ display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }}
     .danger-button {{ border-color: #dc2626 !important; color: #fff !important; background: #dc2626 !important; }}
     .danger-button:hover {{ background: #b91c1c !important; }}
-    .quarantine-one {{ margin-top: 12px; width: 100%; }}
+    .quarantine-one {{
+      border-color: #16a34a !important;
+      color: #fff !important;
+      background: #16a34a !important;
+    }}
+    .quarantine-one:hover {{ background: #15803d !important; }}
+    .track-actions {{
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: auto;
+      padding-top: 12px;
+    }}
+    .track-actions .small {{
+      width: 100%;
+      min-width: 0;
+      justify-content: center;
+      text-align: center;
+    }}
     .quarantine-panel {{
       display: none;
       margin: 12px 0;
@@ -868,8 +936,24 @@ def render_html(payload: dict) -> str:
     .quarantine-panel.visible {{ display: block; }}
     .quarantine-panel p {{ margin: 0 0 10px; color: #991b1b; line-height: 1.45; }}
     .quarantine-panel p:last-child {{ margin-bottom: 0; }}
-    .quarantine-command {{ display: block; padding: 10px; border: 1px solid #fecaca; border-radius: 6px; background: #fff; overflow-x: auto; white-space: pre; }}
     .copy-status {{ margin-left: 10px; color: #991b1b; font-size: 13px; }}
+    .global-progress {{
+      display: none;
+      height: 8px;
+      margin-top: 10px;
+      overflow: hidden;
+      border-radius: 4px;
+      background: #fee2e2;
+    }}
+    .global-progress.visible {{ display: block; }}
+    .global-progress span {{
+      display: block;
+      width: 40%;
+      height: 100%;
+      border-radius: inherit;
+      background: #dc2626;
+      animation: card-progress 1.1s ease-in-out infinite;
+    }}
     .music-section.collapsed .music-toolbar,
     .music-section.collapsed .music-list {{
       display: none;
@@ -884,7 +968,18 @@ def render_html(payload: dict) -> str:
     .music-card[hidden] {{ display: none; }}
     .music-title {{ font-weight: 750; overflow-wrap: anywhere; }}
     .music-path {{ margin-top: 5px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }}
-    .music-actions {{ display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }}
+    .music-actions {{
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      max-width: 680px;
+      margin-top: 12px;
+    }}
+    .music-actions .small {{
+      width: 100%;
+      min-width: 0;
+      text-align: center;
+    }}
     .music-card-status {{ display: none; margin-top: 12px; color: var(--muted); font-size: 13px; }}
     .music-card-status.visible {{ display: block; }}
     .music-card-status.done {{ color: var(--good); }}
@@ -915,6 +1010,30 @@ def render_html(payload: dict) -> str:
       background: var(--good);
     }}
     .music-card-status.error .music-card-progress span {{
+      width: 100%;
+      transform: none;
+      animation: none;
+      background: var(--bad);
+    }}
+    .duplicate-card-status {{
+      display: none;
+      grid-column: 1 / -1;
+      color: var(--muted);
+      font-size: 13px;
+    }}
+    .duplicate-card-status.visible {{ display: block; }}
+    .duplicate-card-status.done {{ color: var(--good); }}
+    .duplicate-card-status.error {{ color: var(--bad); }}
+    .duplicate-card-status.running .music-card-progress span {{
+      animation: card-progress 1.1s ease-in-out infinite;
+    }}
+    .duplicate-card-status.done .music-card-progress span {{
+      width: 100%;
+      transform: none;
+      animation: none;
+      background: var(--good);
+    }}
+    .duplicate-card-status.error .music-card-progress span {{
       width: 100%;
       transform: none;
       animation: none;
@@ -961,9 +1080,9 @@ def render_html(payload: dict) -> str:
     .badge {{ display: inline-flex; align-items: center; justify-content: center; min-height: 26px; padding: 5px 9px; border-radius: 4px; color: #1e3a8a; background: #dbeafe; font-size: 12px; font-weight: 700; white-space: nowrap; }}
     .group-body {{ display: none; padding: 16px; border-top: 1px solid var(--line); background: #fafafa; }}
     .group-card.open .group-body {{ display: block; }}
-    .comparison {{ display: grid; grid-template-columns: minmax(0, 1fr) 92px minmax(0, 1fr); gap: 14px; padding: 14px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }}
+    .comparison {{ display: grid; grid-template-columns: minmax(0, 1fr) 92px minmax(0, 1fr); align-items: stretch; gap: 14px; padding: 14px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }}
     .comparison + .comparison {{ margin-top: 12px; }}
-    .track {{ min-width: 0; padding: 14px; border: 1px solid var(--line); border-radius: 8px; }}
+    .track {{ display: flex; flex-direction: column; min-width: 0; padding: 14px; border: 1px solid var(--line); border-radius: 8px; }}
     .keep {{ border-color: #99f6e4; background: #f0fdfa; }}
     .move {{ border-color: #fecaca; background: #fef2f2; }}
     .track-label {{ display: inline-block; margin-bottom: 10px; font-size: 12px; font-weight: 800; }}
@@ -1099,6 +1218,9 @@ def render_html(payload: dict) -> str:
     @media (max-width: 560px) {{
       .summary, .analysis-grid, .quality-grid {{ grid-template-columns: 1fr; }}
       input, select, .duplicates-actions .small {{ flex-basis: 100%; width: 100%; }}
+      .music-actions {{ grid-template-columns: 1fr; max-width: none; }}
+      .music-operations-row > button.small,
+      .music-operations-row > .mode-choice {{ width: 100%; }}
       .duplicates-heading {{ align-items: stretch; flex-direction: column; }}
       .group-header {{ grid-template-columns: 1fr; }}
       .badges {{ justify-content: flex-start; }}
@@ -1114,7 +1236,7 @@ def render_html(payload: dict) -> str:
         <div class="metric"><span>Всего файлов</span><strong>{format_number(library.get("total_files"))}</strong></div>
         <div class="metric"><span>Альбомов</span><strong>{format_number(library.get("albums"))}</strong></div>
         <div class="metric"><span>Исполнителей</span><strong>{format_number(library.get("artists"))}</strong></div>
-        <div class="metric"><span>Дублей</span><strong>{format_number(summary["duplicates"])}</strong></div>
+        <div class="metric"><span>Дублей</span><strong id="duplicateMetric">{format_number(summary["duplicates"])}</strong></div>
       </div>
     </section>
 
@@ -1122,8 +1244,8 @@ def render_html(payload: dict) -> str:
       <section class="panel">
         <h2>Сводка</h2>
         <div class="panel-body note">
-          Групп дублей: <strong>{format_number(summary["groups"])}</strong><br>
-          Файлов, предлагаемых в карантин: <strong>{format_number(summary["duplicates"])}</strong><br>
+          Групп дублей: <strong id="duplicateGroupsMetric">{format_number(summary["groups"])}</strong><br>
+          Файлов, предлагаемых в карантин: <strong id="duplicateFilesMetric">{format_number(summary["duplicates"])}</strong><br>
           Нечитаемых аудиофайлов: <strong>{format_number(library.get("unreadable_files"))}</strong>
         </div>
       </section>
@@ -1150,11 +1272,17 @@ def render_html(payload: dict) -> str:
     <section class="music-section collapsed" id="musicSection">
       <div class="duplicates-heading music-heading">
         <h2 class="section-title">Музыка</h2>
-        <div class="duplicates-actions">
-          <button class="small" id="expandMusic" type="button">Развернуть список музыки</button>
-          <button class="small" id="collapseMusic" type="button">Свернуть список музыки</button>
+      <div class="duplicates-actions">
+          <button class="small" id="rescanLibrary" type="button">Пересканировать библиотеку</button>
+          <button class="small" id="expandMusic" type="button">Раскрыть всё</button>
+          <button class="small" id="collapseMusic" type="button">Свернуть всё</button>
         </div>
       </div>
+    <div class="quarantine-panel scan-panel" id="scanPanel">
+      <p id="scanStatus">Готово к пересканированию библиотеки. Файлы не перемещаются.</p>
+      <span class="copy-status" id="scanCopyStatus"></span>
+      <div class="global-progress" id="scanProgress" aria-hidden="true"><span></span></div>
+    </div>
     <div class="music-operations music-toolbar">
       <p class="music-operations-title">Обработка музыки</p>
       <div class="music-operations-row">
@@ -1181,6 +1309,11 @@ def render_html(payload: dict) -> str:
         <option value="year">Тег: год</option>
         <option value="status">Тег: статус</option>
       </select>
+      <select id="layoutFilter">
+        <option value="all">Раскладка: все записи</option>
+        <option value="ready">Раскладка: неразложенные</option>
+        <option value="done">Раскладка: уже разложенные</option>
+      </select>
       <select id="sort">
         <option value="name">Сортировка: по названию</option>
         <option value="artist">Сортировка: по исполнителю</option>
@@ -1196,15 +1329,15 @@ def render_html(payload: dict) -> str:
     <div class="duplicates-heading">
       <h2 class="section-title">Дубли</h2>
       <div class="duplicates-actions">
-        <button class="small danger-button" id="quarantineCommand" type="button">Переместить в карантин</button>
+        <button class="small danger-button" id="quarantineCommand" type="button">Переместить всё в карантин</button>
         <button class="small" id="expandAll" type="button">Раскрыть всё</button>
         <button class="small" id="collapseAll" type="button">Свернуть всё</button>
       </div>
     </div>
     <div class="quarantine-panel" id="quarantinePanel">
       <p id="quarantineStatus">Готово к безопасному переносу дублей в карантин. Файлы не удаляются.</p>
-      <code class="quarantine-command" id="quarantineCommandText">{html.escape(quarantine_command)}</code>
       <span class="copy-status" id="copyStatus"></span>
+      <div class="global-progress" id="globalProgress" aria-hidden="true"><span></span></div>
     </div>
     <div id="cards">{''.join(groups_html)}</div>
     <div class="empty" id="empty">Ничего не найдено по текущему фильтру.</div>
@@ -1212,18 +1345,24 @@ def render_html(payload: dict) -> str:
 
   <script id="payload" type="application/json">{html.escape(json_payload)}</script>
   <script>
-    const cards = Array.from(document.querySelectorAll('.group-card'));
+    let cards = Array.from(document.querySelectorAll('.group-card'));
     const sort = document.getElementById('sort');
-    const musicCards = Array.from(document.querySelectorAll('.music-card'));
+    let musicCards = Array.from(document.querySelectorAll('.music-card'));
     const musicList = document.getElementById('musicList');
     const musicSearch = document.getElementById('musicSearch');
     const tagFilter = document.getElementById('tagFilter');
+    const layoutFilter = document.getElementById('layoutFilter');
     const musicEmpty = document.getElementById('musicEmpty');
     const quarantineButton = document.getElementById('quarantineCommand');
     const quarantinePanel = document.getElementById('quarantinePanel');
-    const quarantineCommandText = document.getElementById('quarantineCommandText');
     const copyStatus = document.getElementById('copyStatus');
     const quarantineStatus = document.getElementById('quarantineStatus');
+    const globalProgress = document.getElementById('globalProgress');
+    const rescanLibrary = document.getElementById('rescanLibrary');
+    const scanPanel = document.getElementById('scanPanel');
+    const scanStatus = document.getElementById('scanStatus');
+    const scanCopyStatus = document.getElementById('scanCopyStatus');
+    const scanProgress = document.getElementById('scanProgress');
     const musicSection = document.getElementById('musicSection');
     const expandMusic = document.getElementById('expandMusic');
     const collapseMusic = document.getElementById('collapseMusic');
@@ -1277,6 +1416,85 @@ def render_html(payload: dict) -> str:
       status.classList.add('visible');
       if (state) status.classList.add(state);
       text.textContent = message || '';
+    }}
+
+    function normalizePathForCompare(path) {{
+      return String(path || '').replace(/\\//g, '\\\\').toLowerCase();
+    }}
+
+    function setDuplicateStatus(node, state, message) {{
+      const comparison = node?.closest?.('.comparison') || node;
+      if (!comparison) return;
+      const status = comparison.querySelector('.duplicate-card-status');
+      const text = comparison.querySelector('.duplicate-card-status-text');
+      if (!status || !text) return;
+
+      status.classList.remove('running', 'done', 'error');
+      status.classList.add('visible');
+      if (state) status.classList.add(state);
+      text.textContent = message || '';
+    }}
+
+    function setDuplicateActionsDisabled(disabled) {{
+      document.querySelectorAll('.quarantine-one, .trash-one, #quarantineCommand, #rescanLibrary').forEach(button => {{
+        button.disabled = disabled;
+      }});
+    }}
+
+    function removeMusicCardsByPaths(paths) {{
+      const normalized = new Set((paths || []).map(normalizePathForCompare));
+      if (!normalized.size) return;
+      musicCards = musicCards.filter(card => {{
+        const remove = normalized.has(normalizePathForCompare(card.dataset.filePath || ''));
+        if (remove) card.remove();
+        return !remove;
+      }});
+      applyMusicFilters();
+    }}
+
+    function refreshGroupAfterComparisonRemoval(group) {{
+      if (!group) return;
+      const comparisons = Array.from(group.querySelectorAll('.comparison'));
+      if (!comparisons.length) {{
+        group.remove();
+        cards = cards.filter(card => card !== group);
+        return;
+      }}
+
+      group.dataset.count = String(comparisons.length);
+      const subtitle = group.querySelector('.group-subtitle');
+      if (subtitle) subtitle.textContent = `Худших дублей: ${{comparisons.length}}`;
+    }}
+
+    function removeDuplicateComparisonsByPaths(paths) {{
+      const normalized = new Set((paths || []).map(normalizePathForCompare));
+      if (!normalized.size) return;
+      const groupsToRefresh = new Set();
+      document.querySelectorAll('.comparison').forEach(comparison => {{
+        const kept = normalizePathForCompare(comparison.dataset.keptFile || '');
+        const moved = normalizePathForCompare(comparison.dataset.movedFile || '');
+        if (normalized.has(kept) || normalized.has(moved)) {{
+          const group = comparison.closest('.group-card');
+          groupsToRefresh.add(group);
+          comparison.remove();
+        }}
+      }});
+      groupsToRefresh.forEach(refreshGroupAfterComparisonRemoval);
+      updateDuplicateSummaryCounts();
+      document.getElementById('empty').classList.toggle('visible', cards.filter(card => !card.hidden).length === 0);
+    }}
+
+    function updateDuplicateSummaryCounts() {{
+      const visibleGroups = cards.length;
+      const visibleDuplicates = document.querySelectorAll('.comparison').length;
+      const formattedGroups = visibleGroups.toLocaleString('ru-RU').replace(/\u00a0/g, ' ');
+      const formattedDuplicates = visibleDuplicates.toLocaleString('ru-RU').replace(/\u00a0/g, ' ');
+      const duplicateMetric = document.getElementById('duplicateMetric');
+      const duplicateGroupsMetric = document.getElementById('duplicateGroupsMetric');
+      const duplicateFilesMetric = document.getElementById('duplicateFilesMetric');
+      if (duplicateMetric) duplicateMetric.textContent = formattedDuplicates;
+      if (duplicateGroupsMetric) duplicateGroupsMetric.textContent = formattedGroups;
+      if (duplicateFilesMetric) duplicateFilesMetric.textContent = formattedDuplicates;
     }}
 
     function clearTagAttributes(card) {{
@@ -1346,6 +1564,8 @@ def render_html(payload: dict) -> str:
       card.dataset.sortYear = (tagValuesByKind.year || []).join(' ').toLowerCase();
       card.dataset.sortFormat = (tagValuesByKind.format || []).join(' ').toLowerCase();
       card.dataset.musicSearch = [name, folder, tagSearchValues.join(' ')].join(' ').toLowerCase();
+      const layoutButton = card.querySelector('[data-action="layout"]');
+      card.dataset.layoutStatus = layoutButton?.disabled ? 'done' : 'ready';
       card.querySelectorAll('.music-action-single').forEach(button => {{
         button.dataset.filePath = path;
       }});
@@ -1428,12 +1648,15 @@ def render_html(payload: dict) -> str:
     function applyMusicFilters() {{
       const value = musicSearch.value.trim().toLowerCase();
       const tagKind = tagFilter.value;
+      const layoutKind = layoutFilter.value;
       let visibleCount = 0;
       musicCards.forEach(card => {{
         const searchArea = tagKind === 'all'
           ? (card.dataset.musicSearch || '')
           : (card.getAttribute(`data-tag-${{tagKind}}`) || '');
-        const visible = !value || searchArea.includes(value);
+        const matchesText = !value || searchArea.includes(value);
+        const matchesLayout = layoutKind === 'all' || card.dataset.layoutStatus === layoutKind;
+        const visible = matchesText && matchesLayout;
         card.hidden = !visible;
         if (visible) visibleCount += 1;
       }});
@@ -1443,10 +1666,14 @@ def render_html(payload: dict) -> str:
     document.querySelectorAll('.group-header').forEach(button => {{
       button.addEventListener('click', () => button.closest('.group-card').classList.toggle('open'));
     }});
-    async function runQuarantine(url, body, message) {{
+    async function runQuarantine(url, body, message, sourceButton = null) {{
+      const sourceComparison = sourceButton?.closest?.('.comparison') || null;
       quarantinePanel.classList.add('visible');
       quarantineStatus.textContent = message;
       copyStatus.textContent = '';
+      globalProgress.classList.add('visible');
+      setDuplicateActionsDisabled(true);
+      if (sourceComparison) setDuplicateStatus(sourceComparison, 'running', message);
       try {{
         const response = await fetch(url, {{
           method: 'POST',
@@ -1455,11 +1682,18 @@ def render_html(payload: dict) -> str:
         }});
         const result = await response.json();
         if (!response.ok || !result.ok) throw new Error(result.error || 'Команда не выполнена');
-        quarantineStatus.textContent = 'Готово. Файлы перенесены в карантин, отчёт обновляется.';
-        setTimeout(() => window.location.reload(), 900);
+        const changedPaths = result.moved_paths || (result.moved ? result.moved.map(item => item.source) : []);
+        removeDuplicateComparisonsByPaths(changedPaths);
+        removeMusicCardsByPaths(changedPaths);
+        quarantineStatus.textContent = 'Готово. Файлы перенесены в карантин, отчёт обновлён.';
+        if (sourceComparison && sourceComparison.isConnected) setDuplicateStatus(sourceComparison, 'done', 'Файл перенесён в карантин.');
       }} catch (error) {{
         quarantineStatus.textContent = 'Не удалось выполнить перенос автоматически.';
         copyStatus.textContent = error.message || String(error);
+        if (sourceComparison) setDuplicateStatus(sourceComparison, 'error', error.message || String(error));
+      }} finally {{
+        globalProgress.classList.remove('visible');
+        setDuplicateActionsDisabled(false);
       }}
     }}
 
@@ -1468,6 +1702,79 @@ def render_html(payload: dict) -> str:
       if (!confirmed) return;
       runQuarantine('/api/quarantine-all', {{ confirm: 'MOVE_TO_QUARANTINE' }}, 'Переношу все худшие дубли в карантин...');
     }});
+
+    async function runTrash(filePath, sourceButton) {{
+      const sourceMusicCard = sourceButton?.closest?.('.music-card') || null;
+      const sourceComparison = sourceButton?.closest?.('.comparison') || null;
+      if (!filePath) return;
+
+      const confirmed = window.confirm('Переместить выбранный файл в корзину Trash? Файл не будет удалён безвозвратно.');
+      if (!confirmed) return;
+
+      quarantinePanel.classList.add('visible');
+      quarantineStatus.textContent = 'Перемещаю выбранный файл в корзину...';
+      copyStatus.textContent = '';
+      globalProgress.classList.add('visible');
+      setDuplicateActionsDisabled(true);
+      if (sourceMusicCard) {{
+        setMusicActionDisabled(true, sourceMusicCard);
+        setCardStatus(sourceMusicCard, 'running', 'Перемещаю файл в корзину...');
+      }}
+      if (sourceComparison) setDuplicateStatus(sourceComparison, 'running', 'Перемещаю файл в корзину...');
+
+      try {{
+        const response = await fetch('/api/trash-file', {{
+          method: 'POST',
+          headers: {{ 'Content-Type': 'application/json' }},
+          body: JSON.stringify({{ file: filePath, confirm: 'MOVE_TO_TRASH' }}),
+        }});
+        const result = await response.json();
+        if (!response.ok || !result.ok) throw new Error(result.error || 'Команда не выполнена');
+        const changedPaths = result.moved_paths || [result.source || filePath];
+        removeDuplicateComparisonsByPaths(changedPaths);
+        removeMusicCardsByPaths(changedPaths);
+        quarantineStatus.textContent = 'Готово. Файл перенесён в корзину Trash, отчёт обновлён.';
+        if (sourceMusicCard && sourceMusicCard.isConnected) setCardStatus(sourceMusicCard, 'done', 'Файл перенесён в корзину.');
+        if (sourceComparison && sourceComparison.isConnected) setDuplicateStatus(sourceComparison, 'done', 'Файл перенесён в корзину.');
+      }} catch (error) {{
+        quarantineStatus.textContent = 'Не удалось переместить файл в корзину.';
+        copyStatus.textContent = error.message || String(error);
+        if (sourceMusicCard) setCardStatus(sourceMusicCard, 'error', error.message || String(error));
+        if (sourceComparison) setDuplicateStatus(sourceComparison, 'error', error.message || String(error));
+      }} finally {{
+        globalProgress.classList.remove('visible');
+        setDuplicateActionsDisabled(false);
+        if (sourceMusicCard) setMusicActionDisabled(false, sourceMusicCard);
+      }}
+    }}
+
+    async function rescanCurrentLibrary() {{
+      const confirmed = window.confirm('Пересканировать библиотеку и заново собрать отчёт по дублям? Файлы не будут перемещаться.');
+      if (!confirmed) return;
+
+      scanPanel.classList.add('visible');
+      scanStatus.textContent = 'Сканирование библиотеки';
+      scanCopyStatus.textContent = '';
+      scanProgress.classList.add('visible');
+      setDuplicateActionsDisabled(true);
+      try {{
+        const response = await fetch('/api/rescan-library', {{
+          method: 'POST',
+          headers: {{ 'Content-Type': 'application/json' }},
+          body: JSON.stringify({{ confirm: 'RESCAN_LIBRARY' }}),
+        }});
+        const result = await response.json();
+        if (!response.ok || !result.ok) throw new Error(result.error || 'Команда не выполнена');
+        scanStatus.textContent = 'Готово. Отчёт пересобран, страница обновляется.';
+        setTimeout(() => window.location.reload(), 500);
+      }} catch (error) {{
+        scanStatus.textContent = 'Не удалось пересканировать библиотеку.';
+        scanCopyStatus.textContent = error.message || String(error);
+      }} finally {{
+        scanProgress.classList.remove('visible');
+        setDuplicateActionsDisabled(false);
+      }}
+    }}
 
     function formatAudioTime(seconds) {{
       if (!Number.isFinite(seconds) || seconds < 0) return '0:00';
@@ -1526,10 +1833,13 @@ def render_html(payload: dict) -> str:
     document.querySelectorAll('.quarantine-one').forEach(button => {{
       button.addEventListener('click', event => {{
         event.stopPropagation();
+        const confirmed = window.confirm('Переместить выбранный файл в карантин? Файл не удаляется.');
+        if (!confirmed) return;
         runQuarantine(
           '/api/quarantine-one',
-          {{ moved_file: button.dataset.movedFile, confirm: 'MOVE_TO_QUARANTINE' }},
-          'Переношу выбранный дубль в карантин...'
+          {{ file: button.dataset.file, confirm: 'MOVE_TO_QUARANTINE' }},
+          'Переношу выбранный файл в карантин...',
+          button
         );
       }});
     }});
@@ -1540,9 +1850,19 @@ def render_html(payload: dict) -> str:
         runMusicOperation(button.dataset.action, [singleMusicPath(button)], 'single', button);
       }});
     }});
+    document.querySelectorAll('.trash-one').forEach(button => {{
+      button.addEventListener('click', event => {{
+        event.preventDefault();
+        event.stopPropagation();
+        runTrash(button.dataset.filePath, button);
+      }});
+    }});
 
     tagVisible.addEventListener('click', () => runMusicOperation('tag', visibleMusicPaths(), 'filtered'));
     layoutVisible.addEventListener('click', () => runMusicOperation('layout', visibleMusicPaths(), 'filtered'));
+    if (rescanLibrary) {{
+      rescanLibrary.addEventListener('click', rescanCurrentLibrary);
+    }}
 
     document.querySelectorAll('input[name="processMode"]').forEach(input => {{
       input.addEventListener('change', updateOperationStatus);
@@ -1552,6 +1872,7 @@ def render_html(payload: dict) -> str:
     document.getElementById('collapseAll').addEventListener('click', () => cards.forEach(card => card.classList.remove('open')));
     musicSearch.addEventListener('input', applyMusicFilters);
     tagFilter.addEventListener('change', applyMusicFilters);
+    layoutFilter.addEventListener('change', applyMusicFilters);
     sort.addEventListener('change', applySort);
     if (expandMusic) {{
       expandMusic.addEventListener('click', () => musicSection.classList.remove('collapsed'));
@@ -1572,7 +1893,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--csv", required=True, help="Duplicate CSV report")
     parser.add_argument("--library", help="Music library folder for full analysis")
-    parser.add_argument("--out", default="reports/duplicates.html", help="Output HTML file")
+    parser.add_argument("--out", default="reports/library.html", help="Output HTML file")
     args = parser.parse_args()
 
     csv_path = Path(args.csv).expanduser().resolve()

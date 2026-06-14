@@ -41,6 +41,6 @@ Singles\Исполнитель\
 ## После замены файлов
 
 ```bat
-python scripts\generate_html_report.py --csv "reports\duplicates.csv" --library "\\TRUENAS\vault_storage\music\All music\My music\Music Test" --out "reports\duplicates.html"
+python scripts\generate_html_report.py --csv "reports\duplicates.csv" --library "\\TRUENAS\vault_storage\music\All music\My music\Music Test" --out "reports\library.html"
 python scripts\report_server.py --open
 ```

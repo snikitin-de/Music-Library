@@ -18,6 +18,7 @@ import re
 import shutil
 import subprocess
 import sys
+from datetime import datetime
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path, PureWindowsPath
 from urllib.parse import parse_qs, urlparse
@@ -40,8 +41,9 @@ from generate_html_report import (
 
 
 ROOT = Path(__file__).resolve().parents[1]
-REPORT_HTML = ROOT / "reports" / "duplicates.html"
+REPORT_HTML = ROOT / "reports" / "library.html"
 REPORT_CSV = ROOT / "reports" / "duplicates.csv"
+FILE_ACTIONS_CSV = ROOT / "reports" / "file_actions.csv"
 BEETS_CONFIG = ROOT / "beets-config.yaml"
 WEB_BEETS_CONFIG = ROOT / "reports" / "beets-web-config.yaml"
 
@@ -167,18 +169,24 @@ def library_path() -> str:
 
 
 def quarantine_path(library: str) -> str:
-    return str(PureWindowsPath(library).parent / "Duplicates_To_Check")
+    return str(PureWindowsPath(library).parent / "Duplicates")
 
 
-def current_moved_files() -> set[str]:
+def trash_path(library: str) -> str:
+    return str(PureWindowsPath(library).parent / "Trash")
+
+
+def current_duplicate_files() -> set[str]:
     if not REPORT_CSV.exists():
         return set()
     with REPORT_CSV.open("r", encoding="utf-8-sig", newline="") as f:
-        return {
-            row.get("moved_file", "")
-            for row in csv.DictReader(f)
-            if row.get("moved_file")
-        }
+        paths: set[str] = set()
+        for row in csv.DictReader(f):
+            for key in ("kept_file", "moved_file"):
+                value = row.get(key, "")
+                if value:
+                    paths.add(value)
+        return paths
 
 
 def read_duplicate_rows() -> list[dict[str, str]]:
@@ -206,6 +214,33 @@ def write_duplicate_rows(rows: list[dict[str, str]]) -> None:
         writer.writerows(rows)
 
 
+def append_file_action(action: str, source: str, destination: str, status: str) -> None:
+    FILE_ACTIONS_CSV.parent.mkdir(parents=True, exist_ok=True)
+    exists = FILE_ACTIONS_CSV.exists()
+    with FILE_ACTIONS_CSV.open("a", encoding="utf-8-sig", newline="") as f:
+        writer = csv.DictWriter(
+            f,
+            fieldnames=[
+                "timestamp",
+                "action",
+                "source_file",
+                "destination_file",
+                "status",
+            ],
+        )
+        if not exists:
+            writer.writeheader()
+        writer.writerow(
+            {
+                "timestamp": datetime.now().isoformat(timespec="seconds"),
+                "action": action,
+                "source_file": source,
+                "destination_file": destination,
+                "status": status,
+            }
+        )
+
+
 def safe_quarantine_path(original: Path, library: Path, quarantine: Path) -> Path:
     try:
         relative = original.relative_to(library)
@@ -221,6 +256,26 @@ def safe_quarantine_path(original: Path, library: Path, quarantine: Path) -> Pat
     index = 1
     while True:
         candidate = parent / f"{stem}__duplicate_{index}{suffix}"
+        if not candidate.exists():
+            return candidate
+        index += 1
+
+
+def safe_storage_path(original: Path, library: Path, storage: Path, suffix_marker: str) -> Path:
+    try:
+        relative = original.relative_to(library)
+    except ValueError:
+        relative = Path(original.name)
+    destination = storage / relative
+    if not destination.exists():
+        return destination
+
+    stem = destination.stem
+    suffix = destination.suffix
+    parent = destination.parent
+    index = 1
+    while True:
+        candidate = parent / f"{stem}__{suffix_marker}_{index}{suffix}"
         if not candidate.exists():
             return candidate
         index += 1
@@ -255,6 +310,8 @@ def update_report_without_scan(remaining_rows: list[dict[str, str]], moved_paths
                     formats[fmt] = formats.get(fmt, 0) + 1
                 break
     library["formats"] = dict(sorted(formats.items()))
+    library["genres"] = collect_genres_from_tracks(tracks)
+    library["years"] = collect_years_from_tracks(tracks)
 
     report_rows = [
         ReportRow(
@@ -269,34 +326,64 @@ def update_report_without_scan(remaining_rows: list[dict[str, str]], moved_paths
     ]
     new_payload = build_payload(report_rows, library)
     REPORT_HTML.write_text(render_html(new_payload), encoding="utf-8")
+    _REPORT_CACHE.clear()
+    _AUDIO_PATH_CACHE.clear()
 
 
-def move_from_csv(only_file: str | None = None) -> dict:
+def move_duplicate_files(only_file: str | None = None, worse_only: bool = False) -> dict:
     library = Path(library_path())
     quarantine = Path(quarantine_path(str(library)))
     rows = read_duplicate_rows()
     wanted = norm_path(only_file) if only_file else None
     remaining = []
     moved = []
+    selected: set[str] = set()
+    processed: set[str] = set()
+
+    if wanted is None:
+        selected = {
+            norm_path(row.get("moved_file", ""))
+            for row in rows
+            if row.get("moved_file")
+        }
+    else:
+        for row in rows:
+            for key in ("kept_file", "moved_file"):
+                value = row.get(key, "")
+                if value and norm_path(value) == wanted:
+                    selected.add(norm_path(value))
 
     for row in rows:
-        moved_file = row.get("moved_file", "")
-        if not moved_file:
-            remaining.append(row)
-            continue
-        if wanted is not None and norm_path(moved_file) != wanted:
+        row_paths = [row.get("kept_file", ""), row.get("moved_file", "")]
+        row_selected_paths = [
+            path
+            for path in row_paths
+            if path and norm_path(path) in selected and (not worse_only or path == row.get("moved_file", ""))
+        ]
+        if not row_selected_paths:
             remaining.append(row)
             continue
 
-        source = Path(moved_file)
-        if not source.exists():
-            moved.append({"source": str(source), "status": "already_missing"})
+        if wanted is not None and not row_selected_paths:
+            remaining.append(row)
             continue
 
-        destination = safe_quarantine_path(source, library, quarantine)
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        shutil.move(str(source), str(destination))
-        moved.append({"source": str(source), "destination": str(destination), "status": "moved"})
+        for source_text in row_selected_paths:
+            source = Path(source_text)
+            source_key = norm_path(str(source))
+            if source_key in processed:
+                continue
+            processed.add(source_key)
+            if not source.exists():
+                moved.append({"source": str(source), "status": "already_missing"})
+                append_file_action("quarantine", str(source), "", "already_missing")
+                continue
+
+            destination = safe_storage_path(source, library, quarantine, "duplicate")
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(source), str(destination))
+            moved.append({"source": str(source), "destination": str(destination), "status": "moved"})
+            append_file_action("quarantine", str(source), str(destination), "moved")
 
     if wanted is not None and not moved:
         raise RuntimeError("Selected duplicate was not found in the current CSV report.")
@@ -308,6 +395,46 @@ def move_from_csv(only_file: str | None = None) -> dict:
         "ok": True,
         "quarantine": str(quarantine),
         "moved": moved,
+        "moved_paths": sorted(moved_paths),
+        "remaining_duplicates": len(remaining),
+    }
+
+
+def move_from_csv(only_file: str | None = None) -> dict:
+    return move_duplicate_files(only_file, worse_only=only_file is None)
+
+
+def trash_file(file_path: str) -> dict:
+    source = resolve_audio_path(file_path)
+    if source is None or not path_exists(source):
+        raise RuntimeError(f"Audio file was not found: {file_path}")
+    if source.suffix.lower() not in AUDIO_EXTENSIONS:
+        raise RuntimeError(f"Unsupported audio file type: {source}")
+    if not source_inside_library(source):
+        raise RuntimeError(f"File is outside the reported music library: {source}")
+
+    library = Path(library_path())
+    trash = Path(trash_path(str(library)))
+    destination = safe_storage_path(source, library, trash, "trash")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(source), str(destination))
+    append_file_action("trash", str(source), str(destination), "moved")
+
+    source_key = norm_path(str(source))
+    remaining = []
+    for row in read_duplicate_rows():
+        if source_key in {norm_path(row.get("kept_file", "")), norm_path(row.get("moved_file", ""))}:
+            continue
+        remaining.append(row)
+
+    write_duplicate_rows(remaining)
+    update_report_without_scan(remaining, {source_key})
+    return {
+        "ok": True,
+        "trash": str(trash),
+        "source": str(source),
+        "destination": str(destination),
+        "moved_paths": [source_key],
         "remaining_duplicates": len(remaining),
     }
 
@@ -481,6 +608,11 @@ def quarantine_duplicates(only_file: str | None = None) -> dict:
 def require_quarantine_confirmation(body: dict) -> None:
     if body.get("confirm") != "MOVE_TO_QUARANTINE":
         raise RuntimeError("Quarantine action requires explicit confirmation.")
+
+
+def require_trash_confirmation(body: dict) -> None:
+    if body.get("confirm") != "MOVE_TO_TRASH":
+        raise RuntimeError("Trash action requires explicit confirmation.")
 
 
 def report_music_path_set() -> set[str]:
@@ -1233,7 +1365,7 @@ class ReportHandler(SimpleHTTPRequestHandler):
 
         if self.path in {"/", ""}:
             self.send_response(302)
-            self.send_header("Location", "/reports/duplicates.html")
+            self.send_header("Location", "/reports/library.html")
             self.end_headers()
             return
 
@@ -1256,18 +1388,38 @@ class ReportHandler(SimpleHTTPRequestHandler):
             if self.path == "/api/quarantine-one":
                 body = self.read_json()
                 require_quarantine_confirmation(body)
-                moved_file = str(body.get("moved_file", ""))
-                allowed = {norm_path(path) for path in current_moved_files()}
-                if not moved_file or norm_path(moved_file) not in allowed:
+                duplicate_file = str(body.get("file") or body.get("moved_file") or "")
+                allowed = {norm_path(path) for path in current_duplicate_files()}
+                if not duplicate_file or norm_path(duplicate_file) not in allowed:
                     self.send_json(
                         400,
                         {
                             "ok": False,
-                            "error": "File is not listed as a movable duplicate in the current CSV report.",
+                            "error": "File is not listed as a duplicate in the current CSV report.",
                         },
                     )
                     return
-                self.send_json(200, quarantine_duplicates(moved_file))
+                self.send_json(200, quarantine_duplicates(duplicate_file))
+                return
+
+            if self.path == "/api/trash-file":
+                body = self.read_json()
+                require_trash_confirmation(body)
+                file_path = str(body.get("file", ""))
+                if not file_path:
+                    self.send_json(400, {"ok": False, "error": "File path is required."})
+                    return
+                self.send_json(200, trash_file(file_path))
+                return
+
+            if self.path == "/api/rescan-library":
+                body = self.read_json()
+                if body.get("confirm") != "RESCAN_LIBRARY":
+                    raise RuntimeError("Rescan requires explicit confirmation.")
+                commands = refresh_report(library_path())
+                _REPORT_CACHE.clear()
+                _AUDIO_PATH_CACHE.clear()
+                self.send_json(200, {"ok": True, "commands": commands, "reload": True})
                 return
 
             if self.path == "/api/music-operation":
@@ -1289,7 +1441,7 @@ def main() -> int:
     args = parser.parse_args()
 
     server = ThreadingHTTPServer((args.host, args.port), ReportHandler)
-    url = f"http://{args.host}:{args.port}/reports/duplicates.html"
+    url = f"http://{args.host}:{args.port}/reports/library.html"
     print(f"Report server: {url}")
     if args.open:
         import webbrowser

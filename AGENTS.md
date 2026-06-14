@@ -50,7 +50,7 @@ music-library-agent/
 ```text
 D:\Music\Unsorted
 D:\Music\Sorted
-D:\Music\Duplicates_To_Check
+D:\Music\Duplicates
 ```
 
 ## Правила тегирования
@@ -155,7 +155,7 @@ MP3 320 kbps обычно лучше MP3 192 kbps, но FLAC лучше любо
 По умолчанию:
 
 - лучший файл остаётся на месте;
-- худшие дубли переносятся в папку `Duplicates_To_Check`;
+- худшие дубли переносятся в папку `Duplicates`;
 - создаётся CSV-отчёт;
 - ничего не удаляется.
 
@@ -201,7 +201,7 @@ python scripts/find_duplicates.py --library "D:\Music\Sorted" --dry-run
 Перенос худших дублей в карантин:
 
 ```bash
-python scripts/find_duplicates.py --library "D:\Music\Sorted" --quarantine "D:\Music\Duplicates_To_Check"
+python scripts/find_duplicates.py --library "D:\Music\Sorted" --quarantine "D:\Music\Duplicates"
 ```
 
 Импорт через beets:
@@ -215,7 +215,7 @@ beet -c beets-config.yaml import "D:\Music\Unsorted"
 Если пользователь просит “удалить дубли”, агент должен сначала предложить безопасный вариант:
 
 ```text
-Сначала перенесу худшие дубли в Duplicates_To_Check и сделаю CSV-отчёт.
+Сначала перенесу худшие дубли в Duplicates и сделаю CSV-отчёт.
 Удалять файлы сразу не буду.
 ```
 
@@ -231,7 +231,7 @@ beet -c beets-config.yaml import "D:\Music\Unsorted"
 Если пользователь просит красивый отчёт, используй:
 
 ```bash
-python scripts/generate_html_report.py --csv "reports\duplicates.csv" --out "reports\duplicates.html"
+python scripts/generate_html_report.py --csv "reports\duplicates.csv" --out "reports\library.html"
 ```
 
 Требования к HTML-отчёту:
@@ -257,7 +257,7 @@ python scripts/generate_html_report.py --csv "reports\duplicates.csv" --out "rep
 Если пользователь просит общий анализ папки с музыкой, генерируй отчёт с параметром `--library`:
 
 ```bash
-python scripts/generate_html_report.py --csv "reports\duplicates.csv" --library "D:\Music\Sorted" --out "reports\duplicates.html"
+python scripts/generate_html_report.py --csv "reports\duplicates.csv" --library "D:\Music\Sorted" --out "reports\library.html"
 ```
 
 На странице отчёта должны быть метрики:
@@ -268,4 +268,3 @@ python scripts/generate_html_report.py --csv "reports\duplicates.csv" --library 
 - дублей.
 
 Дубли считать по CSV-отчёту поиска дублей. Файлы, альбомы и исполнителей считать сканированием папки `--library`.
-

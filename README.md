@@ -22,7 +22,7 @@
 ↓
 обработанная музыка копируется в Sorted
 ↓
-дубли переносятся в Duplicates_To_Check
+дубли переносятся в Duplicates
 ↓
 пользователь проверяет отчёт
 ↓
@@ -83,13 +83,13 @@ python scripts/find_duplicates.py --library "D:\Music\Sorted" --dry-run
 Перенос худших дублей в карантин:
 
 ```bash
-python scripts/find_duplicates.py --library "D:\Music\Sorted" --quarantine "D:\Music\Duplicates_To_Check"
+python scripts/find_duplicates.py --library "D:\Music\Sorted" --quarantine "D:\Music\Duplicates"
 ```
 
 С указанием отчёта:
 
 ```bash
-python scripts/find_duplicates.py --library "D:\Music\Sorted" --quarantine "D:\Music\Duplicates_To_Check" --report "reports\duplicates.csv"
+python scripts/find_duplicates.py --library "D:\Music\Sorted" --quarantine "D:\Music\Duplicates" --report "reports\duplicates.csv"
 ```
 
 ## Как выбирается лучший файл
@@ -128,7 +128,7 @@ python scripts/find_duplicates.py --library "D:\Music\Sorted" --quarantine "D:\M
 После поиска дублей можно собрать интерактивный HTML-отчёт:
 
 ```bash
-python scripts/generate_html_report.py --csv "reports\duplicates.csv" --out "reports\duplicates.html"
+python scripts/generate_html_report.py --csv "reports\duplicates.csv" --out "reports\library.html"
 ```
 
 В отчёте есть:
@@ -155,7 +155,7 @@ HTML-файл автономный: его можно открыть в брау
 Команда:
 
 ```bash
-python scripts/generate_html_report.py --csv "reports\duplicates.csv" --library "D:\Music\Sorted" --out "reports\duplicates.html"
+python scripts/generate_html_report.py --csv "reports\duplicates.csv" --library "D:\Music\Sorted" --out "reports\library.html"
 ```
 
 На странице отчёта будет показано:
@@ -166,4 +166,3 @@ python scripts/generate_html_report.py --csv "reports\duplicates.csv" --library 
 - сколько дублей найдено и сколько файлов предложено перенести в карантин;
 - распределение файлов по форматам;
 - текущий подробный отчёт по дублям.
-
