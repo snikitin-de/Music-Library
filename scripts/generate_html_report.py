@@ -9,6 +9,7 @@ import argparse
 import csv
 import html
 import json
+import math
 import re
 from collections import Counter, defaultdict
 from dataclasses import dataclass
@@ -496,6 +497,28 @@ def render_genre_bars(genres: dict, tracks: list[dict] | None = None) -> str:
     if not genres:
         return '<div class="format-empty">Жанры не определены.</div>'
 
+    def polar_point(radius: float, angle: float) -> tuple[float, float]:
+        radians = math.radians(angle)
+        return (50 + radius * math.cos(radians), 50 + radius * math.sin(radians))
+
+    def donut_slice_path(start_percent: float, end_percent: float) -> str:
+        outer_radius = 46
+        inner_radius = 25
+        start_angle = -90 + start_percent * 3.6
+        end_angle = -90 + end_percent * 3.6
+        large_arc = 1 if end_percent - start_percent > 50 else 0
+        outer_start = polar_point(outer_radius, start_angle)
+        outer_end = polar_point(outer_radius, end_angle)
+        inner_end = polar_point(inner_radius, end_angle)
+        inner_start = polar_point(inner_radius, start_angle)
+        return (
+            f"M {outer_start[0]:.3f} {outer_start[1]:.3f} "
+            f"A {outer_radius} {outer_radius} 0 {large_arc} 1 {outer_end[0]:.3f} {outer_end[1]:.3f} "
+            f"L {inner_end[0]:.3f} {inner_end[1]:.3f} "
+            f"A {inner_radius} {inner_radius} 0 {large_arc} 0 {inner_start[0]:.3f} {inner_start[1]:.3f} "
+            "Z"
+        )
+
     colors = ["#2563eb", "#dc2626", "#f59e0b", "#16a34a", "#9333ea", "#0891b2", "#db2777", "#65a30d", "#b91c1c"]
     total = sum(genres.values())
     legend_items = list(genres.items())
@@ -503,13 +526,17 @@ def render_genre_bars(genres: dict, tracks: list[dict] | None = None) -> str:
     other_count = total - sum(count for _, count in top_items)
     chart_items = top_items + ([("Прочие", other_count)] if other_count else [])
     start = 0.0
-    segments = []
+    svg_segments = []
     parts = []
     for index, (genre, count) in enumerate(chart_items):
         color = "#9ca3af" if genre == "Прочие" else colors[index % len(colors)]
-        end = start + (count / total * 100)
-        segments.append(f"{color} {start:.2f}% {end:.2f}%")
-        start = end
+        percent = count / total * 100
+        if percent > 0:
+            end = start + percent
+            svg_segments.append(
+                f'<path class="donut-segment" d="{donut_slice_path(start, end)}" fill="{color}" />'
+            )
+        start += percent
 
     for index, (genre, count) in enumerate(legend_items):
         color = colors[index] if index < len(colors) else "#9ca3af"
@@ -527,7 +554,6 @@ def render_genre_bars(genres: dict, tracks: list[dict] | None = None) -> str:
 
     top_genre, top_count = legend_items[0]
     top_percent = round(top_count / total * 100)
-    gradient = ", ".join(segments)
     coverage = ""
     if tracks is not None:
         with_genre, without_genre = genre_coverage(tracks)
@@ -541,7 +567,10 @@ def render_genre_bars(genres: dict, tracks: list[dict] | None = None) -> str:
     return f"""
     {coverage}
     <div class="donut-layout">
-      <div class="donut-chart" style="background: conic-gradient({gradient});">
+      <div class="donut-chart">
+        <svg class="donut-svg" viewBox="0 0 100 100" aria-hidden="true">
+          {"".join(svg_segments)}
+        </svg>
         <div class="donut-hole">
           <strong>{top_percent}%</strong>
           <span>{html.escape(top_genre)}</span>
@@ -627,6 +656,16 @@ def render_year_bars(years: dict) -> str:
     </p>
     <div class="year-chart-scroll" aria-label="Эпохи по количеству файлов">
       <svg class="year-chart" viewBox="0 0 {width} {height}" role="img">
+        <defs>
+          <linearGradient id="yearBarGradient" x1="0" y1="1" x2="1" y2="0">
+            <stop offset="0%" stop-color="rgba(147, 197, 253, 0.62)"></stop>
+            <stop offset="100%" stop-color="rgba(45, 212, 191, 0.78)"></stop>
+          </linearGradient>
+          <linearGradient id="yearBarGradientHover" x1="0" y1="1" x2="1" y2="0">
+            <stop offset="0%" stop-color="rgba(147, 197, 253, 0.82)"></stop>
+            <stop offset="100%" stop-color="rgba(45, 212, 191, 0.94)"></stop>
+          </linearGradient>
+        </defs>
         <line class="year-chart-axis" x1="{left - 8}" y1="{top + chart_height}" x2="{width - 8}" y2="{top + chart_height}"></line>
         {"".join(bars)}
       </svg>
@@ -811,94 +850,115 @@ def render_html(payload: dict) -> str:
   <title>Отчёт по музыкальной библиотеке</title>
   <style>
     :root {{
-      --bg: #111827;
-      --panel: #ffffff;
-      --soft: #f3f4f6;
-      --text: #111827;
-      --muted: #6b7280;
-      --line: #d1d5db;
-      --good: #0f766e;
-      --bad: #b91c1c;
-      --accent: #2563eb;
+      --bg: #050816;
+      --panel: rgba(13, 18, 32, 0.78);
+      --panel-solid: #111827;
+      --soft: rgba(255, 255, 255, 0.055);
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+      --line: rgba(148, 163, 184, 0.24);
+      --good: #86efac;
+      --bad: #fca5a5;
+      --accent: #93c5fd;
+      --accent-strong: #60a5fa;
+      --warning: #fde68a;
+      --shadow: 0 24px 80px rgba(0, 0, 0, 0.34);
+      --radius: 22px;
     }}
     * {{ box-sizing: border-box; }}
     body {{
       margin: 0;
+      min-height: 100vh;
       color: var(--text);
-      background: #eef2f7;
-      font-family: Segoe UI, Arial, sans-serif;
+      background:
+        radial-gradient(circle at 0 0, rgba(59, 130, 246, 0.32), transparent 34rem),
+        radial-gradient(circle at 100% 0, rgba(20, 184, 166, 0.18), transparent 30rem),
+        radial-gradient(circle at 50% 100%, rgba(244, 114, 182, 0.1), transparent 34rem),
+        linear-gradient(135deg, #020617, #0f172a 52%, #111827);
+      font-family: Inter, Segoe UI, system-ui, -apple-system, BlinkMacSystemFont, Arial, sans-serif;
     }}
-    .page {{ width: min(1240px, calc(100% - 32px)); margin: 0 auto; padding: 32px 0 56px; }}
-    .header {{ padding: 24px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }}
-    h1 {{ margin: 0; font-size: 32px; line-height: 1.15; }}
-    .library-path {{ margin-top: 12px; overflow-wrap: anywhere; color: var(--muted); font-size: 13px; }}
-    .summary {{ display: grid; grid-template-columns: repeat(4, minmax(140px, 1fr)); gap: 12px; margin-top: 18px; }}
-    .metric {{ padding: 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--soft); }}
+    .page {{ width: min(1240px, calc(100% - 32px)); margin: 0 auto; padding: 40px 0 64px; }}
+    .header {{ padding: 28px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); box-shadow: var(--shadow); backdrop-filter: blur(18px); }}
+    h1 {{ margin: 0; font-size: clamp(28px, 4vw, 44px); line-height: 1.06; letter-spacing: 0; }}
+    .library-path {{ margin-top: 14px; overflow-wrap: anywhere; color: var(--muted); font-size: 13px; line-height: 1.45; }}
+    .summary {{ display: grid; grid-template-columns: repeat(4, minmax(140px, 1fr)); gap: 12px; margin-top: 24px; }}
+    .metric {{ padding: 18px; border: 1px solid var(--line); border-radius: 18px; background: var(--soft); }}
     .metric span {{ display: block; color: var(--muted); font-size: 13px; }}
-    .metric strong {{ display: block; margin-top: 6px; font-size: 28px; }}
-    .analysis-grid {{ display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-top: 14px; }}
-    .panel {{ padding: 18px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }}
+    .metric strong {{ display: block; margin-top: 6px; font-size: 30px; letter-spacing: 0; }}
+    .analysis-grid {{ display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-top: 16px; }}
+    .panel {{ padding: 20px; border: 1px solid var(--line); border-radius: 20px; background: rgba(13, 18, 32, 0.68); box-shadow: 0 16px 48px rgba(0, 0, 0, 0.18); backdrop-filter: blur(12px); }}
     .panel h2, .section-title {{ margin: 0; font-size: 22px; }}
     .panel-body {{ margin-top: 14px; }}
-    .note {{ color: var(--muted); line-height: 1.55; }}
+    .note {{ color: var(--muted); font-size: 14px; line-height: 1.5; }}
+    .note strong {{ color: var(--text); white-space: nowrap; }}
     .format-row {{ display: grid; grid-template-columns: 60px 1fr 60px; gap: 10px; align-items: center; margin-top: 10px; }}
     .panel-body > .format-row:first-child {{ margin-top: 0; }}
     .genre-row {{ display: grid; grid-template-columns: minmax(90px, 150px) 1fr 44px; gap: 10px; align-items: center; margin-top: 10px; }}
     .genre-name {{ min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
     .year-row {{ display: grid; grid-template-columns: 54px 1fr 44px; gap: 10px; align-items: center; margin-top: 10px; }}
-    .format-bar {{ height: 10px; border-radius: 999px; background: #e5e7eb; overflow: hidden; }}
-    .format-bar span {{ display: block; height: 100%; background: var(--accent); }}
+    .format-bar {{ height: 10px; border-radius: 999px; background: rgba(148, 163, 184, 0.16); overflow: hidden; }}
+    .format-bar span {{ display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, rgba(147, 197, 253, 0.62), rgba(45, 212, 191, 0.78)); }}
     .format-count {{ text-align: right; color: var(--muted); }}
     .donut-layout {{ display: grid; grid-template-columns: 1fr; gap: 14px; justify-items: center; }}
-    .donut-chart {{ width: 146px; aspect-ratio: 1; border-radius: 50%; display: grid; place-items: center; box-shadow: inset 0 0 0 1px rgba(17, 24, 39, 0.08); }}
-    .donut-hole {{ width: 82px; aspect-ratio: 1; border-radius: 50%; display: grid; place-items: center; align-content: center; padding: 8px; background: var(--panel); text-align: center; box-shadow: 0 0 0 1px var(--line); }}
+    .donut-chart {{ position: relative; isolation: isolate; overflow: hidden; width: 146px; aspect-ratio: 1; border-radius: 50%; display: grid; place-items: center; background: transparent; box-shadow: 0 18px 42px rgba(0, 0, 0, 0.18); }}
+    .donut-svg {{ position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; shape-rendering: geometricPrecision; }}
+    .donut-segment {{ vector-effect: non-scaling-stroke; }}
+    .donut-hole {{ position: relative; z-index: 2; width: 82px; aspect-ratio: 1; border-radius: 50%; display: grid; place-items: center; align-content: center; padding: 8px; background: #0f172a; text-align: center; box-shadow: 0 0 0 1px var(--line); }}
     .donut-hole strong {{ font-size: 24px; line-height: 1; }}
     .donut-hole span {{ display: block; max-width: 68px; margin-top: 5px; overflow: hidden; color: var(--muted); font-size: 11px; line-height: 1.15; text-overflow: ellipsis; white-space: nowrap; }}
-    .chart-legend {{ display: grid; gap: 7px; width: 100%; min-width: 0; max-height: 209px; overflow-y: auto; padding-right: 4px; scrollbar-gutter: stable; }}
+    .chart-legend {{ display: grid; gap: 7px; width: 100%; min-width: 0; max-height: 209px; overflow-y: auto; padding-right: 4px; scrollbar-gutter: stable; scrollbar-width: thin; scrollbar-color: rgba(148, 163, 184, 0.34) transparent; }}
+    .chart-legend::-webkit-scrollbar {{ width: 6px; }}
+    .chart-legend::-webkit-scrollbar-track {{ background: transparent; }}
+    .chart-legend::-webkit-scrollbar-thumb {{ border-radius: 999px; background: rgba(148, 163, 184, 0.28); }}
     .chart-legend-row {{ display: grid; grid-template-columns: 10px minmax(0, 1fr) 42px 44px; gap: 8px; align-items: center; min-width: 0; font-size: 13px; }}
     .chart-dot {{ width: 10px; height: 10px; border-radius: 50%; }}
     .chart-label {{ overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
     .chart-legend-row strong {{ text-align: right; }}
     .chart-legend-row span:last-child {{ color: var(--muted); text-align: right; }}
-    .chart-note {{ width: 100%; margin: 0 0 12px; color: var(--muted); font-size: 15px; line-height: 1.45; }}
-    .chart-note strong {{ color: var(--text); }}
+    .chart-note {{ width: 100%; margin: 0 0 12px; color: var(--muted); font-size: 14px; line-height: 1.5; }}
+    .chart-note strong {{ color: var(--text); white-space: nowrap; }}
     .year-chart-scroll {{ max-width: 100%; overflow: hidden; padding-bottom: 2px; }}
     .year-chart {{ display: block; width: 100%; height: 188px; }}
-    .year-chart-axis {{ stroke: #d1d5db; stroke-width: 1; }}
+    .year-chart-axis {{ stroke: rgba(148, 163, 184, 0.42); stroke-width: 1; }}
     .year-chart-hit {{ fill: transparent; pointer-events: all; }}
-    .year-chart-bar {{ fill: var(--accent); }}
+    .year-chart-bar {{ fill: url(#yearBarGradient); }}
     .year-chart-hit:hover + .year-chart-bar,
-    .year-chart-bar:hover {{ fill: #1d4ed8; }}
+    .year-chart-bar:hover {{ fill: url(#yearBarGradientHover); }}
     .year-chart-label {{ fill: var(--muted); font-size: 14px; font-weight: 650; }}
     .year-chart-value {{ fill: var(--text); font-size: 11px; font-weight: 700; }}
-    .toolbar {{ display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }}
+    .toolbar {{ display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }}
     input, select, button.small {{
-      height: 42px;
-      min-height: 42px;
+      height: 44px;
+      min-height: 44px;
       border: 1px solid var(--line);
-      border-radius: 8px;
-      background: #fff;
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.82);
       color: var(--text);
-      padding: 0 12px;
+      padding: 0 16px;
       font: inherit;
+      outline: none;
     }}
+    input::placeholder {{ color: rgba(156, 163, 175, 0.86); }}
+    input:focus, select:focus, button.small:focus-visible {{ border-color: rgba(147, 197, 253, 0.72); box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2); }}
     button.small {{
       display: inline-flex;
       align-items: center;
       justify-content: center;
       white-space: nowrap;
+      transition: border-color 0.16s ease, background 0.16s ease;
     }}
+    button.small:hover:not(:disabled) {{ border-color: rgba(147, 197, 253, 0.5); background: rgba(30, 41, 59, 0.92); }}
     input {{ flex: 1 1 300px; }}
     select {{
       flex: 0 0 250px;
       padding-right: 42px;
       appearance: none;
       background-image:
-        linear-gradient(45deg, transparent 50%, #111827 50%),
-        linear-gradient(135deg, #111827 50%, transparent 50%);
+        linear-gradient(45deg, transparent 50%, #e5e7eb 50%),
+        linear-gradient(135deg, #e5e7eb 50%, transparent 50%);
       background-position:
-        calc(100% - 19px) 17px,
-        calc(100% - 13px) 17px;
+        calc(100% - 21px) 18px,
+        calc(100% - 15px) 18px;
       background-size: 6px 6px, 6px 6px;
       background-repeat: no-repeat;
     }}
@@ -907,14 +967,14 @@ def render_html(payload: dict) -> str:
       cursor: not-allowed;
       opacity: 0.55;
     }}
-    .section-title {{ margin-top: 24px; }}
+    .section-title {{ margin-top: 28px; letter-spacing: 0; }}
     .music-toolbar {{ margin: 24px 0 12px; }}
     .music-operations {{
       margin-top: 14px;
       padding: 14px;
       border: 1px solid var(--line);
-      border-radius: 8px;
-      background: #f8fafc;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.045);
     }}
     .music-operations-row {{
       display: flex;
@@ -930,7 +990,7 @@ def render_html(payload: dict) -> str:
     }}
     .music-operations-row > button.small {{ flex: 0 1 auto; }}
     .music-operations-title {{ margin: 0 0 10px; font-weight: 750; }}
-    .mode-choice {{ display: inline-flex; align-items: center; gap: 6px; min-height: 42px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }}
+    .mode-choice {{ display: inline-flex; align-items: center; gap: 6px; min-height: 42px; padding: 0 12px; border: 1px solid var(--line); border-radius: 999px; background: rgba(15, 23, 42, 0.82); }}
     .mode-choice input {{ flex: 0 0 auto; width: auto; height: auto; margin: 0; }}
     .operation-status {{ margin-top: 10px; color: var(--muted); font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; }}
     .duplicates-heading {{ display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 24px; }}
@@ -939,14 +999,26 @@ def render_html(payload: dict) -> str:
     .duplicates-actions .small {{ height: 42px; min-height: 42px; }}
     #rescanLibrary,
     #quarantineCommand {{ width: 236px; }}
-    .danger-button {{ border-color: #dc2626 !important; color: #fff !important; background: #dc2626 !important; }}
-    .danger-button:hover {{ background: #b91c1c !important; }}
-    .quarantine-one {{
-      border-color: #16a34a !important;
-      color: #fff !important;
-      background: #16a34a !important;
+    .danger-button {{
+      border-color: rgba(248, 113, 113, 0.32) !important;
+      color: #fecaca !important;
+      background: rgba(127, 29, 29, 0.16) !important;
     }}
-    .quarantine-one:hover {{ background: #15803d !important; }}
+    .danger-button:hover {{
+      border-color: rgba(248, 113, 113, 0.48) !important;
+      color: #fee2e2 !important;
+      background: rgba(127, 29, 29, 0.26) !important;
+    }}
+    .quarantine-one {{
+      border-color: rgba(134, 239, 172, 0.3) !important;
+      color: #bbf7d0 !important;
+      background: rgba(20, 83, 45, 0.14) !important;
+    }}
+    .quarantine-one:hover {{
+      border-color: rgba(134, 239, 172, 0.44) !important;
+      color: #dcfce7 !important;
+      background: rgba(20, 83, 45, 0.24) !important;
+    }}
     .track-actions {{
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -964,21 +1036,21 @@ def render_html(payload: dict) -> str:
       display: none;
       margin: 12px 0;
       padding: 14px;
-      border: 1px solid #fecaca;
-      border-radius: 8px;
-      background: #fff7f7;
+      border: 1px solid rgba(252, 165, 165, 0.34);
+      border-radius: 18px;
+      background: rgba(127, 29, 29, 0.18);
     }}
     .quarantine-panel.visible {{ display: block; }}
-    .quarantine-panel p {{ margin: 0 0 10px; color: #991b1b; line-height: 1.45; }}
+    .quarantine-panel p {{ margin: 0 0 10px; color: #fecaca; line-height: 1.45; }}
     .quarantine-panel p:last-child {{ margin-bottom: 0; }}
-    .copy-status {{ margin-left: 10px; color: #991b1b; font-size: 13px; }}
+    .copy-status {{ margin-left: 10px; color: #fecaca; font-size: 13px; }}
     .global-progress {{
       display: none;
       height: 8px;
       margin-top: 10px;
       overflow: hidden;
-      border-radius: 4px;
-      background: #fee2e2;
+      border-radius: 999px;
+      background: rgba(252, 165, 165, 0.16);
     }}
     .global-progress.visible {{ display: block; }}
     .global-progress span {{
@@ -986,7 +1058,7 @@ def render_html(payload: dict) -> str:
       width: 40%;
       height: 100%;
       border-radius: inherit;
-      background: #dc2626;
+      background: linear-gradient(90deg, #ef4444, #f97316);
       animation: card-progress 1.1s ease-in-out infinite;
     }}
     .music-section.collapsed .music-toolbar,
@@ -997,9 +1069,9 @@ def render_html(payload: dict) -> str:
       display: none !important;
     }}
     .music-list {{ display: grid; gap: 10px; }}
-    .music-card {{ padding: 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }}
-    .music-card-duplicate {{ border-color: #f59e0b; background: #fffbeb; }}
-    .music-card-unreadable {{ border-color: #ef4444; background: #fef2f2; }}
+    .music-card {{ padding: 14px; border: 1px solid var(--line); border-radius: 18px; background: rgba(13, 18, 32, 0.68); box-shadow: 0 10px 28px rgba(0, 0, 0, 0.14); }}
+    .music-card-duplicate {{ border-color: rgba(245, 158, 11, 0.54); background: rgba(120, 53, 15, 0.2); }}
+    .music-card-unreadable {{ border-color: rgba(239, 68, 68, 0.58); background: rgba(127, 29, 29, 0.22); }}
     .music-card[hidden] {{ display: none; }}
     .music-title {{ font-weight: 750; overflow-wrap: anywhere; }}
     .music-path {{ margin-top: 5px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }}
@@ -1024,15 +1096,15 @@ def render_html(payload: dict) -> str:
       height: 8px;
       margin-top: 7px;
       overflow: hidden;
-      border-radius: 4px;
-      background: #e5e7eb;
+      border-radius: 999px;
+      background: rgba(148, 163, 184, 0.18);
     }}
     .music-card-progress span {{
       position: absolute;
       inset: 0 auto 0 0;
       width: 42%;
       border-radius: inherit;
-      background: var(--accent);
+      background: linear-gradient(90deg, var(--accent), #2dd4bf);
       transform: translateX(-100%);
     }}
     .music-card-status.running .music-card-progress span {{
@@ -1086,43 +1158,44 @@ def render_html(payload: dict) -> str:
       max-width: 100%;
       min-height: 24px;
       padding: 3px 8px;
-      border: 0;
-      border-radius: 4px;
-      color: #1f2937;
-      background: #eef2ff;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 999px;
+      color: #dbeafe;
+      background: rgba(59, 130, 246, 0.16);
       font-size: 12px;
       font-weight: 600;
       line-height: 1.25;
       overflow-wrap: anywhere;
     }}
-    .music-pill-format {{ background: #fee2e2; color: #7f1d1d; }}
-    .music-pill-bitrate {{ background: #dbeafe; color: #1e3a8a; }}
-    .music-pill-bit_depth {{ background: #ede9fe; color: #4c1d95; }}
-    .music-pill-sample_rate {{ background: #ccfbf1; color: #134e4a; }}
-    .music-pill-album {{ background: #fef3c7; color: #78350f; }}
-    .music-pill-albumartist {{ background: #dcfce7; color: #14532d; }}
-    .music-pill-artist {{ background: #ffedd5; color: #7c2d12; }}
-    .music-pill-genre {{ background: #fce7f3; color: #831843; }}
-    .music-pill-title {{ background: #e0f2fe; color: #075985; }}
-    .music-pill-year {{ background: #e5e7eb; color: #374151; }}
-    .music-pill-status {{ background: #fee2e2; color: #991b1b; }}
-    .group-card {{ margin-top: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); overflow: hidden; }}
+    .music-pill-format {{ background: rgba(248, 113, 113, 0.16); color: #fecaca; }}
+    .music-pill-bitrate {{ background: rgba(96, 165, 250, 0.16); color: #bfdbfe; }}
+    .music-pill-bit_depth {{ background: rgba(167, 139, 250, 0.16); color: #ddd6fe; }}
+    .music-pill-sample_rate {{ background: rgba(45, 212, 191, 0.16); color: #ccfbf1; }}
+    .music-pill-album {{ background: rgba(251, 191, 36, 0.16); color: #fde68a; }}
+    .music-pill-albumartist {{ background: rgba(134, 239, 172, 0.14); color: #bbf7d0; }}
+    .music-pill-artist {{ background: rgba(251, 146, 60, 0.14); color: #fed7aa; }}
+    .music-pill-genre {{ background: rgba(244, 114, 182, 0.14); color: #fbcfe8; }}
+    .music-pill-title {{ background: rgba(125, 211, 252, 0.14); color: #bae6fd; }}
+    .music-pill-year {{ background: rgba(203, 213, 225, 0.12); color: #e2e8f0; }}
+    .music-pill-status {{ background: rgba(248, 113, 113, 0.16); color: #fecaca; }}
+    .group-card {{ margin-top: 14px; border: 1px solid var(--line); border-radius: var(--radius); background: rgba(13, 18, 32, 0.68); overflow: hidden; box-shadow: 0 16px 48px rgba(0, 0, 0, 0.2); backdrop-filter: blur(12px); }}
     .group-card[hidden] {{ display: none; }}
-    .group-header {{ width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 16px; padding: 18px; border: 0; background: transparent; color: var(--text); text-align: left; }}
+    .group-header {{ width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 16px; padding: 20px 22px; border: 0; background: transparent; color: var(--text); text-align: left; }}
+    .group-header:hover {{ background: rgba(255, 255, 255, 0.035); }}
     .group-title {{ font-weight: 700; line-height: 1.35; overflow-wrap: anywhere; }}
     .group-subtitle {{ margin-top: 4px; color: var(--muted); font-size: 13px; }}
     .badges {{ display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; align-items: center; min-width: 0; }}
-    .badge {{ display: inline-flex; align-items: center; justify-content: center; min-height: 26px; padding: 5px 9px; border-radius: 4px; color: #1e3a8a; background: #dbeafe; font-size: 12px; font-weight: 700; white-space: nowrap; }}
-    .group-body {{ display: none; padding: 16px; border-top: 1px solid var(--line); background: #fafafa; }}
+    .badge {{ display: inline-flex; align-items: center; justify-content: center; min-height: 28px; padding: 5px 10px; border: 1px solid rgba(147, 197, 253, 0.28); border-radius: 999px; color: #dbeafe; background: rgba(59, 130, 246, 0.18); font-size: 12px; font-weight: 700; white-space: nowrap; }}
+    .group-body {{ display: none; padding: 18px; border-top: 1px solid var(--line); background: rgba(255, 255, 255, 0.035); }}
     .group-card.open .group-body {{ display: block; }}
-    .comparison {{ display: grid; grid-template-columns: minmax(0, 1fr) 92px minmax(0, 1fr); align-items: stretch; gap: 14px; padding: 14px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }}
+    .comparison {{ display: grid; grid-template-columns: minmax(0, 1fr) 92px minmax(0, 1fr); align-items: stretch; gap: 14px; padding: 16px; border: 1px solid var(--line); border-radius: 20px; background: rgba(255, 255, 255, 0.045); }}
     .comparison + .comparison {{ margin-top: 12px; }}
-    .track {{ display: flex; flex-direction: column; min-width: 0; padding: 14px; border: 1px solid var(--line); border-radius: 8px; }}
-    .keep {{ border-color: #99f6e4; background: #f0fdfa; }}
-    .move {{ border-color: #fecaca; background: #fef2f2; }}
-    .track-label {{ display: inline-block; margin-bottom: 10px; font-size: 12px; font-weight: 800; }}
-    .keep .track-label {{ color: var(--good); }}
-    .move .track-label {{ color: var(--bad); }}
+    .track {{ display: flex; flex-direction: column; min-width: 0; padding: 16px; border: 1px solid var(--line); border-radius: 18px; }}
+    .keep {{ border-color: rgba(134, 239, 172, 0.28); background: rgba(34, 197, 94, 0.08); }}
+    .move {{ border-color: rgba(252, 165, 165, 0.28); background: rgba(239, 68, 68, 0.08); }}
+    .track-label {{ display: inline-flex; align-items: center; width: fit-content; min-height: 26px; padding: 0 10px; border-radius: 999px; margin-bottom: 10px; font-size: 12px; font-weight: 800; }}
+    .keep .track-label {{ color: #bbf7d0; background: rgba(34, 197, 94, 0.16); }}
+    .move .track-label {{ color: #fecaca; background: rgba(239, 68, 68, 0.16); }}
     .track-title {{ font-weight: 700; overflow-wrap: anywhere; }}
     .track-path {{ margin-top: 6px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }}
     .audio-player-wrap {{ margin-top: 10px; }}
@@ -1136,8 +1209,9 @@ def render_html(payload: dict) -> str:
       min-height: 36px;
       padding: 0 10px;
       border-radius: 999px;
-      background: #f1f3f5;
-      color: #111827;
+      background: rgba(15, 23, 42, 0.74);
+      color: var(--text);
+      border: 1px solid rgba(148, 163, 184, 0.18);
       box-sizing: border-box;
     }}
     .audio-play,
@@ -1151,11 +1225,11 @@ def render_html(payload: dict) -> str:
       border: 0;
       border-radius: 999px;
       background: transparent;
-      color: #111827;
+      color: var(--text);
       cursor: pointer;
     }}
     .audio-play:hover,
-    .audio-mute:hover {{ background: #e5e7eb; }}
+    .audio-mute:hover {{ background: rgba(148, 163, 184, 0.18); }}
     .audio-play-icon {{
       width: 0;
       height: 0;
@@ -1193,7 +1267,7 @@ def render_html(payload: dict) -> str:
       height: 4px;
       overflow: hidden;
       border-radius: 999px;
-      background: #c7c9cc;
+      background: rgba(148, 163, 184, 0.3);
       pointer-events: none;
     }}
     .audio-seek-fill {{
@@ -1201,7 +1275,7 @@ def render_html(payload: dict) -> str:
       width: var(--audio-progress, 0%);
       height: 100%;
       border-radius: inherit;
-      background: #9ca3af;
+      background: linear-gradient(90deg, var(--accent), #2dd4bf);
     }}
     .audio-seek {{
       position: absolute;
@@ -1220,7 +1294,7 @@ def render_html(payload: dict) -> str:
       display: block;
       width: 21px;
       height: 21px;
-      color: #4b5563;
+      color: #cbd5e1;
     }}
     .audio-speaker {{
       fill: currentColor;
@@ -1236,12 +1310,12 @@ def render_html(payload: dict) -> str:
     .audio-mute.muted .audio-volume-on {{ display: none; }}
     .audio-mute.muted .audio-volume-off {{ display: block; }}
     .quality-grid {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }}
-    .quality-grid div {{ padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: rgba(255, 255, 255, 0.7); }}
+    .quality-grid div {{ padding: 9px; border: 1px solid var(--line); border-radius: 14px; background: rgba(255, 255, 255, 0.045); }}
     .quality-grid span {{ display: block; color: var(--muted); font-size: 11px; }}
     .quality-grid strong {{ display: block; margin-top: 3px; font-size: 13px; overflow-wrap: anywhere; }}
     .divider {{ display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: var(--muted); font-size: 12px; }}
-    .arrow {{ font-size: 24px; color: var(--accent); }}
-    .empty {{ display: none; margin-top: 12px; padding: 24px; border: 1px dashed var(--line); border-radius: 8px; text-align: center; color: var(--muted); background: #fff; }}
+    .arrow {{ display: grid; place-items: center; width: 42px; height: 42px; margin-bottom: 8px; border-radius: 999px; border: 1px solid rgba(253, 230, 138, 0.2); color: var(--warning); background: rgba(253, 230, 138, 0.12); font-size: 24px; }}
+    .empty {{ display: none; margin-top: 12px; padding: 28px; border: 1px dashed var(--line); border-radius: var(--radius); text-align: center; color: var(--muted); background: rgba(255, 255, 255, 0.045); }}
     .empty.visible {{ display: block; }}
     @media (max-width: 900px) {{
       .summary, .analysis-grid {{ grid-template-columns: 1fr 1fr; }}
