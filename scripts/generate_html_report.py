@@ -565,31 +565,56 @@ def render_year_bars(years: dict) -> str:
     if not all_year_items:
         return '<div class="format-empty">Годы не определены.</div>'
 
-    year_items = sorted(all_year_items, key=lambda item: (-item[1], -item[0]))[:12]
-    year_items = sorted(year_items, key=lambda item: item[0])
-    max_count = max(count for _, count in year_items)
-    bar_width = 16
-    gap = 10
+    era_definitions = [
+        ("до 80-х", None, 1979),
+        ("80-е", 1980, 1989),
+        ("90-е", 1990, 1999),
+        ("00-е", 2000, 2009),
+        ("10-е", 2010, 2019),
+        ("20-е", 2020, 2029),
+    ]
+    era_items = []
+    for label, start_year, end_year in era_definitions:
+        count = sum(
+            year_count
+            for year, year_count in all_year_items
+            if (start_year is None or year >= start_year) and year <= end_year
+        )
+        if not count:
+            continue
+
+        if start_year is None:
+            title = f"{label}: до {end_year + 1}, {format_number(count)} файлов"
+        else:
+            title = f"{label}: {start_year}-{end_year}, {format_number(count)} файлов"
+        era_items.append((label, count, title))
+
+    max_count = max(count for _, count, _ in era_items)
     left = 16
+    right = 16
     top = 16
     chart_height = 116
     label_y = top + chart_height + 20
     width = 300
     height = 188
-    inner_width = width - left - 14
-    gap = max(6, (inner_width - len(year_items) * bar_width) / max(1, len(year_items) - 1))
+    inner_width = width - left - right
+    bar_width = 28
+    gap = (inner_width - len(era_items) * bar_width) / max(1, len(era_items) - 1)
+
     bars = []
-    for index, (year, count) in enumerate(year_items):
+    for index, (label, count, title) in enumerate(era_items):
         bar_height = max(3, round(count / max_count * chart_height))
         x = left + index * (bar_width + gap)
         y = top + chart_height - bar_height
-        year_label = str(year) if index in {0, 4, 8, len(year_items) - 1} else ""
+        hit_width = max(36, bar_width + gap)
+        hit_x = max(0, x + bar_width / 2 - hit_width / 2)
         bars.append(
             f"""
             <g>
-              <title>{year}: {format_number(count)}</title>
-              <rect class="year-chart-bar" x="{x}" y="{y}" width="{bar_width}" height="{bar_height}" rx="4"></rect>
-              <text class="year-chart-label" x="{x + bar_width / 2}" y="{label_y}" text-anchor="middle">{html.escape(year_label)}</text>
+              <title>{html.escape(title)}</title>
+              <rect class="year-chart-hit" x="{hit_x:.2f}" y="{top}" width="{hit_width:.2f}" height="{chart_height}" rx="3"></rect>
+              <rect class="year-chart-bar" x="{x:.2f}" y="{y}" width="{bar_width:.2f}" height="{bar_height}" rx="{min(3, bar_width / 2):.2f}"></rect>
+              <text class="year-chart-label" x="{x + bar_width / 2:.2f}" y="{label_y}" text-anchor="middle">{html.escape(label)}</text>
             </g>
             """
         )
@@ -600,7 +625,7 @@ def render_year_bars(years: dict) -> str:
       Самый музыкальный год: <strong>{html.escape(str(peak_year))}</strong>,
       <strong>{format_number(peak_count)}</strong> файлов.
     </p>
-    <div class="year-chart-scroll" aria-label="Топ годов по количеству файлов">
+    <div class="year-chart-scroll" aria-label="Эпохи по количеству файлов">
       <svg class="year-chart" viewBox="0 0 {width} {height}" role="img">
         <line class="year-chart-axis" x1="{left - 8}" y1="{top + chart_height}" x2="{width - 8}" y2="{top + chart_height}"></line>
         {"".join(bars)}
@@ -813,7 +838,7 @@ def render_html(payload: dict) -> str:
     .metric strong {{ display: block; margin-top: 6px; font-size: 28px; }}
     .analysis-grid {{ display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-top: 14px; }}
     .panel {{ padding: 18px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }}
-    .panel h2, .section-title {{ margin: 0; font-size: 20px; }}
+    .panel h2, .section-title {{ margin: 0; font-size: 22px; }}
     .panel-body {{ margin-top: 14px; }}
     .note {{ color: var(--muted); line-height: 1.55; }}
     .format-row {{ display: grid; grid-template-columns: 60px 1fr 60px; gap: 10px; align-items: center; margin-top: 10px; }}
@@ -835,18 +860,21 @@ def render_html(payload: dict) -> str:
     .chart-label {{ overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
     .chart-legend-row strong {{ text-align: right; }}
     .chart-legend-row span:last-child {{ color: var(--muted); text-align: right; }}
-    .chart-note {{ width: 100%; margin: 0 0 12px; color: var(--muted); font-size: 13px; line-height: 1.4; }}
+    .chart-note {{ width: 100%; margin: 0 0 12px; color: var(--muted); font-size: 15px; line-height: 1.45; }}
     .chart-note strong {{ color: var(--text); }}
     .year-chart-scroll {{ max-width: 100%; overflow: hidden; padding-bottom: 2px; }}
     .year-chart {{ display: block; width: 100%; height: 188px; }}
     .year-chart-axis {{ stroke: #d1d5db; stroke-width: 1; }}
+    .year-chart-hit {{ fill: transparent; pointer-events: all; }}
     .year-chart-bar {{ fill: var(--accent); }}
+    .year-chart-hit:hover + .year-chart-bar,
     .year-chart-bar:hover {{ fill: #1d4ed8; }}
-    .year-chart-label {{ fill: var(--muted); font-size: 11px; }}
+    .year-chart-label {{ fill: var(--muted); font-size: 14px; font-weight: 650; }}
     .year-chart-value {{ fill: var(--text); font-size: 11px; font-weight: 700; }}
     .toolbar {{ display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }}
     input, select, button.small {{
       height: 42px;
+      min-height: 42px;
       border: 1px solid var(--line);
       border-radius: 8px;
       background: #fff;
@@ -908,6 +936,9 @@ def render_html(payload: dict) -> str:
     .duplicates-heading {{ display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 24px; }}
     .duplicates-heading .section-title {{ margin: 0; }}
     .duplicates-actions {{ display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }}
+    .duplicates-actions .small {{ height: 42px; min-height: 42px; }}
+    #rescanLibrary,
+    #quarantineCommand {{ width: 236px; }}
     .danger-button {{ border-color: #dc2626 !important; color: #fff !important; background: #dc2626 !important; }}
     .danger-button:hover {{ background: #b91c1c !important; }}
     .quarantine-one {{
