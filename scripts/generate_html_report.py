@@ -55,6 +55,8 @@ HEATMAP_ERAS = [
     ("Без года", None, None),
 ]
 
+EXCLUDED_TOP_ARTISTS = {"various artists", "varios artists"}
+
 
 @dataclass
 class ReportRow:
@@ -71,6 +73,10 @@ def normalize(value: str) -> str:
     value = value.lower().replace("ё", "е")
     value = re.sub(r"\s+", " ", value)
     return value.strip()
+
+
+def is_excluded_top_artist(value: str) -> bool:
+    return normalize(value) in EXCLUDED_TOP_ARTISTS
 
 
 def first_tag(tags: dict, names: list[str]) -> str:
@@ -219,6 +225,7 @@ def analyze_library(library: Path | None) -> dict:
             "albums": "—",
             "artists": "—",
             "formats": {},
+            "top_artists": [],
             "genres": {},
             "years": {},
             "unreadable_files": "—",
@@ -233,6 +240,7 @@ def analyze_library(library: Path | None) -> dict:
     unreadable_files = 0
     albums: set[str] = set()
     artists: set[str] = set()
+    artist_counts: Counter[str] = Counter()
     formats: Counter[str] = Counter()
     tracks: list[dict] = []
 
@@ -284,6 +292,8 @@ def analyze_library(library: Path | None) -> dict:
 
         if artist:
             artists.add(normalize(artist))
+            if not is_excluded_top_artist(artist):
+                artist_counts[artist.strip()] += 1
         if track_artist:
             artists.add(normalize(track_artist))
         if album:
@@ -327,6 +337,7 @@ def analyze_library(library: Path | None) -> dict:
         "albums": len(albums),
         "artists": len(artists),
         "formats": dict(sorted(formats.items())),
+        "top_artists": artist_counts.most_common(10),
         "genres": collect_genres_from_tracks(tracks),
         "years": collect_years_from_tracks(tracks),
         "unreadable_files": unreadable_files,
@@ -546,6 +557,59 @@ def render_format_bars(formats: dict) -> str:
             """
         )
     return "".join(parts)
+
+
+def render_artist_bars(artists: list) -> str:
+    if not artists:
+        return '<div class="format-empty">Исполнители не определены.</div>'
+
+    artists = [(artist, count) for artist, count in artists if not is_excluded_top_artist(str(artist))]
+    if not artists:
+        return '<div class="format-empty">Исполнители не определены.</div>'
+
+    max_count = max((count for _, count in artists), default=1)
+    parts = []
+    for artist, count in artists[:10]:
+        width = max(4, round(count / max_count * 100))
+        parts.append(
+            f"""
+            <div class="artist-row">
+              <div class="artist-name" title="{html.escape(str(artist))}">{html.escape(str(artist))}</div>
+              <div class="format-bar"><span style="width:{width}%"></span></div>
+              <div class="format-count">{format_number(count)}</div>
+            </div>
+            """
+        )
+    return "".join(parts)
+
+
+def infer_top_artists_from_tracks(tracks: list[dict]) -> list[tuple[str, int]]:
+    counts: Counter[str] = Counter()
+    display_names: dict[str, str] = {}
+    for track in tracks:
+        tags = track.get("tags", [])
+        artist = ""
+        for preferred_kind in ("albumartist", "artist", "composer"):
+            artist = next(
+                (
+                    str(tag.get("value", "")).strip()
+                    for tag in tags
+                    if isinstance(tag, dict) and tag.get("kind") == preferred_kind
+                ),
+                "",
+            )
+            if artist:
+                break
+        if not artist or is_excluded_top_artist(artist):
+            continue
+
+        key = normalize(artist)
+        if not key:
+            continue
+        display_names.setdefault(key, artist)
+        counts[key] += 1
+
+    return [(display_names[key], count) for key, count in counts.most_common(10)]
 
 
 def genre_coverage(tracks: list[dict]) -> tuple[int, int]:
@@ -933,6 +997,7 @@ def render_html(payload: dict) -> str:
     json_payload = json.dumps(payload, ensure_ascii=False)
     summary = payload["summary"]
     library = payload["library"]
+    top_artists = library.get("top_artists") or infer_top_artists_from_tracks(library.get("tracks", []))
     genres = library.get("genres") or collect_genres_from_tracks(library.get("tracks", []))
     library["genres"] = genres
     years = library.get("years") or collect_years_from_tracks(library.get("tracks", []))
@@ -1054,8 +1119,15 @@ def render_html(payload: dict) -> str:
     .panel-body {{ margin-top: 14px; }}
     .note {{ color: var(--muted); font-size: 14px; line-height: 1.5; }}
     .note strong {{ color: var(--text); white-space: nowrap; }}
+    .summary-panel {{ display: grid; grid-template-rows: auto 1fr; gap: 18px; }}
+    .summary-panel .panel-body {{ margin-top: 0; }}
+    .summary-main {{ padding-bottom: 18px; border-bottom: 1px solid var(--line); }}
+    .summary-subtitle {{ margin: 0 0 14px; color: var(--text); font-size: 16px; font-weight: 800; }}
     .format-row {{ display: grid; grid-template-columns: 60px 1fr 60px; gap: 10px; align-items: center; margin-top: 10px; }}
     .panel-body > .format-row:first-child {{ margin-top: 0; }}
+    .artist-row {{ display: grid; grid-template-columns: minmax(88px, 1fr) minmax(72px, 0.75fr) 46px; gap: 10px; align-items: center; margin-top: 10px; }}
+    .panel-body > .artist-row:first-child {{ margin-top: 0; }}
+    .artist-name {{ min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
     .genre-row {{ display: grid; grid-template-columns: minmax(90px, 150px) 1fr 44px; gap: 10px; align-items: center; margin-top: 10px; }}
     .genre-name {{ min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
     .year-row {{ display: grid; grid-template-columns: 54px 1fr 44px; gap: 10px; align-items: center; margin-top: 10px; }}
@@ -1594,18 +1666,22 @@ def render_html(payload: dict) -> str:
     </section>
 
     <div class="analysis-grid">
-      <section class="panel">
+      <section class="panel summary-panel">
         <h2>Сводка</h2>
-        <div class="panel-body note">
+        <div class="panel-body note summary-main">
           Групп дублей: <strong id="duplicateGroupsMetric">{format_number(summary["groups"])}</strong><br>
           Файлов, предлагаемых в карантин: <strong id="duplicateFilesMetric">{format_number(summary["duplicates"])}</strong><br>
           Нечитаемых аудиофайлов: <strong>{format_number(library.get("unreadable_files"))}</strong>
         </div>
+        <div class="panel-body">
+          <p class="summary-subtitle">Форматы файлов</p>
+          {render_format_bars(library.get("formats", {}))}
+        </div>
       </section>
       <section class="panel">
-        <h2>Форматы файлов</h2>
+        <h2>ТОП 10 исполнителей</h2>
         <div class="panel-body">
-          {render_format_bars(library.get("formats", {}))}
+          {render_artist_bars(top_artists)}
         </div>
       </section>
       <section class="panel">
