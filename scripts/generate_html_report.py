@@ -819,7 +819,6 @@ def render_genre_era_heatmap(tracks: list[dict]) -> str:
           <h2>Тепловая карта: эпоха × жанр</h2>
           <p>Количество треков</p>
         </div>
-        <span class="heatmap-info" title="Цвет показывает относительное количество треков в строках и колонках">i</span>
       </div>
       <div class="heatmap-scroll">
         <div class="heatmap-grid" style="--heatmap-columns: {len(columns)};">
@@ -1106,20 +1105,6 @@ def render_html(payload: dict) -> str:
     }}
     .heatmap-heading h2 {{ margin: 0; font-size: 24px; line-height: 1.15; }}
     .heatmap-heading p {{ margin: 5px 0 0; color: var(--muted); font-size: 14px; }}
-    .heatmap-info {{
-      display: inline-grid;
-      flex: 0 0 auto;
-      place-items: center;
-      width: 20px;
-      height: 20px;
-      border: 1px solid rgba(203, 213, 225, 0.62);
-      border-radius: 50%;
-      color: #cbd5e1;
-      font-size: 13px;
-      font-weight: 800;
-      font-style: normal;
-      line-height: 1;
-    }}
     .heatmap-scroll {{ max-width: 100%; overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin; scrollbar-color: rgba(148, 163, 184, 0.34) transparent; }}
     .heatmap-scroll::-webkit-scrollbar {{ height: 8px; }}
     .heatmap-scroll::-webkit-scrollbar-track {{ background: transparent; }}
