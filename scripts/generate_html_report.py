@@ -46,6 +46,15 @@ DISPLAY_TAGS = [
 
 GENRE_SPLIT_RE = re.compile(r"\s*(?:,|;|/|\|)\s*")
 
+HEATMAP_ERAS = [
+    ("80-е", 1980, 1989),
+    ("90-е", 1990, 1999),
+    ("00-е", 2000, 2009),
+    ("10-е", 2010, 2019),
+    ("20-е", 2020, 2029),
+    ("Без года", None, None),
+]
+
 
 @dataclass
 class ReportRow:
@@ -137,6 +146,67 @@ def collect_years_from_tracks(tracks: list[dict]) -> dict[str, int]:
         year: count
         for year, count in sorted(years.items(), key=lambda item: item[0], reverse=True)
     }
+
+
+def tag_values(track: dict, kind: str) -> list[str]:
+    values = []
+    for tag in track.get("tags", []):
+        if not isinstance(tag, dict) or tag.get("kind") != kind:
+            continue
+        value = str(tag.get("value", "")).strip()
+        if value:
+            values.append(value)
+    return values
+
+
+def heatmap_era_from_year(value: str) -> str:
+    match = re.search(r"\d{4}", value or "")
+    if not match:
+        return "Без года"
+
+    year = int(match.group(0))
+    for label, start_year, end_year in HEATMAP_ERAS:
+        if start_year is not None and end_year is not None and start_year <= year <= end_year:
+            return label
+    return "Без года"
+
+
+def collect_genre_era_heatmap(tracks: list[dict], limit: int = 10) -> dict[str, object]:
+    matrix: dict[str, Counter[str]] = defaultdict(Counter)
+    display_names: dict[str, str] = {}
+    totals: Counter[str] = Counter()
+    columns = [label for label, _, _ in HEATMAP_ERAS]
+
+    for track in tracks:
+        genre_values = []
+        for value in tag_values(track, "genre"):
+            genre_values.extend(split_genres(value))
+        if not genre_values:
+            continue
+
+        era = heatmap_era_from_year(" ".join(tag_values(track, "year")))
+        for genre in genre_values:
+            key = normalize(genre)
+            if not key:
+                continue
+            display_names.setdefault(key, genre)
+            matrix[key][era] += 1
+            totals[key] += 1
+
+    ordered_keys = sorted(
+        totals,
+        key=lambda key: (-totals[key], display_names.get(key, key).lower()),
+    )[:limit]
+    rows = [
+        {
+            "genre": display_names[key],
+            "values": {column: matrix[key].get(column, 0) for column in columns},
+            "total": totals[key],
+        }
+        for key in ordered_keys
+    ]
+    max_value = max((count for row in rows for count in row["values"].values()), default=0)
+    return {"columns": columns, "rows": rows, "max": max_value}
 
 
 def analyze_library(library: Path | None) -> dict:
@@ -673,6 +743,100 @@ def render_year_bars(years: dict) -> str:
     """
 
 
+def heatmap_color(value: int, max_value: int) -> str:
+    if value <= 0 or max_value <= 0:
+        return "rgba(13, 28, 70, 0.72)"
+
+    stops = [
+        (0.0, (20, 43, 101)),
+        (0.24, (42, 55, 133)),
+        (0.46, (104, 55, 166)),
+        (0.68, (190, 61, 135)),
+        (0.84, (239, 91, 77)),
+        (1.0, (255, 174, 48)),
+    ]
+    ratio = min(1.0, max(0.0, math.log1p(value) / math.log1p(max_value)))
+    for index in range(len(stops) - 1):
+        left_pos, left_rgb = stops[index]
+        right_pos, right_rgb = stops[index + 1]
+        if ratio <= right_pos:
+            span = right_pos - left_pos or 1
+            local_ratio = (ratio - left_pos) / span
+            rgb = tuple(
+                round(left + (right - left) * local_ratio)
+                for left, right in zip(left_rgb, right_rgb)
+            )
+            return f"rgb({rgb[0]}, {rgb[1]}, {rgb[2]})"
+    return "rgb(255, 174, 48)"
+
+
+def render_genre_era_heatmap(tracks: list[dict]) -> str:
+    heatmap = collect_genre_era_heatmap(tracks)
+    columns = heatmap["columns"]
+    rows = heatmap["rows"]
+    max_value = int(heatmap["max"] or 0)
+
+    if not rows:
+        return """
+        <section class="panel heatmap-panel">
+          <div class="heatmap-heading">
+            <div>
+              <h2>Тепловая карта: эпоха × жанр</h2>
+              <p>Количество треков</p>
+            </div>
+          </div>
+          <div class="format-empty">Недостаточно жанров и годов для тепловой карты.</div>
+        </section>
+        """
+
+    header = "".join(f'<div class="heatmap-column">{html.escape(column)}</div>' for column in columns)
+    body_rows = []
+    for row in rows:
+        cells = []
+        for column in columns:
+            count = int(row["values"].get(column, 0))
+            title = f'{row["genre"]}, {column}: {format_number(count)} треков'
+            cells.append(
+                f"""
+                <div class="heatmap-cell" style="background:{heatmap_color(count, max_value)}" title="{html.escape(title)}">
+                  {format_number(count)}
+                </div>
+                """
+            )
+        body_rows.append(
+            f"""
+            <div class="heatmap-row">
+              <div class="heatmap-genre" title="{html.escape(row["genre"])}">{html.escape(row["genre"])}</div>
+              {"".join(cells)}
+            </div>
+            """
+        )
+
+    return f"""
+    <section class="panel heatmap-panel">
+      <div class="heatmap-heading">
+        <div>
+          <h2>Тепловая карта: эпоха × жанр</h2>
+          <p>Количество треков</p>
+        </div>
+        <span class="heatmap-info" title="Цвет показывает относительное количество треков в строках и колонках">i</span>
+      </div>
+      <div class="heatmap-scroll">
+        <div class="heatmap-grid" style="--heatmap-columns: {len(columns)};">
+          <div class="heatmap-corner"></div>
+          {header}
+          {"".join(body_rows)}
+        </div>
+      </div>
+      <div class="heatmap-scale">
+        <span>Меньше</span>
+        <div class="heatmap-scale-bar"></div>
+        <span>Больше</span>
+      </div>
+    </section>
+    """
+
+
 def already_layouted(track_path: str, library_path: str) -> bool:
     if not track_path or not library_path:
         return False
@@ -926,6 +1090,101 @@ def render_html(payload: dict) -> str:
     .year-chart-bar:hover {{ fill: url(#yearBarGradientHover); }}
     .year-chart-label {{ fill: var(--muted); font-size: 14px; font-weight: 650; }}
     .year-chart-value {{ fill: var(--text); font-size: 11px; font-weight: 700; }}
+    .heatmap-panel {{
+      margin-top: 14px;
+      padding: 22px;
+      overflow: hidden;
+      background:
+        linear-gradient(135deg, rgba(12, 21, 38, 0.92), rgba(10, 18, 34, 0.82));
+    }}
+    .heatmap-heading {{
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 14px;
+      margin-bottom: 18px;
+    }}
+    .heatmap-heading h2 {{ margin: 0; font-size: 24px; line-height: 1.15; }}
+    .heatmap-heading p {{ margin: 5px 0 0; color: var(--muted); font-size: 14px; }}
+    .heatmap-info {{
+      display: inline-grid;
+      flex: 0 0 auto;
+      place-items: center;
+      width: 20px;
+      height: 20px;
+      border: 1px solid rgba(203, 213, 225, 0.62);
+      border-radius: 50%;
+      color: #cbd5e1;
+      font-size: 13px;
+      font-weight: 800;
+      font-style: normal;
+      line-height: 1;
+    }}
+    .heatmap-scroll {{ max-width: 100%; overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin; scrollbar-color: rgba(148, 163, 184, 0.34) transparent; }}
+    .heatmap-scroll::-webkit-scrollbar {{ height: 8px; }}
+    .heatmap-scroll::-webkit-scrollbar-track {{ background: transparent; }}
+    .heatmap-scroll::-webkit-scrollbar-thumb {{ border-radius: 999px; background: rgba(148, 163, 184, 0.28); }}
+    .heatmap-grid {{
+      display: grid;
+      grid-template-columns: minmax(116px, 0.88fr) repeat(var(--heatmap-columns), minmax(92px, 1fr));
+      min-width: 720px;
+      overflow: hidden;
+      border-radius: 8px;
+    }}
+    .heatmap-row {{ display: contents; }}
+    .heatmap-corner, .heatmap-column, .heatmap-genre, .heatmap-cell {{
+      min-height: 40px;
+      border: 1px solid rgba(2, 6, 23, 0.72);
+    }}
+    .heatmap-corner, .heatmap-column {{
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-color: transparent;
+      color: #dbe4f0;
+      background: transparent;
+      font-weight: 750;
+    }}
+    .heatmap-genre {{
+      display: flex;
+      align-items: center;
+      min-width: 0;
+      padding: 0 12px 0 0;
+      overflow: hidden;
+      border-color: transparent rgba(2, 6, 23, 0.72) transparent transparent;
+      color: #eef2f7;
+      background: transparent;
+      font-weight: 760;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }}
+    .heatmap-cell {{
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 8px;
+      color: #f8fafc;
+      font-size: 15px;
+      font-variant-numeric: tabular-nums;
+      text-align: center;
+      text-shadow: 0 1px 10px rgba(0, 0, 0, 0.42);
+    }}
+    .heatmap-scale {{
+      display: grid;
+      grid-template-columns: auto minmax(180px, 420px) auto;
+      justify-content: center;
+      align-items: center;
+      gap: 10px;
+      margin-top: 18px;
+      color: var(--muted);
+      font-size: 14px;
+    }}
+    .heatmap-scale-bar {{
+      height: 16px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, rgb(20, 43, 101), rgb(42, 55, 133), rgb(104, 55, 166), rgb(190, 61, 135), rgb(239, 91, 77), rgb(255, 174, 48));
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+    }}
     .toolbar {{ display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }}
     input, select, button.small {{
       height: 44px;
@@ -1377,6 +1636,8 @@ def render_html(payload: dict) -> str:
         </div>
       </section>
     </div>
+
+    {render_genre_era_heatmap(library.get("tracks", []))}
 
     <section class="music-section collapsed" id="musicSection">
       <div class="duplicates-heading music-heading">
