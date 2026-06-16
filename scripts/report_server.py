@@ -33,6 +33,9 @@ from generate_html_report import (
     build_payload,
     collect_genres_from_tracks,
     collect_years_from_tracks,
+    cover_api_url,
+    embedded_cover,
+    embedded_cover_bytes,
     first_tag,
     make_display_tag,
     render_html,
@@ -169,11 +172,11 @@ def library_path() -> str:
 
 
 def quarantine_path(library: str) -> str:
-    return str(PureWindowsPath(library).parent / "Duplicates")
+    return str(PureWindowsPath(library) / "Duplicates")
 
 
 def trash_path(library: str) -> str:
-    return str(PureWindowsPath(library).parent / "Trash")
+    return str(PureWindowsPath(library) / "Trash")
 
 
 def current_duplicate_files() -> set[str]:
@@ -522,8 +525,11 @@ def refresh_html_report(library: str) -> dict[str, object]:
 
 
 def track_payload_from_file(path: Path) -> dict:
+    has_cover, cover_data_uri = embedded_cover(path)
+    cover_url = cover_api_url(str(path)) if has_cover else ""
     track_tags = [
         make_display_tag("формат", path.suffix.lower().lstrip(".").upper(), "format"),
+        make_display_tag("обложка", "есть" if has_cover else "нет", "cover"),
     ]
 
     try:
@@ -558,6 +564,9 @@ def track_payload_from_file(path: Path) -> dict:
         "path": str(path),
         "folder": str(path.parent),
         "tags": track_tags,
+        "has_cover": has_cover,
+        "cover_data_uri": cover_data_uri,
+        "cover_url": cover_url,
     }
 
 
@@ -1340,6 +1349,45 @@ def send_audio_file(handler: SimpleHTTPRequestHandler, head_only: bool = False) 
             raise
 
 
+def send_cover_file(handler: SimpleHTTPRequestHandler, head_only: bool = False) -> None:
+    parsed = urlparse(handler.path)
+    params = parse_qs(parsed.query)
+    requested = params.get("file", [""])[0]
+
+    if not requested:
+        handler.send_error(400, "Missing file")
+        return
+
+    source = resolve_audio_path(requested)
+    if source is None:
+        handler.send_error(404, "Audio file not found")
+        return
+
+    metadata = report_metadata()
+    allowed_exact = norm_path(requested) in metadata["path_set"]  # type: ignore[operator]
+    if not allowed_exact and not source_inside_library(source):
+        handler.send_error(403, "File is not listed in the current report or library")
+        return
+
+    if source.suffix.lower() not in AUDIO_EXTENSIONS:
+        handler.send_error(415, "Unsupported audio file type")
+        return
+
+    has_cover, data, mime = embedded_cover_bytes(source)
+    if not has_cover or not data:
+        handler.send_error(404, "Cover not found")
+        return
+
+    content_type = mime if mime and mime.startswith("image/") else "image/jpeg"
+    handler.send_response(200)
+    handler.send_header("Content-Type", content_type)
+    handler.send_header("Cache-Control", "private, max-age=3600")
+    handler.send_header("Content-Length", str(len(data)))
+    handler.end_headers()
+    if not head_only:
+        handler.wfile.write(data)
+
+
 class ReportHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT), **kwargs)
@@ -1363,6 +1411,10 @@ class ReportHandler(SimpleHTTPRequestHandler):
             send_audio_file(self)
             return
 
+        if self.path.startswith("/api/cover"):
+            send_cover_file(self)
+            return
+
         if self.path in {"/", ""}:
             self.send_response(302)
             self.send_header("Location", "/reports/library.html")
@@ -1374,6 +1426,10 @@ class ReportHandler(SimpleHTTPRequestHandler):
     def do_HEAD(self) -> None:
         if self.path.startswith("/api/audio"):
             send_audio_file(self, head_only=True)
+            return
+
+        if self.path.startswith("/api/cover"):
+            send_cover_file(self, head_only=True)
             return
 
         super().do_HEAD()

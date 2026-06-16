@@ -6,6 +6,7 @@ and optional full music library analysis.
 from __future__ import annotations
 
 import argparse
+import base64
 import csv
 import html
 import json
@@ -17,6 +18,8 @@ from pathlib import Path, PureWindowsPath
 from urllib.parse import quote
 
 from mutagen import File as MutagenFile
+from mutagen.flac import Picture
+from mutagen.mp4 import MP4Cover
 
 
 AUDIO_EXTENSIONS = {
@@ -98,6 +101,125 @@ def clean_tag_value(value: str) -> str:
 
 def make_display_tag(label: str, value: str, kind: str) -> dict[str, str]:
     return {"label": label, "value": clean_tag_value(value), "kind": kind}
+
+
+def image_data_uri(data: bytes, mime: str | None) -> str:
+    if not data:
+        return ""
+    safe_mime = mime if mime and mime.startswith("image/") else "image/jpeg"
+    encoded = base64.b64encode(data).decode("ascii")
+    return f"data:{safe_mime};base64,{encoded}"
+
+
+def embedded_cover_bytes(path: Path) -> tuple[bool, bytes, str]:
+    try:
+        audio = MutagenFile(path, easy=False)
+    except Exception:
+        return False, b"", ""
+
+    if audio is None:
+        return False, b"", ""
+
+    for picture in getattr(audio, "pictures", []) or []:
+        data = getattr(picture, "data", b"")
+        mime = getattr(picture, "mime", "image/jpeg")
+        if data:
+            return True, data, mime
+
+    tags = audio.tags
+    if tags is None:
+        return False, b"", ""
+
+    has_cover = False
+    for key, value in tags.items():
+        key_text = str(key).lower()
+        values = value if isinstance(value, list) else [value]
+
+        if key_text.startswith("apic"):
+            has_cover = True
+            for item in values:
+                data = getattr(item, "data", b"")
+                mime = getattr(item, "mime", "image/jpeg")
+                if data:
+                    return True, data, mime
+
+        if key_text == "covr":
+            has_cover = True
+            for item in values:
+                image_format = getattr(item, "imageformat", None)
+                mime = "image/png" if image_format == MP4Cover.FORMAT_PNG else "image/jpeg"
+                data = bytes(item)
+                if data:
+                    return True, data, mime
+
+        if "metadata_block_picture" in key_text:
+            has_cover = True
+            for item in values:
+                try:
+                    raw = base64.b64decode(str(item))
+                    picture = Picture(raw)
+                except Exception:
+                    continue
+                if picture.data:
+                    return True, picture.data, picture.mime
+
+    return has_cover, b"", ""
+
+
+def embedded_cover(path: Path, include_data_uri: bool = False) -> tuple[bool, str]:
+    has_cover, data, mime = embedded_cover_bytes(path)
+    if include_data_uri and data:
+        return has_cover, image_data_uri(data, mime)
+    return has_cover, ""
+
+
+def cover_api_url(file_path: str) -> str:
+    if not file_path:
+        return ""
+    return f"/api/cover?file={quote(file_path, safe='')}"
+
+
+def path_lookup_key(value: str) -> str:
+    return str(PureWindowsPath(value or "")).replace("/", "\\").casefold()
+
+
+def build_cover_lookup(tracks: list[dict]) -> tuple[dict[str, dict[str, object]], dict[str, list[dict[str, object]]]]:
+    by_path: dict[str, dict[str, object]] = {}
+    by_name: dict[str, list[dict[str, object]]] = defaultdict(list)
+
+    for track in tracks:
+        path = str(track.get("path") or "")
+        name = str(track.get("name") or file_name(path))
+        info = {
+            "has_cover": bool(track.get("has_cover") or track.get("cover_url") or track.get("cover_data_uri")),
+            "cover_url": str(track.get("cover_url") or ""),
+        }
+        if path:
+            by_path[path_lookup_key(path)] = info
+        if name:
+            by_name[name.casefold()].append(info)
+
+    return by_path, by_name
+
+
+def cover_info_for_path(
+    file_path: str,
+    by_path: dict[str, dict[str, object]],
+    by_name: dict[str, list[dict[str, object]]],
+) -> dict[str, object] | None:
+    exact = by_path.get(path_lookup_key(file_path))
+    if exact:
+        return exact
+
+    candidates = by_name.get(file_name(file_path).casefold(), [])
+    with_cover = [candidate for candidate in candidates if candidate.get("has_cover")]
+    if with_cover and len(with_cover) == len(candidates):
+        return with_cover[0]
+    if len(with_cover) == 1:
+        return with_cover[0]
+    if len(candidates) == 1:
+        return candidates[0]
+    return None
 
 
 def year_from(value: str) -> str:
@@ -250,6 +372,9 @@ def analyze_library(library: Path | None) -> dict:
 
         total_files += 1
         formats[path.suffix.lower().lstrip(".").upper()] += 1
+        has_cover, cover_data_uri = embedded_cover(path)
+        cover_url = cover_api_url(str(path)) if has_cover else ""
+        cover_tag = make_display_tag("обложка", "есть" if has_cover else "нет", "cover")
 
         try:
             audio = MutagenFile(path, easy=True)
@@ -263,8 +388,12 @@ def analyze_library(library: Path | None) -> dict:
                     "folder": str(path.parent),
                     "tags": [
                         make_display_tag("формат", path.suffix.lower().lstrip(".").upper(), "format"),
+                        cover_tag,
                         make_display_tag("статус", "не читается", "status"),
                     ],
+                    "has_cover": has_cover,
+                    "cover_data_uri": cover_data_uri,
+                    "cover_url": cover_url,
                 }
             )
             continue
@@ -278,8 +407,12 @@ def analyze_library(library: Path | None) -> dict:
                     "folder": str(path.parent),
                     "tags": [
                         make_display_tag("формат", path.suffix.lower().lstrip(".").upper(), "format"),
+                        cover_tag,
                         make_display_tag("статус", "не распознан", "status"),
                     ],
+                    "has_cover": has_cover,
+                    "cover_data_uri": cover_data_uri,
+                    "cover_url": cover_url,
                 }
             )
             continue
@@ -301,6 +434,7 @@ def analyze_library(library: Path | None) -> dict:
 
         track_tags = [
             make_display_tag("формат", path.suffix.lower().lstrip(".").upper(), "format"),
+            cover_tag,
         ]
         info = getattr(audio, "info", None)
         bitrate = int(getattr(info, "bitrate", 0) or 0)
@@ -326,6 +460,9 @@ def analyze_library(library: Path | None) -> dict:
                 "path": str(path),
                 "folder": str(path.parent),
                 "tags": track_tags,
+                "has_cover": has_cover,
+                "cover_data_uri": cover_data_uri,
+                "cover_url": cover_url,
             }
         )
 
@@ -483,11 +620,12 @@ def translate_reason(reason: str) -> str:
     return mapping.get((reason or "").strip().lower(), reason or "ниже оценка качества")
 
 
-def render_quality(quality: dict[str, str]) -> str:
+def render_quality(quality: dict[str, str], has_cover_override: bool | None = None) -> str:
     fmt = html.escape(quality.get("format", "—").upper() or "—")
     bit_depth = html.escape(quality.get("bit_depth", "—") or "—")
     tag_score = html.escape(quality.get("tag_score", "—") or "—")
-    cover = "Да" if quality.get("cover", "").lower() == "true" else "Нет"
+    has_cover = quality.get("cover", "").lower() == "true" if has_cover_override is None else has_cover_override
+    cover = "Да" if has_cover else "Нет"
 
     items = [
         ("Формат", fmt),
@@ -535,6 +673,48 @@ def audio_player(file_path: str, label: str) -> str:
         "</svg>"
         "</button>"
         "</div>"
+        "</div>"
+    )
+
+
+def cover_preview(track: dict) -> str:
+    cover_data_uri = str(track.get("cover_data_uri") or "")
+    cover_url = str(track.get("cover_url") or "")
+    cover_src = cover_data_uri or cover_url
+    has_cover = bool(track.get("has_cover")) or bool(cover_src)
+    cover_state = "есть" if has_cover else "нет"
+    if cover_src:
+        return (
+            '<div class="music-cover music-cover-has" title="Обложка: есть">'
+            f'<img src="{html.escape(cover_src)}" alt="Обложка трека {html.escape(track.get("name", ""))}" loading="lazy">'
+            "</div>"
+        )
+    return (
+        '<div class="music-cover music-cover-empty" title="Обложка: нет" aria-label="Обложка: нет">'
+        '<span aria-hidden="true">♪</span>'
+        f'<strong>{cover_state}</strong>'
+        "</div>"
+    )
+
+
+def duplicate_cover_preview(
+    file_path: str,
+    name: str,
+    quality: dict[str, str],
+    cover_info: dict[str, object] | None = None,
+) -> str:
+    has_cover = bool(cover_info.get("has_cover")) if cover_info else quality.get("cover", "").lower() == "true"
+    cover_src = str(cover_info.get("cover_url") or "") if cover_info else cover_api_url(file_path) if has_cover else ""
+    if cover_src:
+        return (
+            '<div class="music-cover duplicate-cover music-cover-has" title="Обложка: есть">'
+            f'<img src="{html.escape(cover_src)}" alt="Обложка трека {html.escape(name)}" loading="lazy">'
+            "</div>"
+        )
+    return (
+        '<div class="music-cover duplicate-cover music-cover-empty" title="Обложка: нет" aria-label="Обложка: нет">'
+        '<span aria-hidden="true">♪</span>'
+        "<strong>нет</strong>"
         "</div>"
     )
 
@@ -971,21 +1151,27 @@ def render_music_list(tracks: list[dict], duplicate_paths: set[str] | None = Non
             else ""
         )
         player_html = audio_player(track.get("path", ""), f'Прослушать {track.get("name", "")}')
+        cover_html = cover_preview(track)
         items.append(
             f"""
             <article class="{html.escape(" ".join(card_classes))}" data-file-path="{html.escape(track.get("path", ""))}" data-layout-status="{layout_status}" data-music-search="{html.escape(search_text)}" data-sort-name="{html.escape(track.get("name", "").lower())}" data-sort-artist="{html.escape(sort_artist)}" data-sort-album="{html.escape(sort_album)}" data-sort-year="{html.escape(sort_year)}" data-sort-format="{html.escape(sort_format)}" {tag_attributes}>
-              <div class="music-title">{html.escape(track.get("name", ""))}</div>
-              <div class="music-path" title="{html.escape(track.get("path", ""))}">{html.escape(track.get("folder", ""))}</div>
-              {player_html}
-              <div class="music-pills">{tags}</div>
-              <div class="music-actions">
-                <button class="small music-action-single" type="button" data-action="tag" data-file-path="{html.escape(track.get("path", ""))}">Проставить теги</button>
-                <button class="small music-action-single" type="button" data-action="layout" data-file-path="{html.escape(track.get("path", ""))}"{layout_disabled}>Разложить по папкам</button>
-                <button class="small danger-button trash-one" type="button" data-file-path="{html.escape(track.get("path", ""))}">В корзину</button>
-              </div>
-              <div class="music-card-status" aria-live="polite">
-                <div class="music-card-status-text"></div>
-                <div class="music-card-progress" aria-hidden="true"><span></span></div>
+              <div class="music-card-content">
+                {cover_html}
+                <div class="music-card-main">
+                  <div class="music-title">{html.escape(track.get("name", ""))}</div>
+                  <div class="music-path" title="{html.escape(track.get("path", ""))}">{html.escape(track.get("folder", ""))}</div>
+                  {player_html}
+                  <div class="music-pills">{tags}</div>
+                  <div class="music-actions">
+                    <button class="small music-action-single" type="button" data-action="tag" data-file-path="{html.escape(track.get("path", ""))}">Проставить теги</button>
+                    <button class="small music-action-single" type="button" data-action="layout" data-file-path="{html.escape(track.get("path", ""))}"{layout_disabled}>Разложить по папкам</button>
+                    <button class="small danger-button trash-one" type="button" data-file-path="{html.escape(track.get("path", ""))}">В корзину</button>
+                  </div>
+                  <div class="music-card-status" aria-live="polite">
+                    <div class="music-card-status-text"></div>
+                    <div class="music-card-progress" aria-hidden="true"><span></span></div>
+                  </div>
+                </div>
               </div>
             </article>
             """
@@ -1011,36 +1197,52 @@ def render_html(payload: dict) -> str:
         for path in (item.get("kept_file", ""), item.get("moved_file", ""))
         if path
     }
-    music_html = render_music_list(library.get("tracks", []), duplicate_paths, library_raw_path)
+    tracks = library.get("tracks", [])
+    cover_by_path, cover_by_name = build_cover_lookup(tracks)
+    music_html = render_music_list(tracks, duplicate_paths, library_raw_path)
     groups_html = []
 
     for group in payload["groups"]:
         items_html = []
         for item in group["items"]:
+            kept_cover = cover_info_for_path(item["kept_file"], cover_by_path, cover_by_name)
+            moved_cover = cover_info_for_path(item["moved_file"], cover_by_path, cover_by_name)
+            kept_has_cover = bool(kept_cover.get("has_cover")) if kept_cover else None
+            moved_has_cover = bool(moved_cover.get("has_cover")) if moved_cover else None
             items_html.append(
                 f"""
                 <div class="comparison" data-kept-file="{html.escape(item["kept_file"])}" data-moved-file="{html.escape(item["moved_file"])}">
                   <div class="track keep" data-file-path="{html.escape(item["kept_file"])}">
-                    <div class="track-label">Оставлен</div>
-                    <div class="track-title">{html.escape(item["kept_name"])}</div>
-                    <div class="track-path" title="{html.escape(item["kept_file"])}">{html.escape(item["kept_folder"])}</div>
+                    <div class="track-head">
+                      {duplicate_cover_preview(item["kept_file"], item["kept_name"], item["kept_quality"], kept_cover)}
+                      <div class="track-meta">
+                        <div class="track-label">Оставлен</div>
+                        <div class="track-title">{html.escape(item["kept_name"])}</div>
+                        <div class="track-path" title="{html.escape(item["kept_file"])}">{html.escape(item["kept_folder"])}</div>
+                      </div>
+                    </div>
                     {audio_player(item["kept_file"], f'Прослушать оставленный файл: {item["kept_name"]}')}
-                    {render_quality(item["kept_quality"])}
+                    {render_quality(item["kept_quality"], kept_has_cover)}
                     <div class="track-actions">
                       <button class="small quarantine-one" type="button" data-file="{html.escape(item["kept_file"])}">В карантин</button>
                       <button class="small danger-button trash-one" type="button" data-file-path="{html.escape(item["kept_file"])}">В корзину</button>
                     </div>
                   </div>
                   <div class="divider">
-                    <div class="arrow">→</div>
+                    <div class="arrow" aria-hidden="true"><span></span></div>
                     <div class="reason">{html.escape(translate_reason(item["reason"]))}</div>
                   </div>
                   <div class="track move" data-file-path="{html.escape(item["moved_file"])}">
-                    <div class="track-label">В карантин</div>
-                    <div class="track-title">{html.escape(item["moved_name"])}</div>
-                    <div class="track-path" title="{html.escape(item["moved_file"])}">{html.escape(item["moved_folder"])}</div>
+                    <div class="track-head">
+                      {duplicate_cover_preview(item["moved_file"], item["moved_name"], item["moved_quality"], moved_cover)}
+                      <div class="track-meta">
+                        <div class="track-label">В карантин</div>
+                        <div class="track-title">{html.escape(item["moved_name"])}</div>
+                        <div class="track-path" title="{html.escape(item["moved_file"])}">{html.escape(item["moved_folder"])}</div>
+                      </div>
+                    </div>
                     {audio_player(item["moved_file"], f'Прослушать файл для карантина: {item["moved_name"]}')}
-                    {render_quality(item["moved_quality"])}
+                    {render_quality(item["moved_quality"], moved_has_cover)}
                     <div class="track-actions">
                       <button class="small quarantine-one" type="button" data-file="{html.escape(item["moved_file"])}">В карантин</button>
                       <button class="small danger-button trash-one" type="button" data-file-path="{html.escape(item["moved_file"])}">В корзину</button>
@@ -1389,6 +1591,23 @@ def render_html(payload: dict) -> str:
     .music-card-duplicate {{ border-color: rgba(245, 158, 11, 0.54); background: rgba(120, 53, 15, 0.2); }}
     .music-card-unreadable {{ border-color: rgba(239, 68, 68, 0.58); background: rgba(127, 29, 29, 0.22); }}
     .music-card[hidden] {{ display: none; }}
+    .music-card-content {{ display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 14px; align-items: start; }}
+    .music-card-main {{ min-width: 0; }}
+    .music-cover {{
+      display: grid;
+      place-items: center;
+      width: 112px;
+      aspect-ratio: 1 / 1;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      background: rgba(15, 23, 42, 0.88);
+      color: var(--muted);
+    }}
+    .music-cover img {{ width: 100%; height: 100%; object-fit: cover; }}
+    .music-cover-empty {{ gap: 3px; text-align: center; }}
+    .music-cover-empty span {{ color: rgba(147, 197, 253, 0.78); font-size: 30px; line-height: 1; }}
+    .music-cover-empty strong {{ color: var(--muted); font-size: 11px; font-weight: 700; text-transform: uppercase; }}
     .music-title {{ font-weight: 750; overflow-wrap: anywhere; }}
     .music-path {{ margin-top: 5px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }}
     .music-actions {{
@@ -1493,6 +1712,7 @@ def render_html(payload: dict) -> str:
     .music-pill-genre {{ background: rgba(244, 114, 182, 0.14); color: #fbcfe8; }}
     .music-pill-title {{ background: rgba(125, 211, 252, 0.14); color: #bae6fd; }}
     .music-pill-year {{ background: rgba(203, 213, 225, 0.12); color: #e2e8f0; }}
+    .music-pill-cover {{ background: rgba(52, 211, 153, 0.14); color: #a7f3d0; }}
     .music-pill-status {{ background: rgba(248, 113, 113, 0.16); color: #fecaca; }}
     .group-card {{ margin-top: 14px; border: 1px solid var(--line); border-radius: var(--radius); background: rgba(13, 18, 32, 0.68); overflow: hidden; box-shadow: 0 16px 48px rgba(0, 0, 0, 0.2); backdrop-filter: blur(12px); }}
     .group-card[hidden] {{ display: none; }}
@@ -1507,6 +1727,10 @@ def render_html(payload: dict) -> str:
     .comparison {{ display: grid; grid-template-columns: minmax(0, 1fr) 92px minmax(0, 1fr); align-items: stretch; gap: 14px; padding: 16px; border: 1px solid var(--line); border-radius: 20px; background: rgba(255, 255, 255, 0.045); }}
     .comparison + .comparison {{ margin-top: 12px; }}
     .track {{ display: flex; flex-direction: column; min-width: 0; padding: 16px; border: 1px solid var(--line); border-radius: 18px; }}
+    .track-head {{ display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 12px; align-items: start; }}
+    .track-meta {{ min-width: 0; }}
+    .duplicate-cover {{ width: 88px; border-radius: 10px; }}
+    .duplicate-cover.music-cover-empty span {{ font-size: 26px; }}
     .keep {{ border-color: rgba(134, 239, 172, 0.28); background: rgba(34, 197, 94, 0.08); }}
     .move {{ border-color: rgba(252, 165, 165, 0.28); background: rgba(239, 68, 68, 0.08); }}
     .track-label {{ display: inline-flex; align-items: center; width: fit-content; min-height: 26px; padding: 0 10px; border-radius: 999px; margin-bottom: 10px; font-size: 12px; font-weight: 800; }}
@@ -1630,7 +1854,9 @@ def render_html(payload: dict) -> str:
     .quality-grid span {{ display: block; color: var(--muted); font-size: 11px; }}
     .quality-grid strong {{ display: block; margin-top: 3px; font-size: 13px; overflow-wrap: anywhere; }}
     .divider {{ display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: var(--muted); font-size: 12px; }}
-    .arrow {{ display: grid; place-items: center; width: 42px; height: 42px; margin-bottom: 8px; border-radius: 999px; border: 1px solid rgba(253, 230, 138, 0.2); color: var(--warning); background: rgba(253, 230, 138, 0.12); font-size: 24px; }}
+    .arrow {{ display: grid; place-items: center; width: 42px; height: 42px; margin-bottom: 8px; border-radius: 999px; border: 1px solid rgba(253, 230, 138, 0.2); color: var(--warning); background: rgba(253, 230, 138, 0.12); }}
+    .arrow span {{ position: relative; display: block; width: 16px; height: 2px; border-radius: 999px; background: currentColor; }}
+    .arrow span::after {{ content: ""; position: absolute; top: 50%; right: 0; width: 7px; height: 7px; border-top: 2px solid currentColor; border-right: 2px solid currentColor; transform: translateY(-50%) rotate(45deg); transform-origin: center; }}
     .empty {{ display: none; margin-top: 12px; padding: 28px; border: 1px dashed var(--line); border-radius: var(--radius); text-align: center; color: var(--muted); background: rgba(255, 255, 255, 0.045); }}
     .empty.visible {{ display: block; }}
     @media (max-width: 900px) {{
@@ -1643,6 +1869,10 @@ def render_html(payload: dict) -> str:
     @media (max-width: 560px) {{
       .summary, .analysis-grid, .quality-grid {{ grid-template-columns: 1fr; }}
       input, select, .duplicates-actions .small {{ flex-basis: 100%; width: 100%; }}
+      .music-card-content {{ grid-template-columns: 1fr; }}
+      .music-cover {{ width: min(100%, 180px); }}
+      .track-head {{ grid-template-columns: 72px minmax(0, 1fr); }}
+      .duplicate-cover {{ width: 72px; }}
       .music-actions {{ grid-template-columns: 1fr; max-width: none; }}
       .music-operations-row > button.small,
       .music-operations-row > .mode-choice {{ width: 100%; }}
@@ -1729,6 +1959,7 @@ def render_html(payload: dict) -> str:
       <select id="tagFilter">
         <option value="all">Искать во всех тегах</option>
         <option value="format">Тег: формат</option>
+        <option value="cover">Тег: обложка</option>
         <option value="bitrate">Тег: битрейт</option>
         <option value="bit_depth">Тег: разрядность</option>
         <option value="sample_rate">Тег: частота дискретизации</option>
@@ -1941,6 +2172,32 @@ def render_html(payload: dict) -> str:
       return value ? `${{label}}: ${{value}}` : label;
     }}
 
+    function updateCoverPreview(card, track) {{
+      const cover = card.querySelector('.music-cover');
+      if (!cover) return;
+
+      const name = track.name || '';
+      const coverDataUri = track.cover_data_uri || '';
+      const coverUrl = track.cover_url || '';
+      const coverSrc = coverDataUri || coverUrl;
+      const hasCover = Boolean(track.has_cover || coverSrc);
+      cover.classList.toggle('music-cover-has', hasCover);
+      cover.classList.toggle('music-cover-empty', !coverSrc);
+      cover.title = `Обложка: ${{hasCover ? 'есть' : 'нет'}}`;
+      cover.setAttribute('aria-label', `Обложка: ${{hasCover ? 'есть' : 'нет'}}`);
+
+      if (coverSrc) {{
+        cover.innerHTML = '';
+        const img = document.createElement('img');
+        img.src = coverSrc;
+        img.alt = `Обложка трека ${{name}}`;
+        img.loading = 'lazy';
+        cover.appendChild(img);
+      }} else {{
+        cover.innerHTML = '<span aria-hidden="true">♪</span><strong>нет</strong>';
+      }}
+    }}
+
     function updateMusicCardFromTrack(card, track) {{
       if (!card || !track) return;
 
@@ -1968,6 +2225,7 @@ def render_html(payload: dict) -> str:
         audio.src = `/api/audio?file=${{encodeURIComponent(path)}}`;
         audio.textContent = `Прослушать ${{name}}`;
       }}
+      updateCoverPreview(card, track);
 
       if (pills) {{
         pills.textContent = '';
