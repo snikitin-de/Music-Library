@@ -37,6 +37,7 @@ AUDIO_EXTENSIONS = {
 }
 
 MAX_DISPLAY_TAG_LENGTH = 120
+LYRICS_FILE_EXTENSIONS = (".lrc", ".txt")
 
 DISPLAY_TAGS = [
     ("album", ["album"], "альбом", "album"),
@@ -174,18 +175,26 @@ def embedded_cover(path: Path, include_data_uri: bool = False) -> tuple[bool, st
 
 
 def has_tag_text(value: object) -> bool:
+    return bool(lyrics_text_from_tag_value(value))
+
+
+def lyrics_text_from_tag_value(value: object) -> str:
     if value is None:
-        return False
+        return ""
     if isinstance(value, bytes):
-        return bool(value.strip())
+        return value.decode("utf-8", errors="ignore").strip()
+    if isinstance(value, str):
+        return value.strip()
     if isinstance(value, (list, tuple, set)):
-        return any(has_tag_text(item) for item in value)
-
+        parts = [lyrics_text_from_tag_value(item) for item in value]
+        return "\n".join(part for part in parts if part).strip()
     for attr in ("text", "lyrics"):
-        if hasattr(value, attr) and has_tag_text(getattr(value, attr)):
-            return True
+        if hasattr(value, attr):
+            text = lyrics_text_from_tag_value(getattr(value, attr))
+            if text:
+                return text
 
-    return bool(str(value).strip())
+    return str(value).strip()
 
 
 def is_lyrics_tag_key(key: object) -> bool:
@@ -200,15 +209,70 @@ def is_lyrics_tag_key(key: object) -> bool:
 
 
 def has_embedded_lyrics(path: Path) -> bool:
+    return bool(lyrics_for_track(path))
+
+
+def embedded_lyrics(path: Path) -> str:
     try:
         audio = MutagenFile(path, easy=False)
     except Exception:
-        return False
+        return ""
 
     if audio is None or audio.tags is None:
-        return False
+        return ""
 
-    return any(is_lyrics_tag_key(key) and has_tag_text(value) for key, value in audio.tags.items())
+    lyrics = [
+        lyrics_text_from_tag_value(value)
+        for key, value in audio.tags.items()
+        if is_lyrics_tag_key(key)
+    ]
+    return "\n\n".join(text for text in lyrics if text).strip()
+
+
+def sidecar_lyrics_path(path: Path) -> Path | None:
+    for extension in LYRICS_FILE_EXTENSIONS:
+        candidate = path.with_suffix(extension)
+        if candidate.is_file():
+            return candidate
+
+    normalized_stem = normalize(path.stem)
+    try:
+        candidates = list(path.parent.iterdir())
+    except OSError:
+        return None
+
+    for candidate in candidates:
+        if not candidate.is_file() or candidate.suffix.lower() not in LYRICS_FILE_EXTENSIONS:
+            continue
+        if normalize(candidate.stem) == normalized_stem:
+            return candidate
+    return None
+
+
+def lyrics_for_track(path: Path) -> str:
+    lyrics, _source = lyrics_for_track_with_source(path)
+    return lyrics
+
+
+def lyrics_for_track_with_source(path: Path) -> tuple[str, str]:
+    embedded = embedded_lyrics(path)
+    if embedded:
+        return embedded, "встроенные теги"
+
+    sidecar = sidecar_lyrics_path(path)
+    if sidecar is None:
+        return "", ""
+
+    for encoding in ("utf-8-sig", "utf-8", "cp1251"):
+        try:
+            text = sidecar.read_text(encoding=encoding).strip()
+        except UnicodeDecodeError:
+            continue
+        except OSError:
+            return "", ""
+        if text:
+            return text, sidecar.name
+    return "", ""
 
 
 def cover_api_url(file_path: str) -> str:
@@ -1193,6 +1257,8 @@ def render_music_list(tracks: list[dict], duplicate_paths: set[str] | None = Non
             if is_layouted
             else ""
         )
+        has_lyrics = "текст песни: есть" in " ".join(tag_values_by_kind.get("lyrics", [])).lower()
+        lyrics_disabled = "" if has_lyrics else ' disabled aria-disabled="true" title="Текст песни не найден"'
         player_html = audio_player(track.get("path", ""), f'Прослушать {track.get("name", "")}')
         cover_html = cover_preview(track)
         items.append(
@@ -1208,6 +1274,7 @@ def render_music_list(tracks: list[dict], duplicate_paths: set[str] | None = Non
                   <div class="music-actions">
                     <button class="small music-action-single" type="button" data-action="tag" data-file-path="{html.escape(track.get("path", ""))}">Проставить теги</button>
                     <button class="small music-action-single" type="button" data-action="layout" data-file-path="{html.escape(track.get("path", ""))}"{layout_disabled}>Разложить по папкам</button>
+                    <button class="small lyrics-button" type="button" data-file-path="{html.escape(track.get("path", ""))}" data-track-name="{html.escape(track.get("name", ""))}"{lyrics_disabled}>Текст песни</button>
                     <button class="small danger-button trash-one" type="button" data-file-path="{html.escape(track.get("path", ""))}">В корзину</button>
                   </div>
                   <div class="music-card-status" aria-live="polite">
@@ -1655,7 +1722,7 @@ def render_html(payload: dict) -> str:
     .music-path {{ margin-top: 5px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }}
     .music-actions {{
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 8px;
       max-width: 680px;
       margin-top: 12px;
@@ -1664,6 +1731,109 @@ def render_html(payload: dict) -> str:
       width: 100%;
       min-width: 0;
       text-align: center;
+    }}
+    .lyrics-button:not(:disabled) {{
+      border-color: rgba(192, 132, 252, 0.34);
+      color: #e9d5ff;
+      background: rgba(88, 28, 135, 0.16);
+    }}
+    .lyrics-modal {{
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 22px;
+      background: rgba(2, 6, 23, 0.72);
+    }}
+    .lyrics-modal.visible {{ display: flex; }}
+    .lyrics-dialog {{
+      width: min(760px, 100%);
+      max-height: min(78vh, 760px);
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      overflow: hidden;
+      border: 1px solid rgba(226, 232, 240, 0.22);
+      border-radius: 18px;
+      background: rgba(15, 23, 42, 0.98);
+      box-shadow: 0 26px 80px rgba(0, 0, 0, 0.42);
+    }}
+    .lyrics-dialog-head {{
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 14px;
+      align-items: start;
+      padding: 18px 20px 14px;
+      border-bottom: 1px solid var(--line);
+    }}
+    .lyrics-dialog-title {{
+      margin: 0;
+      font-size: 18px;
+      line-height: 1.3;
+      overflow-wrap: anywhere;
+    }}
+    .lyrics-dialog-path {{
+      margin-top: 5px;
+      color: var(--muted);
+      font-size: 12px;
+      overflow-wrap: anywhere;
+    }}
+    .lyrics-source {{
+      display: inline-flex;
+      align-items: center;
+      width: fit-content;
+      max-width: 100%;
+      min-height: 28px;
+      margin-top: 10px;
+      padding: 5px 9px;
+      border: 1px solid rgba(125, 211, 252, 0.34);
+      border-radius: 8px;
+      color: #bae6fd;
+      background: rgba(14, 116, 144, 0.18);
+      font-size: 12px;
+      font-weight: 750;
+      line-height: 1.35;
+      overflow-wrap: anywhere;
+    }}
+    .lyrics-close {{
+      display: inline-grid;
+      place-items: center;
+      width: 32px;
+      min-width: 32px;
+      height: 32px;
+      padding: 0;
+      border: 1px solid rgba(248, 113, 113, 0.3);
+      border-radius: 7px;
+      color: #fecaca;
+      background: rgba(127, 29, 29, 0.28);
+      font-size: 20px;
+      font-weight: 400;
+      line-height: 1;
+    }}
+    .lyrics-close:focus-visible {{
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.18);
+    }}
+    .lyrics-close:hover {{
+      border-color: rgba(248, 113, 113, 0.5);
+      color: #fee2e2;
+      background: rgba(127, 29, 29, 0.42);
+    }}
+    .lyrics-text {{
+      min-height: 220px;
+      margin: 0;
+      padding: 18px 20px 22px;
+      overflow: auto;
+      white-space: pre-wrap;
+      color: #e5e7eb;
+      font-family: inherit;
+      font-size: 15px;
+      line-height: 1.65;
+    }}
+    .lyrics-text.loading,
+    .lyrics-text.error {{
+      color: var(--muted);
     }}
     .music-card-status {{ display: none; margin-top: 12px; color: var(--muted); font-size: 13px; }}
     .music-card-status.visible {{ display: block; }}
@@ -2050,6 +2220,20 @@ def render_html(payload: dict) -> str:
     <div class="empty" id="empty">Ничего не найдено по текущему фильтру.</div>
   </main>
 
+  <div class="lyrics-modal" id="lyricsModal" aria-hidden="true">
+    <div class="lyrics-dialog" role="dialog" aria-modal="true" aria-labelledby="lyricsTitle">
+      <div class="lyrics-dialog-head">
+        <div>
+          <h2 class="lyrics-dialog-title" id="lyricsTitle">Текст песни</h2>
+          <div class="lyrics-dialog-path" id="lyricsPath"></div>
+          <div class="lyrics-source" id="lyricsSource">Источник: не выбран</div>
+        </div>
+        <button class="lyrics-close" id="lyricsClose" type="button" aria-label="Закрыть">×</button>
+      </div>
+      <pre class="lyrics-text" id="lyricsText"></pre>
+    </div>
+  </div>
+
   <script id="payload" type="application/json">{html.escape(json_payload)}</script>
   <script>
     let cards = Array.from(document.querySelectorAll('.group-card'));
@@ -2076,6 +2260,12 @@ def render_html(payload: dict) -> str:
     const operationStatus = document.getElementById('operationStatus');
     const tagVisible = document.getElementById('tagVisible');
     const layoutVisible = document.getElementById('layoutVisible');
+    const lyricsModal = document.getElementById('lyricsModal');
+    const lyricsTitle = document.getElementById('lyricsTitle');
+    const lyricsPath = document.getElementById('lyricsPath');
+    const lyricsSource = document.getElementById('lyricsSource');
+    const lyricsText = document.getElementById('lyricsText');
+    const lyricsClose = document.getElementById('lyricsClose');
 
     function selectedMode() {{
       const selected = document.querySelector('input[name="processMode"]:checked');
@@ -2103,6 +2293,43 @@ def render_html(payload: dict) -> str:
     function singleMusicPath(button) {{
       const card = button.closest('.music-card');
       return button.dataset.filePath || card?.dataset.filePath || '';
+    }}
+
+    function closeLyricsModal() {{
+      if (!lyricsModal) return;
+      lyricsModal.classList.remove('visible');
+      lyricsModal.setAttribute('aria-hidden', 'true');
+    }}
+
+    async function openLyricsModal(button) {{
+      const card = button.closest('.music-card');
+      const filePath = button.dataset.filePath || card?.dataset.filePath || '';
+      const trackName = button.dataset.trackName || card?.querySelector('.music-title')?.textContent || 'Текст песни';
+      if (!filePath || button.disabled) return;
+
+      lyricsTitle.textContent = trackName;
+      lyricsPath.textContent = filePath;
+      lyricsSource.textContent = 'Источник: загружается...';
+      lyricsText.textContent = 'Загружаю текст песни...';
+      lyricsText.classList.add('loading');
+      lyricsText.classList.remove('error');
+      lyricsModal.classList.add('visible');
+      lyricsModal.setAttribute('aria-hidden', 'false');
+
+      try {{
+        const response = await fetch(`/api/lyrics?file=${{encodeURIComponent(filePath)}}`);
+        const result = await response.json();
+        if (!response.ok || !result.ok) throw new Error(result.error || 'Текст песни не найден.');
+        lyricsText.textContent = result.lyrics || 'Текст песни не найден.';
+        lyricsPath.textContent = filePath;
+        lyricsSource.textContent = result.source ? `Источник: ${{result.source}}` : 'Источник: не указан';
+        lyricsText.classList.remove('loading');
+      }} catch (error) {{
+        lyricsSource.textContent = 'Источник: текст не найден';
+        lyricsText.textContent = error.message || String(error);
+        lyricsText.classList.remove('loading');
+        lyricsText.classList.add('error');
+      }}
     }}
 
     function setMusicActionDisabled(disabled, card = null) {{
@@ -2300,6 +2527,15 @@ def render_html(payload: dict) -> str:
       card.dataset.musicSearch = [name, folder, tagSearchValues.join(' ')].join(' ').toLowerCase();
       const layoutButton = card.querySelector('[data-action="layout"]');
       card.dataset.layoutStatus = layoutButton?.disabled ? 'done' : 'ready';
+      const lyricsButton = card.querySelector('.lyrics-button');
+      if (lyricsButton) {{
+        const hasLyrics = (tagValuesByKind.lyrics || []).join(' ').toLowerCase().includes('текст песни: есть');
+        lyricsButton.dataset.filePath = path;
+        lyricsButton.dataset.trackName = name;
+        lyricsButton.disabled = !hasLyrics;
+        lyricsButton.setAttribute('aria-disabled', hasLyrics ? 'false' : 'true');
+        lyricsButton.title = hasLyrics ? '' : 'Текст песни не найден';
+      }}
       card.querySelectorAll('.music-action-single').forEach(button => {{
         button.dataset.filePath = path;
       }});
@@ -2590,6 +2826,22 @@ def render_html(payload: dict) -> str:
         event.stopPropagation();
         runTrash(button.dataset.filePath, button);
       }});
+    }});
+    document.querySelectorAll('.lyrics-button').forEach(button => {{
+      button.addEventListener('click', event => {{
+        event.preventDefault();
+        event.stopPropagation();
+        openLyricsModal(button);
+      }});
+    }});
+    if (lyricsClose) lyricsClose.addEventListener('click', closeLyricsModal);
+    if (lyricsModal) {{
+      lyricsModal.addEventListener('click', event => {{
+        if (event.target === lyricsModal) closeLyricsModal();
+      }});
+    }}
+    document.addEventListener('keydown', event => {{
+      if (event.key === 'Escape') closeLyricsModal();
     }});
 
     tagVisible.addEventListener('click', () => runMusicOperation('tag', visibleMusicPaths(), 'filtered'));

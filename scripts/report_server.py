@@ -38,6 +38,7 @@ from generate_html_report import (
     embedded_cover_bytes,
     first_tag,
     has_embedded_lyrics,
+    lyrics_for_track_with_source,
     make_display_tag,
     render_html,
     year_from,
@@ -1391,6 +1392,38 @@ def send_cover_file(handler: SimpleHTTPRequestHandler, head_only: bool = False) 
         handler.wfile.write(data)
 
 
+def send_lyrics_json(handler: "ReportHandler") -> None:
+    parsed = urlparse(handler.path)
+    params = parse_qs(parsed.query)
+    requested = params.get("file", [""])[0]
+
+    if not requested:
+        handler.send_json(400, {"ok": False, "error": "Missing file"})
+        return
+
+    source = resolve_audio_path(requested)
+    if source is None:
+        handler.send_json(404, {"ok": False, "error": "Audio file not found"})
+        return
+
+    metadata = report_metadata()
+    allowed_exact = norm_path(requested) in metadata["path_set"]  # type: ignore[operator]
+    if not allowed_exact and not source_inside_library(source):
+        handler.send_json(403, {"ok": False, "error": "File is not listed in the current report or library"})
+        return
+
+    if source.suffix.lower() not in AUDIO_EXTENSIONS:
+        handler.send_json(415, {"ok": False, "error": "Unsupported audio file type"})
+        return
+
+    lyrics, source_name = lyrics_for_track_with_source(source)
+    if not lyrics:
+        handler.send_json(404, {"ok": False, "error": "Текст песни не найден."})
+        return
+
+    handler.send_json(200, {"ok": True, "lyrics": lyrics, "source": source_name})
+
+
 class ReportHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT), **kwargs)
@@ -1416,6 +1449,10 @@ class ReportHandler(SimpleHTTPRequestHandler):
 
         if self.path.startswith("/api/cover"):
             send_cover_file(self)
+            return
+
+        if self.path.startswith("/api/lyrics"):
+            send_lyrics_json(self)
             return
 
         if self.path in {"/", ""}:
