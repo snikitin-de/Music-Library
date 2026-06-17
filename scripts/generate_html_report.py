@@ -173,6 +173,44 @@ def embedded_cover(path: Path, include_data_uri: bool = False) -> tuple[bool, st
     return has_cover, ""
 
 
+def has_tag_text(value: object) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, bytes):
+        return bool(value.strip())
+    if isinstance(value, (list, tuple, set)):
+        return any(has_tag_text(item) for item in value)
+
+    for attr in ("text", "lyrics"):
+        if hasattr(value, attr) and has_tag_text(getattr(value, attr)):
+            return True
+
+    return bool(str(value).strip())
+
+
+def is_lyrics_tag_key(key: object) -> bool:
+    key_text = str(key).lower().strip()
+    if "lyricist" in key_text:
+        return False
+    return (
+        key_text in {"lyrics", "unsyncedlyrics", "syncedlyrics", "lyr", "\xa9lyr", "©lyr"}
+        or key_text.startswith(("uslt", "sylt"))
+        or "lyrics" in key_text
+    )
+
+
+def has_embedded_lyrics(path: Path) -> bool:
+    try:
+        audio = MutagenFile(path, easy=False)
+    except Exception:
+        return False
+
+    if audio is None or audio.tags is None:
+        return False
+
+    return any(is_lyrics_tag_key(key) and has_tag_text(value) for key, value in audio.tags.items())
+
+
 def cover_api_url(file_path: str) -> str:
     if not file_path:
         return ""
@@ -373,8 +411,10 @@ def analyze_library(library: Path | None) -> dict:
         total_files += 1
         formats[path.suffix.lower().lstrip(".").upper()] += 1
         has_cover, cover_data_uri = embedded_cover(path)
+        has_lyrics = has_embedded_lyrics(path)
         cover_url = cover_api_url(str(path)) if has_cover else ""
         cover_tag = make_display_tag("обложка", "есть" if has_cover else "нет", "cover")
+        lyrics_tag = make_display_tag("текст песни", "есть" if has_lyrics else "нет", "lyrics")
 
         try:
             audio = MutagenFile(path, easy=True)
@@ -389,6 +429,7 @@ def analyze_library(library: Path | None) -> dict:
                     "tags": [
                         make_display_tag("формат", path.suffix.lower().lstrip(".").upper(), "format"),
                         cover_tag,
+                        lyrics_tag,
                         make_display_tag("статус", "не читается", "status"),
                     ],
                     "has_cover": has_cover,
@@ -408,6 +449,7 @@ def analyze_library(library: Path | None) -> dict:
                     "tags": [
                         make_display_tag("формат", path.suffix.lower().lstrip(".").upper(), "format"),
                         cover_tag,
+                        lyrics_tag,
                         make_display_tag("статус", "не распознан", "status"),
                     ],
                     "has_cover": has_cover,
@@ -435,6 +477,7 @@ def analyze_library(library: Path | None) -> dict:
         track_tags = [
             make_display_tag("формат", path.suffix.lower().lstrip(".").upper(), "format"),
             cover_tag,
+            lyrics_tag,
         ]
         info = getattr(audio, "info", None)
         bitrate = int(getattr(info, "bitrate", 0) or 0)
@@ -1713,6 +1756,7 @@ def render_html(payload: dict) -> str:
     .music-pill-title {{ background: rgba(125, 211, 252, 0.14); color: #bae6fd; }}
     .music-pill-year {{ background: rgba(203, 213, 225, 0.12); color: #e2e8f0; }}
     .music-pill-cover {{ background: rgba(52, 211, 153, 0.14); color: #a7f3d0; }}
+    .music-pill-lyrics {{ background: rgba(192, 132, 252, 0.14); color: #e9d5ff; }}
     .music-pill-status {{ background: rgba(248, 113, 113, 0.16); color: #fecaca; }}
     .group-card {{ margin-top: 14px; border: 1px solid var(--line); border-radius: var(--radius); background: rgba(13, 18, 32, 0.68); overflow: hidden; box-shadow: 0 16px 48px rgba(0, 0, 0, 0.2); backdrop-filter: blur(12px); }}
     .group-card[hidden] {{ display: none; }}
@@ -1960,6 +2004,7 @@ def render_html(payload: dict) -> str:
         <option value="all">Искать во всех тегах</option>
         <option value="format">Тег: формат</option>
         <option value="cover">Тег: обложка</option>
+        <option value="lyrics">Тег: текст песни</option>
         <option value="bitrate">Тег: битрейт</option>
         <option value="bit_depth">Тег: разрядность</option>
         <option value="sample_rate">Тег: частота дискретизации</option>

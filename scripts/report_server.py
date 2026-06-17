@@ -37,6 +37,7 @@ from generate_html_report import (
     embedded_cover,
     embedded_cover_bytes,
     first_tag,
+    has_embedded_lyrics,
     make_display_tag,
     render_html,
     year_from,
@@ -526,10 +527,12 @@ def refresh_html_report(library: str) -> dict[str, object]:
 
 def track_payload_from_file(path: Path) -> dict:
     has_cover, cover_data_uri = embedded_cover(path)
+    has_lyrics = has_embedded_lyrics(path)
     cover_url = cover_api_url(str(path)) if has_cover else ""
     track_tags = [
         make_display_tag("формат", path.suffix.lower().lstrip(".").upper(), "format"),
         make_display_tag("обложка", "есть" if has_cover else "нет", "cover"),
+        make_display_tag("текст песни", "есть" if has_lyrics else "нет", "lyrics"),
     ]
 
     try:
