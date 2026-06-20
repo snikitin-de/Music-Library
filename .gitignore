@@ -11,6 +11,7 @@ venv/
 
 # reports
 reports/*.csv
+reports/*.html
 reports/*.json
 reports/*.log
 reports/beets-web-config.yaml
