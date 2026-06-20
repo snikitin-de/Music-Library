@@ -199,6 +199,30 @@ def artist_title_key(track: TrackInfo) -> tuple[str, ...]:
     return ("artist_title", artist, title)
 
 
+def has_feature_credit_in_title(value: str) -> bool:
+    return bool(re.search(r"[\[(]\s*(?:feat(?:uring)?|ft)\.?\s+", value or "", flags=re.IGNORECASE))
+
+
+def title_without_feature_credit(value: str) -> str:
+    value = re.sub(
+        r"\s*[\[(]\s*(?:feat(?:uring)?|ft)\.?\s+.*?[\])]\s*",
+        " ",
+        value or "",
+        flags=re.IGNORECASE,
+    )
+    return normalize_text_key(value)
+
+
+def missing_track_artist_title_key(track: TrackInfo) -> tuple[str, ...]:
+    if track.metadata_source != "tags":
+        return ()
+    artist = normalize_artist_credit(track.artist or track.albumartist)
+    title = title_without_feature_credit(track.title)
+    if not artist or not title:
+        return ()
+    return ("missing_track_artist_title", artist, title)
+
+
 def strict_tag_duplicate_key(track: TrackInfo) -> tuple[str, ...]:
     if track.metadata_source != "tags":
         return ()
@@ -211,8 +235,10 @@ def strict_tag_duplicate_key(track: TrackInfo) -> tuple[str, ...]:
     if album:
         albumartist = normalize_artist_credit(track.albumartist or track.artist)
         track_number = normalize_track_number(track.track)
-        if not albumartist or not track_number:
+        if not albumartist:
             return ()
+        if not track_number:
+            return ("album_title", albumartist, album, title)
         return ("album_track", albumartist, album, track_number, title)
 
     artist = normalize_artist_credit(track.artist or track.albumartist)
@@ -442,6 +468,34 @@ def group_duplicates(tracks: list[TrackInfo], stats: ScanStats | None = None) ->
                 stats.skipped_tracks += 1
             continue
         groups.setdefault(key, []).append(track)
+
+    fallback_groups: dict[tuple[str, ...], list[TrackInfo]] = {}
+    for track in tracks:
+        key = missing_track_artist_title_key(track)
+        if key and all(key):
+            fallback_groups.setdefault(key, []).append(track)
+
+    for key, items in fallback_groups.items():
+        if len(items) < 2 or not any(not normalize_track_number(item.track) for item in items):
+            continue
+
+        albums = {normalize_text_key(item.album) for item in items if normalize_text_key(item.album)}
+        if len(albums) > 1 and not any(has_feature_credit_in_title(item.title) for item in items):
+            continue
+
+        item_paths = {item.path for item in items}
+        if any({item.path for item in existing_items} == item_paths for existing_items in groups.values()):
+            continue
+
+        overlapping_keys = [
+            existing_key
+            for existing_key, existing_items in groups.items()
+            if item_paths.intersection(existing_item.path for existing_item in existing_items)
+        ]
+        combined_items = {item.path: item for item in items}
+        for existing_key in overlapping_keys:
+            combined_items.update({item.path: item for item in groups.pop(existing_key)})
+        groups[key] = list(combined_items.values())
 
     duplicate_groups = {key: items for key, items in groups.items() if len(items) > 1}
     if stats is not None:

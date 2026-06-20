@@ -63,6 +63,58 @@ class DuplicateDetectionTests(unittest.TestCase):
         self.assertEqual(len(groups), 1)
         self.assertIn(("tags", "album_track", "artist", "album", "1", "song"), groups)
 
+    def test_same_album_title_without_track_number_is_auto_duplicate(self) -> None:
+        items = [
+            track("first.opus", album="Album", title="Song", track_number=""),
+            track("second.opus", album="Album", title="Song", track_number=""),
+        ]
+
+        groups = group_duplicates(items)
+
+        self.assertEqual(len(groups), 1)
+        self.assertIn(("tags", "album_title", "artist", "album", "song"), groups)
+
+    def test_missing_track_matches_feature_credit_across_albums(self) -> None:
+        items = [
+            track(
+                "Happier.flac",
+                artist="Marshmello & Bastille",
+                albumartist="Marshmello & Bastille",
+                album="Happier",
+                title="Happier",
+                track_number="1",
+            ),
+            track(
+                "Happier.opus",
+                artist="Marshmello, Bastille",
+                albumartist="Marshmello, Bastille",
+                album="NOW That's What I Call Music! 101",
+                title="Happier (feat. Bastille)",
+                track_number="",
+            ),
+        ]
+
+        groups = group_duplicates(items)
+
+        self.assertEqual(len(groups), 1)
+        self.assertIn(("missing_track_artist_title", "bastille + marshmello", "happier"), groups)
+
+    def test_missing_track_does_not_merge_different_albums_without_feature_credit(self) -> None:
+        items = [
+            track("first.opus", album="Album", title="Song", track_number=""),
+            track("second.opus", album="Other Album", title="Song", track_number=""),
+        ]
+
+        self.assertEqual(group_duplicates(items), {})
+
+    def test_missing_track_does_not_merge_live_version(self) -> None:
+        items = [
+            track("studio.flac", album="Album", title="Song", track_number="1"),
+            track("live.opus", album="Other Album", title="Song (Live)", track_number=""),
+        ]
+
+        self.assertEqual(group_duplicates(items), {})
+
     def test_tagged_files_do_not_auto_duplicate_by_filename(self) -> None:
         items = [
             track("Song.flac", album="Album", title="Song", track_number="1"),
