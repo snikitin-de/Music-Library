@@ -35,6 +35,8 @@ AUDIO_EXTENSIONS = {
     ".opus",
     ".wma",
 }
+MANAGED_LIBRARY_FOLDER = "Library"
+MANAGED_STORAGE_FOLDERS = {"duplicates", "trash"}
 
 MAX_DISPLAY_TAG_LENGTH = 120
 LYRICS_FILE_EXTENSIONS = (".lrc", ".txt")
@@ -292,9 +294,14 @@ def build_cover_lookup(tracks: list[dict]) -> tuple[dict[str, dict[str, object]]
     for track in tracks:
         path = str(track.get("path") or "")
         name = str(track.get("name") or file_name(path))
+        tags = track.get("tags") or []
         info = {
             "has_cover": bool(track.get("has_cover") or track.get("cover_url") or track.get("cover_data_uri")),
             "cover_url": str(track.get("cover_url") or ""),
+            "has_lyrics": any(
+                tag.get("kind") == "lyrics" and normalize(str(tag.get("value") or "")) == "есть"
+                for tag in tags
+            ),
         }
         if path:
             by_path[path_lookup_key(path)] = info
@@ -321,6 +328,15 @@ def cover_info_for_path(
         return with_cover[0]
     if len(candidates) == 1:
         return candidates[0]
+
+    path = Path(file_path)
+    if path.is_file():
+        has_cover, _cover_data_uri = embedded_cover(path)
+        return {
+            "has_cover": has_cover,
+            "cover_url": cover_api_url(file_path) if has_cover else "",
+            "has_lyrics": has_embedded_lyrics(path),
+        }
     return None
 
 
@@ -453,11 +469,16 @@ def analyze_library(library: Path | None) -> dict:
             "genres": {},
             "years": {},
             "unreadable_files": "—",
+            "files_with_cover": "—",
+            "files_with_lyrics": "—",
             "tracks": [],
         }
 
     if not library.exists():
         raise SystemExit(f"Music library folder does not exist: {library}")
+
+    library_folder = library / MANAGED_LIBRARY_FOLDER
+    scan_roots = [library_folder] if library_folder.exists() and library_folder.is_dir() else [library]
 
     total_files = 0
     audio_files = 0
@@ -466,112 +487,126 @@ def analyze_library(library: Path | None) -> dict:
     artists: set[str] = set()
     artist_counts: Counter[str] = Counter()
     formats: Counter[str] = Counter()
+    files_with_cover = 0
+    files_with_lyrics = 0
     tracks: list[dict] = []
 
-    for path in library.rglob("*"):
-        if not path.is_file() or path.suffix.lower() not in AUDIO_EXTENSIONS:
-            continue
+    for scan_root in scan_roots:
+        for path in scan_root.rglob("*"):
+            if not path.is_file() or path.suffix.lower() not in AUDIO_EXTENSIONS:
+                continue
 
-        total_files += 1
-        formats[path.suffix.lower().lstrip(".").upper()] += 1
-        has_cover, cover_data_uri = embedded_cover(path)
-        has_lyrics = has_embedded_lyrics(path)
-        cover_url = cover_api_url(str(path)) if has_cover else ""
-        cover_tag = make_display_tag("обложка", "есть" if has_cover else "нет", "cover")
-        lyrics_tag = make_display_tag("текст песни", "есть" if has_lyrics else "нет", "lyrics")
+            try:
+                first_relative_part = path.relative_to(library).parts[0].casefold()
+            except (ValueError, IndexError):
+                first_relative_part = ""
+            if first_relative_part in MANAGED_STORAGE_FOLDERS:
+                continue
 
-        try:
-            audio = MutagenFile(path, easy=True)
-        except Exception as exc:
-            print(f"WARNING: skipped unreadable audio file: {path} ({exc})")
-            unreadable_files += 1
+            total_files += 1
+            formats[path.suffix.lower().lstrip(".").upper()] += 1
+            has_cover, cover_data_uri = embedded_cover(path)
+            has_lyrics = has_embedded_lyrics(path)
+            if has_cover:
+                files_with_cover += 1
+            if has_lyrics:
+                files_with_lyrics += 1
+            cover_url = cover_api_url(str(path)) if has_cover else ""
+            cover_tag = make_display_tag("обложка", "есть" if has_cover else "нет", "cover")
+            lyrics_tag = make_display_tag("текст песни", "есть" if has_lyrics else "нет", "lyrics")
+
+            try:
+                audio = MutagenFile(path, easy=True)
+            except Exception as exc:
+                print(f"WARNING: skipped unreadable audio file: {path} ({exc})")
+                unreadable_files += 1
+                tracks.append(
+                    {
+                        "name": path.name,
+                        "path": str(path),
+                        "folder": str(path.parent),
+                        "tags": [
+                            make_display_tag("формат", path.suffix.lower().lstrip(".").upper(), "format"),
+                            cover_tag,
+                            lyrics_tag,
+                            make_display_tag("статус", "не читается", "status"),
+                        ],
+                        "has_cover": has_cover,
+                        "cover_data_uri": cover_data_uri,
+                        "cover_url": cover_url,
+                    }
+                )
+                continue
+
+            if audio is None:
+                unreadable_files += 1
+                tracks.append(
+                    {
+                        "name": path.name,
+                        "path": str(path),
+                        "folder": str(path.parent),
+                        "tags": [
+                            make_display_tag("формат", path.suffix.lower().lstrip(".").upper(), "format"),
+                            cover_tag,
+                            lyrics_tag,
+                            make_display_tag("статус", "не распознан", "status"),
+                        ],
+                        "has_cover": has_cover,
+                        "cover_data_uri": cover_data_uri,
+                        "cover_url": cover_url,
+                    }
+                )
+                continue
+
+            audio_files += 1
+            tags = audio.tags or {}
+            artist = first_tag(tags, ["albumartist", "artist", "composer"])
+            track_artist = first_tag(tags, ["artist", "albumartist", "composer"])
+            album = first_tag(tags, ["album"])
+
+            if artist:
+                artists.add(normalize(artist))
+                if not is_excluded_top_artist(artist):
+                    artist_counts[artist.strip()] += 1
+            if track_artist:
+                artists.add(normalize(track_artist))
+            if album:
+                albums.add(f"{normalize(artist)} | {normalize(album)}")
+
+            track_tags = [
+                make_display_tag("формат", path.suffix.lower().lstrip(".").upper(), "format"),
+                cover_tag,
+                lyrics_tag,
+            ]
+            info = getattr(audio, "info", None)
+            bitrate = int(getattr(info, "bitrate", 0) or 0)
+            sample_rate = int(getattr(info, "sample_rate", 0) or 0)
+            bit_depth = int(getattr(info, "bits_per_sample", 0) or 0)
+            if bitrate > 0:
+                track_tags.append(make_display_tag("битрейт", f"{round(bitrate / 1000)} kbps", "bitrate"))
+            if bit_depth > 0:
+                track_tags.append(make_display_tag("разрядность", f"{bit_depth} бит", "bit_depth"))
+            if sample_rate > 0:
+                track_tags.append(make_display_tag("частота дискретизации", f"{sample_rate / 1000:g} kHz", "sample_rate"))
+
+            for tag_key, aliases, label, kind in DISPLAY_TAGS:
+                value_text = first_tag(tags, aliases)
+                if tag_key == "year":
+                    value_text = year_from(value_text)
+                if value_text:
+                    track_tags.append(make_display_tag(label, value_text, kind))
+
             tracks.append(
                 {
                     "name": path.name,
                     "path": str(path),
                     "folder": str(path.parent),
-                    "tags": [
-                        make_display_tag("формат", path.suffix.lower().lstrip(".").upper(), "format"),
-                        cover_tag,
-                        lyrics_tag,
-                        make_display_tag("статус", "не читается", "status"),
-                    ],
+                    "tags": track_tags,
                     "has_cover": has_cover,
                     "cover_data_uri": cover_data_uri,
                     "cover_url": cover_url,
                 }
             )
-            continue
-
-        if audio is None:
-            unreadable_files += 1
-            tracks.append(
-                {
-                    "name": path.name,
-                    "path": str(path),
-                    "folder": str(path.parent),
-                    "tags": [
-                        make_display_tag("формат", path.suffix.lower().lstrip(".").upper(), "format"),
-                        cover_tag,
-                        lyrics_tag,
-                        make_display_tag("статус", "не распознан", "status"),
-                    ],
-                    "has_cover": has_cover,
-                    "cover_data_uri": cover_data_uri,
-                    "cover_url": cover_url,
-                }
-            )
-            continue
-
-        audio_files += 1
-        tags = audio.tags or {}
-        artist = first_tag(tags, ["albumartist", "artist", "composer"])
-        track_artist = first_tag(tags, ["artist", "albumartist", "composer"])
-        album = first_tag(tags, ["album"])
-
-        if artist:
-            artists.add(normalize(artist))
-            if not is_excluded_top_artist(artist):
-                artist_counts[artist.strip()] += 1
-        if track_artist:
-            artists.add(normalize(track_artist))
-        if album:
-            albums.add(f"{normalize(artist)} | {normalize(album)}")
-
-        track_tags = [
-            make_display_tag("формат", path.suffix.lower().lstrip(".").upper(), "format"),
-            cover_tag,
-            lyrics_tag,
-        ]
-        info = getattr(audio, "info", None)
-        bitrate = int(getattr(info, "bitrate", 0) or 0)
-        sample_rate = int(getattr(info, "sample_rate", 0) or 0)
-        bit_depth = int(getattr(info, "bits_per_sample", 0) or 0)
-        if bitrate > 0:
-            track_tags.append(make_display_tag("битрейт", f"{round(bitrate / 1000)} kbps", "bitrate"))
-        if bit_depth > 0:
-            track_tags.append(make_display_tag("разрядность", f"{bit_depth} бит", "bit_depth"))
-        if sample_rate > 0:
-            track_tags.append(make_display_tag("частота дискретизации", f"{sample_rate / 1000:g} kHz", "sample_rate"))
-
-        for tag_key, aliases, label, kind in DISPLAY_TAGS:
-            value_text = first_tag(tags, aliases)
-            if tag_key == "year":
-                value_text = year_from(value_text)
-            if value_text:
-                track_tags.append(make_display_tag(label, value_text, kind))
-
-        tracks.append(
-            {
-                "name": path.name,
-                "path": str(path),
-                "folder": str(path.parent),
-                "tags": track_tags,
-                "has_cover": has_cover,
-                "cover_data_uri": cover_data_uri,
-                "cover_url": cover_url,
-            }
-        )
 
     return {
         "enabled": True,
@@ -585,9 +620,10 @@ def analyze_library(library: Path | None) -> dict:
         "genres": collect_genres_from_tracks(tracks),
         "years": collect_years_from_tracks(tracks),
         "unreadable_files": unreadable_files,
+        "files_with_cover": files_with_cover,
+        "files_with_lyrics": files_with_lyrics,
         "tracks": sorted(tracks, key=lambda item: item["name"].lower()),
     }
-
 
 def parse_quality(value: str) -> dict[str, str]:
     result: dict[str, str] = {}
@@ -663,12 +699,47 @@ def read_rows(csv_path: Path) -> list[ReportRow]:
         return rows
 
 
-def build_payload(rows: list[ReportRow], library_stats: dict) -> dict:
+def read_review_rows(csv_path: Path) -> list[ReportRow]:
+    if not csv_path.exists():
+        return []
+
+    grouped: dict[str, list[dict[str, str]]] = defaultdict(list)
+    with csv_path.open("r", encoding="utf-8-sig", newline="") as f:
+        for row in csv.DictReader(f):
+            grouped[row.get("review_group", "")].append(row)
+
+    rows: list[ReportRow] = []
+    for group_name, items in grouped.items():
+        if len(items) < 2:
+            continue
+        kept = items[0]
+        for candidate in items[1:]:
+            rows.append(
+                ReportRow(
+                    duplicate_group=f"На проверку | {group_name}",
+                    kept_file=kept.get("file", ""),
+                    moved_file=candidate.get("file", ""),
+                    reason=candidate.get("reason", "") or kept.get("reason", ""),
+                    kept_quality=kept.get("quality", ""),
+                    moved_quality=candidate.get("quality", ""),
+                )
+            )
+    return rows
+
+
+def build_payload(
+    rows: list[ReportRow],
+    library_stats: dict,
+    review_rows: list[ReportRow] | None = None,
+) -> dict:
+    review_rows = review_rows or []
+    all_rows = rows + review_rows
     groups: dict[str, list[dict]] = defaultdict(list)
 
-    for row in rows:
+    for row in all_rows:
         kept_q = parse_quality(row.kept_quality)
         moved_q = parse_quality(row.moved_quality)
+        review_only = row.reason.startswith("needs_review:")
         groups[row.duplicate_group].append(
             {
                 "duplicate_group": row.duplicate_group,
@@ -681,6 +752,7 @@ def build_payload(rows: list[ReportRow], library_stats: dict) -> dict:
                 "reason": row.reason,
                 "kept_quality": kept_q,
                 "moved_quality": moved_q,
+                "review_only": review_only,
             }
         )
 
@@ -703,13 +775,16 @@ def build_payload(rows: list[ReportRow], library_stats: dict) -> dict:
                 "items": items,
                 "duplicates_count": len(items),
                 "formats": formats,
+                "review_only": all(item.get("review_only") for item in items),
             }
         )
 
     return {
         "summary": {
-            "groups": len(groups),
+            "groups": len({row.duplicate_group for row in rows}),
             "duplicates": len(rows),
+            "review_groups": len({row.duplicate_group for row in review_rows}),
+            "review_files": len(review_rows),
         },
         "library": library_stats,
         "groups": sorted(group_items, key=lambda item: item["name"].lower()),
@@ -723,16 +798,25 @@ def translate_reason(reason: str) -> str:
         "lower format priority": "хуже формат",
         "missing cover": "нет встроенной обложки",
         "less complete tags": "менее полные теги",
+        "needs_review: same artist/title, different album or track tags": "одинаковые исполнитель и название, но отличаются альбом или номер трека",
+        "needs_review: same artist/title, tag key is not identical": "похожие теги исполнителя и названия требуют проверки",
+        "needs_review: same normalized filename, tags are not identical": "похожие имена файлов, но теги отличаются",
     }
     return mapping.get((reason or "").strip().lower(), reason or "ниже оценка качества")
 
 
-def render_quality(quality: dict[str, str], has_cover_override: bool | None = None) -> str:
+def render_quality(
+    quality: dict[str, str],
+    has_cover_override: bool | None = None,
+    has_lyrics_override: bool | None = None,
+) -> str:
     fmt = html.escape(quality.get("format", "—").upper() or "—")
     bit_depth = html.escape(quality.get("bit_depth", "—") or "—")
     tag_score = html.escape(quality.get("tag_score", "—") or "—")
     has_cover = quality.get("cover", "").lower() == "true" if has_cover_override is None else has_cover_override
     cover = "Да" if has_cover else "Нет"
+    has_lyrics = quality.get("lyrics", "").lower() == "true" if has_lyrics_override is None else has_lyrics_override
+    lyrics = "Да" if has_lyrics else "Нет"
 
     items = [
         ("Формат", fmt),
@@ -741,6 +825,7 @@ def render_quality(quality: dict[str, str], has_cover_override: bool | None = No
         ("Частота дискретизации", html.escape(format_sample_rate(quality.get("sample_rate")))),
         ("Теги", f"{tag_score}/5"),
         ("Обложка", cover),
+        ("Текст песни", lyrics),
         ("Размер", html.escape(format_size(quality.get("size")))),
     ]
 
@@ -811,7 +896,9 @@ def duplicate_cover_preview(
     cover_info: dict[str, object] | None = None,
 ) -> str:
     has_cover = bool(cover_info.get("has_cover")) if cover_info else quality.get("cover", "").lower() == "true"
-    cover_src = str(cover_info.get("cover_url") or "") if cover_info else cover_api_url(file_path) if has_cover else ""
+    cover_src = str(cover_info.get("cover_url") or "") if cover_info else ""
+    if has_cover and not cover_src:
+        cover_src = cover_api_url(file_path)
     if cover_src:
         return (
             '<div class="music-cover duplicate-cover music-cover-has" title="Обложка: есть">'
@@ -1319,6 +1406,21 @@ def render_html(payload: dict) -> str:
             moved_cover = cover_info_for_path(item["moved_file"], cover_by_path, cover_by_name)
             kept_has_cover = bool(kept_cover.get("has_cover")) if kept_cover else None
             moved_has_cover = bool(moved_cover.get("has_cover")) if moved_cover else None
+            kept_has_lyrics = bool(kept_cover.get("has_lyrics")) if kept_cover else None
+            moved_has_lyrics = bool(moved_cover.get("has_lyrics")) if moved_cover else None
+            review_only = bool(item.get("review_only"))
+            kept_label = "Лучший кандидат" if review_only else "Оставлен"
+            moved_label = "Кандидат в сравнение" if review_only else "В карантин"
+            kept_actions = f"""
+                    <div class="track-actions">
+                      <button class="small quarantine-one" type="button" data-file="{html.escape(item["kept_file"])}">В карантин</button>
+                      <button class="small danger-button trash-one" type="button" data-file-path="{html.escape(item["kept_file"])}">В корзину</button>
+                    </div>"""
+            moved_actions = f"""
+                    <div class="track-actions">
+                      <button class="small quarantine-one" type="button" data-file="{html.escape(item["moved_file"])}">В карантин</button>
+                      <button class="small danger-button trash-one" type="button" data-file-path="{html.escape(item["moved_file"])}">В корзину</button>
+                    </div>"""
             items_html.append(
                 f"""
                 <div class="comparison" data-kept-file="{html.escape(item["kept_file"])}" data-moved-file="{html.escape(item["moved_file"])}">
@@ -1326,17 +1428,14 @@ def render_html(payload: dict) -> str:
                     <div class="track-head">
                       {duplicate_cover_preview(item["kept_file"], item["kept_name"], item["kept_quality"], kept_cover)}
                       <div class="track-meta">
-                        <div class="track-label">Оставлен</div>
+                        <div class="track-label">{kept_label}</div>
                         <div class="track-title">{html.escape(item["kept_name"])}</div>
                         <div class="track-path" title="{html.escape(item["kept_file"])}">{html.escape(item["kept_folder"])}</div>
                       </div>
                     </div>
                     {audio_player(item["kept_file"], f'Прослушать оставленный файл: {item["kept_name"]}')}
-                    {render_quality(item["kept_quality"], kept_has_cover)}
-                    <div class="track-actions">
-                      <button class="small quarantine-one" type="button" data-file="{html.escape(item["kept_file"])}">В карантин</button>
-                      <button class="small danger-button trash-one" type="button" data-file-path="{html.escape(item["kept_file"])}">В корзину</button>
-                    </div>
+                    {render_quality(item["kept_quality"], kept_has_cover, kept_has_lyrics)}
+                    {kept_actions}
                   </div>
                   <div class="divider">
                     <div class="arrow" aria-hidden="true"><span></span></div>
@@ -1346,17 +1445,14 @@ def render_html(payload: dict) -> str:
                     <div class="track-head">
                       {duplicate_cover_preview(item["moved_file"], item["moved_name"], item["moved_quality"], moved_cover)}
                       <div class="track-meta">
-                        <div class="track-label">В карантин</div>
+                        <div class="track-label">{moved_label}</div>
                         <div class="track-title">{html.escape(item["moved_name"])}</div>
                         <div class="track-path" title="{html.escape(item["moved_file"])}">{html.escape(item["moved_folder"])}</div>
                       </div>
                     </div>
                     {audio_player(item["moved_file"], f'Прослушать файл для карантина: {item["moved_name"]}')}
-                    {render_quality(item["moved_quality"], moved_has_cover)}
-                    <div class="track-actions">
-                      <button class="small quarantine-one" type="button" data-file="{html.escape(item["moved_file"])}">В карантин</button>
-                      <button class="small danger-button trash-one" type="button" data-file-path="{html.escape(item["moved_file"])}">В корзину</button>
-                    </div>
+                    {render_quality(item["moved_quality"], moved_has_cover, moved_has_lyrics)}
+                    {moved_actions}
                   </div>
                   <div class="duplicate-card-status" aria-live="polite">
                     <div class="duplicate-card-status-text"></div>
@@ -1367,13 +1463,18 @@ def render_html(payload: dict) -> str:
             )
 
         badges = "".join(f'<span class="badge">{html.escape(fmt)}</span>' for fmt in group["formats"])
+        group_subtitle = (
+            f"Возможных совпадений: {group['duplicates_count']}"
+            if group.get("review_only")
+            else f"Худших дублей: {group['duplicates_count']}"
+        )
         groups_html.append(
             f"""
             <section class="group-card" data-search="{html.escape(group["name"].lower())}" data-count="{group["duplicates_count"]}">
               <button class="group-header" type="button">
                 <div>
                   <div class="group-title">{html.escape(group["name"])}</div>
-                  <div class="group-subtitle">Худших дублей: {group["duplicates_count"]}</div>
+                  <div class="group-subtitle">{group_subtitle}</div>
                 </div>
                 <div class="badges">{badges}</div>
               </button>
@@ -1421,7 +1522,7 @@ def render_html(payload: dict) -> str:
     .header {{ padding: 28px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); box-shadow: var(--shadow); backdrop-filter: blur(18px); }}
     h1 {{ margin: 0; font-size: clamp(28px, 4vw, 44px); line-height: 1.06; letter-spacing: 0; }}
     .library-path {{ margin-top: 14px; overflow-wrap: anywhere; color: var(--muted); font-size: 13px; line-height: 1.45; }}
-    .summary {{ display: grid; grid-template-columns: repeat(4, minmax(140px, 1fr)); gap: 12px; margin-top: 24px; }}
+    .summary {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-top: 24px; }}
     .metric {{ padding: 18px; border: 1px solid var(--line); border-radius: 18px; background: var(--soft); }}
     .metric span {{ display: block; color: var(--muted); font-size: 13px; }}
     .metric strong {{ display: block; margin-top: 6px; font-size: 30px; letter-spacing: 0; }}
@@ -1724,13 +1825,16 @@ def render_html(payload: dict) -> str:
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 8px;
-      max-width: 680px;
+      max-width: 760px;
       margin-top: 12px;
     }}
     .music-actions .small {{
       width: 100%;
       min-width: 0;
       text-align: center;
+    }}
+    .music-actions .music-action-single[data-action="layout"] {{
+      padding-inline: 24px;
     }}
     .lyrics-button:not(:disabled) {{
       border-color: rgba(192, 132, 252, 0.34);
@@ -2105,7 +2209,10 @@ def render_html(payload: dict) -> str:
         <div class="metric"><span>Всего файлов</span><strong>{format_number(library.get("total_files"))}</strong></div>
         <div class="metric"><span>Альбомов</span><strong>{format_number(library.get("albums"))}</strong></div>
         <div class="metric"><span>Исполнителей</span><strong>{format_number(library.get("artists"))}</strong></div>
+        <div class="metric"><span>С обложкой</span><strong>{format_number(library.get("files_with_cover"))}</strong></div>
+        <div class="metric"><span>С текстом</span><strong>{format_number(library.get("files_with_lyrics"))}</strong></div>
         <div class="metric"><span>Дублей</span><strong id="duplicateMetric">{format_number(summary["duplicates"])}</strong></div>
+        <div class="metric"><span>На проверку</span><strong>{format_number(summary.get("review_groups", 0))}</strong></div>
       </div>
     </section>
 
@@ -2115,6 +2222,9 @@ def render_html(payload: dict) -> str:
         <div class="panel-body note summary-main">
           Групп дублей: <strong id="duplicateGroupsMetric">{format_number(summary["groups"])}</strong><br>
           Файлов, предлагаемых в карантин: <strong id="duplicateFilesMetric">{format_number(summary["duplicates"])}</strong><br>
+          Возможных групп на проверку: <strong>{format_number(summary.get("review_groups", 0))}</strong><br>
+          Файлов с обложкой: <strong>{format_number(library.get("files_with_cover"))}</strong><br>
+          Файлов с текстом песни: <strong>{format_number(library.get("files_with_lyrics"))}</strong><br>
           Нечитаемых аудиофайлов: <strong>{format_number(library.get("unreadable_files"))}</strong>
         </div>
         <div class="panel-body">
@@ -2204,7 +2314,7 @@ def render_html(payload: dict) -> str:
     </section>
 
     <div class="duplicates-heading">
-      <h2 class="section-title">Дубли</h2>
+      <h2 class="section-title">Дубли и возможные совпадения</h2>
       <div class="duplicates-actions">
         <button class="small danger-button" id="quarantineCommand" type="button">Переместить всё в карантин</button>
         <button class="small" id="expandAll" type="button">Раскрыть всё</button>
@@ -2636,6 +2746,26 @@ def render_html(payload: dict) -> str:
     document.querySelectorAll('.group-header').forEach(button => {{
       button.addEventListener('click', () => button.closest('.group-card').classList.toggle('open'));
     }});
+    function audioPath(player) {{
+      try {{
+        return new URL(player.currentSrc || player.src, window.location.href).searchParams.get('file') || '';
+      }} catch (_error) {{
+        return '';
+      }}
+    }}
+
+    async function releaseAudioStreams(filePath = '') {{
+      const wanted = normalizePathForCompare(filePath);
+      document.querySelectorAll('.audio-player').forEach(player => {{
+        if (wanted && normalizePathForCompare(audioPath(player)) !== wanted) return;
+        player.pause();
+        player.removeAttribute('src');
+        player.load();
+      }});
+      // Chromium aborts the range request asynchronously; let the server close its handle.
+      await new Promise(resolve => setTimeout(resolve, 250));
+    }}
+
     async function runQuarantine(url, body, message, sourceButton = null) {{
       const sourceComparison = sourceButton?.closest?.('.comparison') || null;
       quarantinePanel.classList.add('visible');
@@ -2645,6 +2775,7 @@ def render_html(payload: dict) -> str:
       setDuplicateActionsDisabled(true);
       if (sourceComparison) setDuplicateStatus(sourceComparison, 'running', message);
       try {{
+        await releaseAudioStreams(body?.file || '');
         const response = await fetch(url, {{
           method: 'POST',
           headers: {{ 'Content-Type': 'application/json' }},
@@ -2693,6 +2824,7 @@ def render_html(payload: dict) -> str:
       if (sourceComparison) setDuplicateStatus(sourceComparison, 'running', 'Перемещаю файл в корзину...');
 
       try {{
+        await releaseAudioStreams(filePath);
         const response = await fetch('/api/trash-file', {{
           method: 'POST',
           headers: {{ 'Content-Type': 'application/json' }},
@@ -2878,11 +3010,17 @@ def render_html(payload: dict) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--csv", required=True, help="Duplicate CSV report")
+    parser.add_argument("--review-csv", help="CSV with possible duplicates that require review")
     parser.add_argument("--library", help="Music library folder for full analysis")
     parser.add_argument("--out", default="reports/library.html", help="Output HTML file")
     args = parser.parse_args()
 
     csv_path = Path(args.csv).expanduser().resolve()
+    review_csv_path = (
+        Path(args.review_csv).expanduser().resolve()
+        if args.review_csv
+        else csv_path.with_name(f"{csv_path.stem}_needs_review{csv_path.suffix}")
+    )
     library_path = Path(args.library).expanduser().resolve() if args.library else None
     out_path = Path(args.out).expanduser().resolve()
 
@@ -2890,8 +3028,9 @@ def main() -> int:
         raise SystemExit(f"CSV report does not exist: {csv_path}")
 
     rows = read_rows(csv_path)
+    review_rows = read_review_rows(review_csv_path)
     library_stats = analyze_library(library_path)
-    payload = build_payload(rows, library_stats)
+    payload = build_payload(rows, library_stats, review_rows)
     html_doc = render_html(payload)
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -2903,6 +3042,7 @@ def main() -> int:
     print(f"Artists: {library_stats['artists']}")
     print(f"Duplicate groups: {payload['summary']['groups']}")
     print(f"Duplicate files: {payload['summary']['duplicates']}")
+    print(f"Needs-review groups: {payload['summary']['review_groups']}")
     return 0
 
 

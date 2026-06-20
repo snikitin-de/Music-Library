@@ -11,6 +11,8 @@ import:
   duplicate_action: ask
 
 plugins:
+  - chroma
+  - musicbrainz
   - fetchart
   - embedart
   - lastgenre
@@ -45,3 +47,6 @@ embedart:
 lastgenre:
   auto: yes
   source: track
+
+chroma:
+  auto: yes

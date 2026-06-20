@@ -24,6 +24,7 @@ import hashlib
 import re
 import shutil
 import sys
+import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
@@ -48,6 +49,8 @@ AUDIO_EXTENSIONS = {
     ".opus",
     ".wma",
 }
+MANAGED_LIBRARY_FOLDER = "Library"
+MANAGED_STORAGE_FOLDERS = {"duplicates", "trash"}
 
 FORMAT_PRIORITY = {
     "flac": 100,
@@ -95,7 +98,7 @@ class TrackInfo:
 
     @property
     def tag_duplicate_key(self) -> tuple[str, ...]:
-        return artist_title_key(self)
+        return strict_tag_duplicate_key(self)
 
     @property
     def filename_duplicate_key(self) -> tuple[str, ...]:
@@ -142,6 +145,24 @@ def normalize(value: str) -> str:
     return value
 
 
+def normalize_text_key(value: str) -> str:
+    value = normalize(value)
+    value = value.replace("\u00bd", "1 2").replace("\u00bc", "1 4").replace("\u00be", "3 4")
+    value = unicodedata.normalize("NFKD", value)
+    value = "".join(ch for ch in value if not unicodedata.combining(ch))
+    value = re.sub(r"[^\w\s]+", " ", value)
+    value = re.sub(r"\s+", " ", value).strip()
+    return value
+
+
+def normalize_track_number(value: str) -> str:
+    value = normalize(value)
+    if "/" in value:
+        value = value.split("/", 1)[0]
+    value = value.strip()
+    return str(int(value)) if value.isdigit() else normalize_text_key(value)
+
+
 def normalize_filename_key(value: str) -> str:
     value = normalize(value)
     copy_words = "copy|duplicate|\u043a\u043e\u043f\u0438\u044f|\u0434\u0443\u0431\u043b\u0438\u043a\u0430\u0442"
@@ -149,20 +170,21 @@ def normalize_filename_key(value: str) -> str:
     value = re.sub(rf"\[({copy_words}|\d+)\]", " ", value)
     value = re.sub(rf"\b({copy_words})\b", " ", value)
     value = re.sub(r"\(\s*\)|\[\s*\]", " ", value)
-    value = re.sub(r"\s+", " ", value).strip(" -_")
-    return value
+    return normalize_text_key(value).strip(" -_")
 
 
 def normalize_artist_credit(value: str) -> str:
     value = normalize(value)
-    value = re.sub(r"\b(feat|featuring|ft)\.?\b", ",", value)
+    value = unicodedata.normalize("NFKD", value)
+    value = "".join(ch for ch in value if not unicodedata.combining(ch))
+    value = re.sub(r"\b(feat|featuring|ft|with)\.?\b", ",", value)
+    value = re.sub(r"\s+x\s+", ",", value)
     value = value.replace("&", ",").replace(";", ",").replace("/", ",")
     value = re.sub(r"\s+and\s+", ",", value)
 
     parts = []
     for part in value.split(","):
-        part = re.sub(r"[^\w\s.]+", "", part)
-        part = re.sub(r"\s+", " ", part).strip()
+        part = normalize_text_key(part)
         if part:
             parts.append(part)
 
@@ -171,10 +193,32 @@ def normalize_artist_credit(value: str) -> str:
 
 def artist_title_key(track: TrackInfo) -> tuple[str, ...]:
     artist = normalize_artist_credit(track.artist or track.albumartist)
-    title = normalize(track.title)
+    title = normalize_text_key(track.title)
     if not artist or not title:
         return ()
     return ("artist_title", artist, title)
+
+
+def strict_tag_duplicate_key(track: TrackInfo) -> tuple[str, ...]:
+    if track.metadata_source != "tags":
+        return ()
+
+    title = normalize_text_key(track.title)
+    if not title:
+        return ()
+
+    album = normalize_text_key(track.album)
+    if album:
+        albumartist = normalize_artist_credit(track.albumartist or track.artist)
+        track_number = normalize_track_number(track.track)
+        if not albumartist or not track_number:
+            return ()
+        return ("album_track", albumartist, album, track_number, title)
+
+    artist = normalize_artist_credit(track.artist or track.albumartist)
+    if not artist:
+        return ()
+    return ("single", artist, title)
 
 
 def first_tag(tags: dict, names: Iterable[str]) -> str:
@@ -268,15 +312,17 @@ def read_track(path: Path) -> TrackInfo | None:
         audio_full = None
 
     has_cover = False
-    if audio_full is not None and audio_full.tags is not None:
-        raw_tags = audio_full.tags
-        tag_keys = [str(k).lower() for k in raw_tags.keys()]
-        has_cover = any(
-            key.startswith("apic")
-            or key == "covr"
-            or "metadata_block_picture" in key
-            for key in tag_keys
-        )
+    if audio_full is not None:
+        has_cover = bool(getattr(audio_full, "pictures", None))
+        if not has_cover and audio_full.tags is not None:
+            raw_tags = audio_full.tags
+            tag_keys = [str(k).lower() for k in raw_tags.keys()]
+            has_cover = any(
+                key.startswith("apic")
+                or key == "covr"
+                or "metadata_block_picture" in key
+                for key in tag_keys
+            )
 
     if not title:
         return track_from_filename(path, "missing title tag")
@@ -298,19 +344,47 @@ def read_track(path: Path) -> TrackInfo | None:
     )
 
 
+def scan_roots_for_library(library: Path) -> list[Path]:
+    library_folder = library / MANAGED_LIBRARY_FOLDER
+    if library_folder.exists() and library_folder.is_dir():
+        return [library_folder]
+    return [library]
+
+
+def should_skip_managed_storage(path: Path, library: Path) -> bool:
+    try:
+        first_relative_part = path.relative_to(library).parts[0].casefold()
+    except (ValueError, IndexError):
+        return False
+    return first_relative_part in MANAGED_STORAGE_FOLDERS
+
+
+def managed_relative_path(path: Path, library: Path) -> Path:
+    for scan_root in scan_roots_for_library(library):
+        try:
+            return path.relative_to(scan_root)
+        except ValueError:
+            continue
+    return path.relative_to(library)
+
+
 def scan_library(library: Path) -> list[TrackInfo]:
     tracks: list[TrackInfo] = []
 
-    for path in library.rglob("*"):
-        if not path.is_file():
-            continue
+    for scan_root in scan_roots_for_library(library):
+        for path in scan_root.rglob("*"):
+            if not path.is_file():
+                continue
 
-        if path.suffix.lower() not in AUDIO_EXTENSIONS:
-            continue
+            if path.suffix.lower() not in AUDIO_EXTENSIONS:
+                continue
 
-        track = read_track(path)
-        if track is not None:
-            tracks.append(track)
+            if should_skip_managed_storage(path, library):
+                continue
+
+            track = read_track(path)
+            if track is not None:
+                tracks.append(track)
 
     return tracks
 
@@ -319,36 +393,40 @@ def scan_library_with_stats(library: Path) -> tuple[list[TrackInfo], ScanStats]:
     tracks: list[TrackInfo] = []
     stats = ScanStats()
 
-    for path in library.rglob("*"):
-        if not path.is_file():
-            continue
+    for scan_root in scan_roots_for_library(library):
+        for path in scan_root.rglob("*"):
+            if not path.is_file():
+                continue
 
-        if path.suffix.lower() not in AUDIO_EXTENSIONS:
-            continue
+            if path.suffix.lower() not in AUDIO_EXTENSIONS:
+                continue
 
-        stats.audio_files += 1
-        track = read_track(path)
-        if track is None:
-            stats.skipped_tracks += 1
-            continue
+            if should_skip_managed_storage(path, library):
+                continue
 
-        if track.metadata_source == "filename":
-            stats.filename_fallback_tracks += 1
-        else:
-            stats.tagged_tracks += 1
+            stats.audio_files += 1
+            track = read_track(path)
+            if track is None:
+                stats.skipped_tracks += 1
+                continue
 
-        tracks.append(track)
+            if track.metadata_source == "filename":
+                stats.filename_fallback_tracks += 1
+            else:
+                stats.tagged_tracks += 1
+
+            tracks.append(track)
 
     return tracks, stats
 
 
 def duplicate_key(track: TrackInfo) -> tuple[str, ...]:
     tag_key = track.tag_duplicate_key
-    if all(tag_key):
+    if tag_key and all(tag_key):
         return ("tags",) + tag_key
 
     filename_key = track.filename_duplicate_key
-    if all(filename_key):
+    if track.metadata_source == "filename" and filename_key and all(filename_key):
         return filename_key
 
     return ()
@@ -515,7 +593,7 @@ def write_review_report(report: Path, groups: dict[tuple[str, ...], list[TrackIn
 
 
 def safe_quarantine_path(original: Path, library: Path, quarantine: Path) -> Path:
-    relative = original.relative_to(library)
+    relative = managed_relative_path(original, library)
     destination = quarantine / relative
 
     if not destination.exists():

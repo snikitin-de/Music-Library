@@ -18,6 +18,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 from datetime import datetime
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path, PureWindowsPath
@@ -40,6 +41,7 @@ from generate_html_report import (
     has_embedded_lyrics,
     lyrics_for_track_with_source,
     make_display_tag,
+    read_review_rows,
     render_html,
     year_from,
 )
@@ -48,6 +50,7 @@ from generate_html_report import (
 ROOT = Path(__file__).resolve().parents[1]
 REPORT_HTML = ROOT / "reports" / "library.html"
 REPORT_CSV = ROOT / "reports" / "duplicates.csv"
+REVIEW_CSV = ROOT / "reports" / "duplicates_needs_review.csv"
 FILE_ACTIONS_CSV = ROOT / "reports" / "file_actions.csv"
 BEETS_CONFIG = ROOT / "beets-config.yaml"
 WEB_BEETS_CONFIG = ROOT / "reports" / "beets-web-config.yaml"
@@ -65,6 +68,8 @@ AUDIO_EXTENSIONS = {
     ".opus",
     ".wma",
 }
+MANAGED_LIBRARY_FOLDER = "Library"
+MANAGED_STORAGE_FOLDERS = {"duplicates", "trash"}
 
 ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
 
@@ -181,6 +186,48 @@ def trash_path(library: str) -> str:
     return str(PureWindowsPath(library) / "Trash")
 
 
+def managed_music_base(source: Path, library: Path) -> Path:
+    """Return the folder whose structure should be preserved in storage folders."""
+    library_folder = library / MANAGED_LIBRARY_FOLDER
+    try:
+        source.relative_to(library_folder)
+        return library_folder
+    except ValueError:
+        return library
+
+
+def managed_relative_path(source: Path, library: Path) -> Path:
+    base = managed_music_base(source, library)
+    try:
+        return source.relative_to(base)
+    except ValueError:
+        try:
+            return source.relative_to(library)
+        except ValueError:
+            return Path(source.name)
+
+
+def content_roots_for_library(root: Path) -> list[Path]:
+    library_folder = root / MANAGED_LIBRARY_FOLDER
+    if library_folder.exists() and library_folder.is_dir():
+        return [library_folder]
+    return [root]
+
+
+def path_inside(path: Path, root: Path) -> bool:
+    path_key = norm_path(str(path))
+    root_key = norm_path(str(root)).rstrip("\\")
+    return path_key == root_key or path_key.startswith(root_key + "\\")
+
+
+def is_managed_storage_path(path: Path, root: Path) -> bool:
+    for folder in MANAGED_STORAGE_FOLDERS:
+        storage_root = root / folder
+        if path_inside(path, storage_root):
+            return True
+    return False
+
+
 def current_duplicate_files() -> set[str]:
     if not REPORT_CSV.exists():
         return set()
@@ -192,6 +239,26 @@ def current_duplicate_files() -> set[str]:
                 if value:
                     paths.add(value)
         return paths
+
+
+def read_review_report_rows() -> list[dict[str, str]]:
+    if not REVIEW_CSV.exists():
+        return []
+    with REVIEW_CSV.open("r", encoding="utf-8-sig", newline="") as f:
+        return list(csv.DictReader(f))
+
+
+def current_review_files() -> set[str]:
+    return {row.get("file", "") for row in read_review_report_rows() if row.get("file")}
+
+
+def write_review_report_rows(rows: list[dict[str, str]]) -> None:
+    REVIEW_CSV.parent.mkdir(parents=True, exist_ok=True)
+    fieldnames = ["review_group", "file", "reason", "quality", "artist", "title", "album", "track"]
+    with REVIEW_CSV.open("w", encoding="utf-8-sig", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
 
 
 def read_duplicate_rows() -> list[dict[str, str]]:
@@ -247,10 +314,7 @@ def append_file_action(action: str, source: str, destination: str, status: str) 
 
 
 def safe_quarantine_path(original: Path, library: Path, quarantine: Path) -> Path:
-    try:
-        relative = original.relative_to(library)
-    except ValueError:
-        relative = Path(original.name)
+    relative = managed_relative_path(original, library)
     destination = quarantine / relative
     if not destination.exists():
         return destination
@@ -267,10 +331,7 @@ def safe_quarantine_path(original: Path, library: Path, quarantine: Path) -> Pat
 
 
 def safe_storage_path(original: Path, library: Path, storage: Path, suffix_marker: str) -> Path:
-    try:
-        relative = original.relative_to(library)
-    except ValueError:
-        relative = Path(original.name)
+    relative = managed_relative_path(original, library)
     destination = storage / relative
     if not destination.exists():
         return destination
@@ -284,6 +345,18 @@ def safe_storage_path(original: Path, library: Path, storage: Path, suffix_marke
         if not candidate.exists():
             return candidate
         index += 1
+
+
+def move_file_with_retry(source: Path, destination: Path, attempts: int = 6) -> None:
+    """Move a file after giving browser audio streams time to release it on Windows."""
+    for attempt in range(attempts):
+        try:
+            shutil.move(str(source), str(destination))
+            return
+        except OSError as exc:
+            if getattr(exc, "winerror", None) != 32 or attempt == attempts - 1:
+                raise
+            time.sleep(0.2)
 
 
 def update_report_without_scan(remaining_rows: list[dict[str, str]], moved_paths: set[str]) -> None:
@@ -329,7 +402,7 @@ def update_report_without_scan(remaining_rows: list[dict[str, str]], moved_paths
         )
         for row in remaining_rows
     ]
-    new_payload = build_payload(report_rows, library)
+    new_payload = build_payload(report_rows, library, read_review_rows(REVIEW_CSV))
     REPORT_HTML.write_text(render_html(new_payload), encoding="utf-8")
     _REPORT_CACHE.clear()
     _AUDIO_PATH_CACHE.clear()
@@ -386,7 +459,7 @@ def move_duplicate_files(only_file: str | None = None, worse_only: bool = False)
 
             destination = safe_storage_path(source, library, quarantine, "duplicate")
             destination.parent.mkdir(parents=True, exist_ok=True)
-            shutil.move(str(source), str(destination))
+            move_file_with_retry(source, destination)
             moved.append({"source": str(source), "destination": str(destination), "status": "moved"})
             append_file_action("quarantine", str(source), str(destination), "moved")
 
@@ -409,6 +482,53 @@ def move_from_csv(only_file: str | None = None) -> dict:
     return move_duplicate_files(only_file, worse_only=only_file is None)
 
 
+def quarantine_review_file(file_path: str) -> dict:
+    source = resolve_audio_path(file_path)
+    if source is None or not path_exists(source):
+        raise RuntimeError(f"Audio file was not found: {file_path}")
+    if source.suffix.lower() not in AUDIO_EXTENSIONS:
+        raise RuntimeError(f"Unsupported audio file type: {source}")
+    if not source_inside_library(source):
+        raise RuntimeError(f"File is outside the reported music library: {source}")
+
+    review_rows = read_review_report_rows()
+    source_key = norm_path(str(source))
+    affected_groups = {
+        row.get("review_group", "")
+        for row in review_rows
+        if norm_path(row.get("file", "")) == source_key
+    }
+    if not affected_groups:
+        raise RuntimeError("Selected file was not found in the review report.")
+
+    library = Path(library_path())
+    quarantine = Path(quarantine_path(str(library)))
+    destination = safe_storage_path(source, library, quarantine, "duplicate")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    move_file_with_retry(source, destination)
+    append_file_action("quarantine_review", str(source), str(destination), "moved")
+
+    write_review_report_rows([
+        row for row in review_rows if row.get("review_group", "") not in affected_groups
+    ])
+    remaining = [
+        row for row in read_duplicate_rows()
+        if source_key not in {
+            norm_path(row.get("kept_file", "")),
+            norm_path(row.get("moved_file", "")),
+        }
+    ]
+    write_duplicate_rows(remaining)
+    update_report_without_scan(remaining, {source_key})
+    return {
+        "ok": True,
+        "quarantine": str(quarantine),
+        "moved": [{"source": str(source), "destination": str(destination), "status": "moved"}],
+        "moved_paths": [source_key],
+        "remaining_duplicates": len(remaining),
+    }
+
+
 def trash_file(file_path: str) -> dict:
     source = resolve_audio_path(file_path)
     if source is None or not path_exists(source):
@@ -422,7 +542,7 @@ def trash_file(file_path: str) -> dict:
     trash = Path(trash_path(str(library)))
     destination = safe_storage_path(source, library, trash, "trash")
     destination.parent.mkdir(parents=True, exist_ok=True)
-    shutil.move(str(source), str(destination))
+    move_file_with_retry(source, destination)
     append_file_action("trash", str(source), str(destination), "moved")
 
     source_key = norm_path(str(source))
@@ -433,6 +553,16 @@ def trash_file(file_path: str) -> dict:
         remaining.append(row)
 
     write_duplicate_rows(remaining)
+    review_rows = read_review_report_rows()
+    affected_groups = {
+        row.get("review_group", "")
+        for row in review_rows
+        if norm_path(row.get("file", "")) == source_key
+    }
+    if affected_groups:
+        write_review_report_rows([
+            row for row in review_rows if row.get("review_group", "") not in affected_groups
+        ])
     update_report_without_scan(remaining, {source_key})
     return {
         "ok": True,
@@ -608,7 +738,7 @@ def refresh_report_tracks(files: list[str]) -> dict[str, object]:
         )
         for row in read_duplicate_rows()
     ]
-    REPORT_HTML.write_text(render_html(build_payload(report_rows, library)), encoding="utf-8")
+    REPORT_HTML.write_text(render_html(build_payload(report_rows, library, read_review_rows(REVIEW_CSV))), encoding="utf-8")
     _REPORT_CACHE.clear()
     _AUDIO_PATH_CACHE.clear()
     return {"updated_tracks": replaced, "tracks": refreshed_tracks}
@@ -864,7 +994,7 @@ def manual_layout_file(source_raw: str) -> dict[str, str]:
         }
 
     folder.mkdir(parents=True, exist_ok=True)
-    shutil.move(str(source), str(destination))
+    move_file_with_retry(source, destination)
 
     return {
         "source": str(source),
@@ -996,7 +1126,7 @@ def rebuild_report_html_from_current_data(library: dict) -> None:
         for row in read_duplicate_rows()
     ]
 
-    REPORT_HTML.write_text(render_html(build_payload(report_rows, library)), encoding="utf-8")
+    REPORT_HTML.write_text(render_html(build_payload(report_rows, library, read_review_rows(REVIEW_CSV))), encoding="utf-8")
     _REPORT_CACHE.clear()
     _AUDIO_PATH_CACHE.clear()
 
@@ -1192,20 +1322,22 @@ def search_audio_in_libraries(requested: str) -> Path | None:
     requested_name = PureWindowsPath(raw).name or Path(requested).name
     requested_stem_norm = normalize_audio_name(PureWindowsPath(requested_name).stem)
 
-    for root in library_roots_from_report():
+    for report_root in library_roots_from_report():
+        roots = content_roots_for_library(report_root)
         try:
-            if not root.exists():
-                continue
-
-            for path in root.rglob("*"):
-                if not path.is_file() or path.suffix.lower() not in AUDIO_EXTENSIONS:
+            for root in roots:
+                if not root.exists():
                     continue
 
-                if (
-                    path.name.casefold() == requested_name.casefold()
-                    or normalize_audio_name(path.stem) == requested_stem_norm
-                ):
-                    return path
+                for path in root.rglob("*"):
+                    if not path.is_file() or path.suffix.lower() not in AUDIO_EXTENSIONS:
+                        continue
+
+                    if (
+                        path.name.casefold() == requested_name.casefold()
+                        or normalize_audio_name(path.stem) == requested_stem_norm
+                    ):
+                        return path
         except Exception:
             continue
     return None
@@ -1216,11 +1348,7 @@ def quarantine_candidate_for_audio_path(requested: str) -> Path | None:
     requested_path = Path(raw)
 
     for root in library_roots_from_report():
-        try:
-            relative = requested_path.relative_to(root)
-        except ValueError:
-            continue
-
+        relative = managed_relative_path(requested_path, root)
         candidate = Path(quarantine_path(str(root))) / relative
         if path_exists(candidate):
             return candidate
@@ -1251,14 +1379,10 @@ def resolve_audio_path(requested: str) -> Path | None:
 
 
 def source_inside_library(source: Path) -> bool:
-    source_key = norm_path(str(source))
     for root in library_roots_from_report():
-        root_key = norm_path(str(root)).rstrip("\\")
-        if source_key == root_key or source_key.startswith(root_key + "\\"):
-            return True
-
-        quarantine_key = norm_path(quarantine_path(str(root))).rstrip("\\")
-        if source_key == quarantine_key or source_key.startswith(quarantine_key + "\\"):
+        if is_managed_storage_path(source, root):
+            return False
+        if any(path_inside(source, content_root) for content_root in content_roots_for_library(root)):
             return True
     return False
 
@@ -1485,17 +1609,22 @@ class ReportHandler(SimpleHTTPRequestHandler):
                 body = self.read_json()
                 require_quarantine_confirmation(body)
                 duplicate_file = str(body.get("file") or body.get("moved_file") or "")
-                allowed = {norm_path(path) for path in current_duplicate_files()}
+                duplicate_allowed = {norm_path(path) for path in current_duplicate_files()}
+                review_allowed = {norm_path(path) for path in current_review_files()}
+                allowed = duplicate_allowed | review_allowed
                 if not duplicate_file or norm_path(duplicate_file) not in allowed:
                     self.send_json(
                         400,
                         {
                             "ok": False,
-                            "error": "File is not listed as a duplicate in the current CSV report.",
+                            "error": "File is not listed in the current duplicate or review report.",
                         },
                     )
                     return
-                self.send_json(200, quarantine_duplicates(duplicate_file))
+                if norm_path(duplicate_file) in review_allowed:
+                    self.send_json(200, quarantine_review_file(duplicate_file))
+                else:
+                    self.send_json(200, quarantine_duplicates(duplicate_file))
                 return
 
             if self.path == "/api/trash-file":
