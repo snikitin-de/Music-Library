@@ -19,6 +19,7 @@ import shutil
 import subprocess
 import sys
 import time
+import uuid
 from datetime import datetime
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path, PureWindowsPath
@@ -27,6 +28,15 @@ from urllib.parse import parse_qs, urlparse
 import yaml
 
 from mutagen import File as MutagenFile
+
+from media_enrichment import (
+    EnrichmentError,
+    TrackMetadata,
+    save_cover,
+    save_lyrics,
+    search_covers,
+    search_lyrics,
+)
 
 from generate_html_report import (
     DISPLAY_TAGS,
@@ -75,6 +85,8 @@ ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
 
 _REPORT_CACHE: dict[str, object] = {}
 _AUDIO_PATH_CACHE: dict[tuple[tuple[tuple[int, int], tuple[int, int]], str], str | None] = {}
+_ENRICHMENT_CANDIDATES: dict[str, dict[str, object]] = {}
+ENRICHMENT_CANDIDATE_TTL = 15 * 60
 
 
 def norm_path(value: str) -> str:
@@ -724,6 +736,11 @@ def refresh_report_tracks(files: list[str]) -> dict[str, object]:
         replaced += 1
 
     library["tracks"] = tracks
+    library["files_with_cover"] = sum(bool(track.get("has_cover")) for track in tracks)
+    library["files_with_lyrics"] = sum(
+        any(tag.get("kind") == "lyrics" and str(tag.get("value", "")).lower() == "есть" for tag in track.get("tags", []))
+        for track in tracks
+    )
     library["genres"] = collect_genres_from_tracks(tracks)
     library["years"] = collect_years_from_tracks(tracks)
 
@@ -804,6 +821,93 @@ def validate_music_files(files: object) -> list[str]:
     if not selected:
         raise RuntimeError("No music files were selected.")
     return selected
+
+
+def enrichment_metadata(path: Path) -> TrackMetadata:
+    try:
+        audio = MutagenFile(path, easy=True)
+    except Exception as exc:
+        raise RuntimeError(f"Не удалось прочитать теги файла: {exc}") from exc
+    if audio is None:
+        raise RuntimeError("Не удалось распознать аудиофайл.")
+    tags = audio.tags or {}
+    return TrackMetadata(
+        artist=first_tag(tags, ["artist"]),
+        album_artist=first_tag(tags, ["albumartist", "artist"]),
+        album=first_tag(tags, ["album"]),
+        title=first_tag(tags, ["title"]) or path.stem,
+        duration=round(float(getattr(getattr(audio, "info", None), "length", 0) or 0)),
+    )
+
+
+def cleanup_enrichment_candidates() -> None:
+    cutoff = time.time() - ENRICHMENT_CANDIDATE_TTL
+    expired = [key for key, item in _ENRICHMENT_CANDIDATES.items() if float(item.get("created", 0)) < cutoff]
+    for key in expired:
+        _ENRICHMENT_CANDIDATES.pop(key, None)
+
+
+def search_enrichment(body: dict) -> dict[str, object]:
+    kind = str(body.get("kind") or "")
+    if kind not in {"cover", "lyrics"}:
+        raise RuntimeError("Неизвестный тип дополнения.")
+    source = Path(validate_music_files([body.get("file")])[0])
+    if kind == "cover" and embedded_cover(source)[0]:
+        raise RuntimeError("У этой записи уже есть обложка.")
+    if kind == "lyrics" and has_embedded_lyrics(source):
+        raise RuntimeError("У этой записи уже есть текст песни.")
+
+    metadata = enrichment_metadata(source)
+    try:
+        found = search_covers(metadata) if kind == "cover" else search_lyrics(metadata)
+    except EnrichmentError as exc:
+        raise RuntimeError(str(exc)) from exc
+
+    cleanup_enrichment_candidates()
+    public_candidates = []
+    for candidate in found[:8]:
+        candidate_id = uuid.uuid4().hex
+        _ENRICHMENT_CANDIDATES[candidate_id] = {
+            "created": time.time(), "file": str(source), "kind": kind, "candidate": candidate,
+        }
+        public = {key: value for key, value in candidate.items() if key not in {"content", "download_url"}}
+        public["id"] = candidate_id
+        public_candidates.append(public)
+    return {"ok": True, "kind": kind, "file": str(source), "candidates": public_candidates}
+
+
+def save_enrichment(body: dict) -> dict[str, object]:
+    if body.get("confirm") != "SAVE_ENRICHMENT":
+        raise RuntimeError("Запись обложки или текста требует явного подтверждения.")
+    cleanup_enrichment_candidates()
+    candidate_id = str(body.get("candidate_id") or "")
+    stored = _ENRICHMENT_CANDIDATES.get(candidate_id)
+    if not stored:
+        raise RuntimeError("Кандидат устарел. Выполните поиск ещё раз.")
+    source = Path(validate_music_files([body.get("file")])[0])
+    if norm_path(str(source)) != norm_path(str(stored.get("file") or "")):
+        raise RuntimeError("Кандидат найден для другого файла.")
+    kind = str(stored.get("kind") or "")
+    candidate = stored.get("candidate")
+    if not isinstance(candidate, dict):
+        raise RuntimeError("Некорректный кандидат.")
+    try:
+        destination = save_cover(source, candidate) if kind == "cover" else save_lyrics(source, candidate)
+    except EnrichmentError as exc:
+        raise RuntimeError(str(exc)) from exc
+    _ENRICHMENT_CANDIDATES.pop(candidate_id, None)
+    append_file_action(f"save_{kind}", str(source), str(destination), "created")
+
+    refresh_files = [str(source)]
+    if kind == "cover":
+        refresh_files = [path for path in report_metadata()["paths"] if Path(path).parent == source.parent] or refresh_files
+    refreshed = refresh_report_tracks(refresh_files)
+    label = "Обложка" if kind == "cover" else "Текст песни"
+    return {
+        "ok": True, "reload": True,
+        "message": f"{label} сохранён рядом с аудиофайлом: {destination.name}",
+        "destination": str(destination), "refresh": refreshed,
+    }
 
 
 def strip_ansi(value: str) -> str:
@@ -1103,6 +1207,11 @@ def apply_path_replacements_to_payload(replacements: dict[str, str]) -> dict[str
         updated_tracks += 1
 
     library["tracks"] = tracks
+    library["files_with_cover"] = sum(bool(track.get("has_cover")) for track in tracks)
+    library["files_with_lyrics"] = sum(
+        any(tag.get("kind") == "lyrics" and str(tag.get("value", "")).lower() == "есть" for tag in track.get("tags", []))
+        for track in tracks
+    )
     library["genres"] = collect_genres_from_tracks(tracks)
     library["years"] = collect_years_from_tracks(tracks)
 
@@ -1649,6 +1758,14 @@ class ReportHandler(SimpleHTTPRequestHandler):
 
             if self.path == "/api/music-operation":
                 self.send_json(200, run_music_operation(self.read_json()))
+                return
+
+            if self.path == "/api/enrichment/search":
+                self.send_json(200, search_enrichment(self.read_json()))
+                return
+
+            if self.path == "/api/enrichment/save":
+                self.send_json(200, save_enrichment(self.read_json()))
                 return
 
             self.send_json(404, {"ok": False, "error": "Unknown API endpoint"})

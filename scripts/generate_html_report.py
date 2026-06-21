@@ -40,6 +40,7 @@ MANAGED_STORAGE_FOLDERS = {"duplicates", "trash"}
 
 MAX_DISPLAY_TAG_LENGTH = 120
 LYRICS_FILE_EXTENSIONS = (".lrc", ".txt")
+COVER_FILE_NAMES = ("cover.jpg", "cover.jpeg", "cover.png", "folder.jpg", "folder.jpeg", "folder.png")
 
 DISPLAY_TAGS = [
     ("album", ["album"], "альбом", "album"),
@@ -121,7 +122,7 @@ def embedded_cover_bytes(path: Path) -> tuple[bool, bytes, str]:
         return False, b"", ""
 
     if audio is None:
-        return False, b"", ""
+        return sidecar_cover_bytes(path)
 
     for picture in getattr(audio, "pictures", []) or []:
         data = getattr(picture, "data", b"")
@@ -131,7 +132,7 @@ def embedded_cover_bytes(path: Path) -> tuple[bool, bytes, str]:
 
     tags = audio.tags
     if tags is None:
-        return False, b"", ""
+        return sidecar_cover_bytes(path)
 
     has_cover = False
     for key, value in tags.items():
@@ -166,7 +167,24 @@ def embedded_cover_bytes(path: Path) -> tuple[bool, bytes, str]:
                 if picture.data:
                     return True, picture.data, picture.mime
 
-    return has_cover, b"", ""
+    if has_cover:
+        return True, b"", ""
+    return sidecar_cover_bytes(path)
+
+
+def sidecar_cover_bytes(path: Path) -> tuple[bool, bytes, str]:
+    for name in COVER_FILE_NAMES:
+        candidate = path.parent / name
+        if not candidate.is_file():
+            continue
+        try:
+            data = candidate.read_bytes()
+        except OSError:
+            continue
+        if data:
+            mime = "image/png" if candidate.suffix.lower() == ".png" else "image/jpeg"
+            return True, data, mime
+    return False, b"", ""
 
 
 def embedded_cover(path: Path, include_data_uri: bool = False) -> tuple[bool, str]:
@@ -1345,7 +1363,10 @@ def render_music_list(tracks: list[dict], duplicate_paths: set[str] | None = Non
             else ""
         )
         has_lyrics = "текст песни: есть" in " ".join(tag_values_by_kind.get("lyrics", [])).lower()
+        has_cover = bool(track.get("has_cover"))
         lyrics_disabled = "" if has_lyrics else ' disabled aria-disabled="true" title="Текст песни не найден"'
+        cover_search_disabled = ' disabled aria-disabled="true" title="Обложка уже есть"' if has_cover else ""
+        lyrics_search_disabled = ' disabled aria-disabled="true" title="Текст уже есть"' if has_lyrics else ""
         player_html = audio_player(track.get("path", ""), f'Прослушать {track.get("name", "")}')
         cover_html = cover_preview(track)
         items.append(
@@ -1362,6 +1383,8 @@ def render_music_list(tracks: list[dict], duplicate_paths: set[str] | None = Non
                     <button class="small music-action-single" type="button" data-action="tag" data-file-path="{html.escape(track.get("path", ""))}">Проставить теги</button>
                     <button class="small music-action-single" type="button" data-action="layout" data-file-path="{html.escape(track.get("path", ""))}"{layout_disabled}>Разложить по папкам</button>
                     <button class="small lyrics-button" type="button" data-file-path="{html.escape(track.get("path", ""))}" data-track-name="{html.escape(track.get("name", ""))}"{lyrics_disabled}>Текст песни</button>
+                    <button class="small enrichment-button" type="button" data-kind="cover" data-file-path="{html.escape(track.get("path", ""))}"{cover_search_disabled}>Найти обложку</button>
+                    <button class="small enrichment-button" type="button" data-kind="lyrics" data-file-path="{html.escape(track.get("path", ""))}"{lyrics_search_disabled}>Найти текст</button>
                     <button class="small danger-button trash-one" type="button" data-file-path="{html.escape(track.get("path", ""))}">В корзину</button>
                   </div>
                   <div class="music-card-status" aria-live="polite">
@@ -1822,15 +1845,17 @@ def render_html(payload: dict) -> str:
     .music-title {{ font-weight: 750; overflow-wrap: anywhere; }}
     .music-path {{ margin-top: 5px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }}
     .music-actions {{
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      display: flex;
+      flex-wrap: nowrap;
       gap: 8px;
-      max-width: 760px;
+      width: 100%;
       margin-top: 12px;
     }}
     .music-actions .small {{
-      width: 100%;
-      min-width: 0;
+      flex: 1 1 0;
+      width: auto;
+      min-width: 112px;
+      padding-inline: 12px;
       text-align: center;
     }}
     .music-actions .music-action-single[data-action="layout"] {{
@@ -2191,7 +2216,8 @@ def render_html(payload: dict) -> str:
       .music-cover {{ width: min(100%, 180px); }}
       .track-head {{ grid-template-columns: 72px minmax(0, 1fr); }}
       .duplicate-cover {{ width: 72px; }}
-      .music-actions {{ grid-template-columns: 1fr; max-width: none; }}
+      .music-actions {{ display: grid; grid-template-columns: 1fr; width: 100%; }}
+      .music-actions .small {{ width: 100%; min-width: 0; }}
       .music-operations-row > button.small,
       .music-operations-row > .mode-choice {{ width: 100%; }}
       .duplicates-heading {{ align-items: stretch; flex-direction: column; }}
@@ -2442,6 +2468,62 @@ def render_html(payload: dict) -> str:
       }}
     }}
 
+    async function searchAndSaveEnrichment(button) {{
+      const card = button.closest('.music-card');
+      const filePath = button.dataset.filePath || card?.dataset.filePath || '';
+      const kind = button.dataset.kind || '';
+      if (!filePath || !kind || button.disabled) return;
+      const label = kind === 'cover' ? 'обложки' : 'текста песни';
+      button.disabled = true;
+      let saved = false;
+      setCardStatus(card, 'running', `Ищу варианты ${{label}}...`);
+      try {{
+        const searchResponse = await fetch('/api/enrichment/search', {{
+          method: 'POST', headers: {{ 'Content-Type': 'application/json' }},
+          body: JSON.stringify({{ file: filePath, kind }})
+        }});
+        const searchResult = await searchResponse.json();
+        if (!searchResponse.ok || !searchResult.ok) throw new Error(searchResult.error || 'Поиск не выполнен.');
+        const candidates = searchResult.candidates || [];
+        if (!candidates.length) throw new Error('Подходящие варианты не найдены.');
+        const choices = candidates.map((item, index) => {{
+          const details = kind === 'cover'
+            ? `${{item.artist || '—'}} — ${{item.album || '—'}} (${{item.date || item.country || 'год не указан'}}, совпадение ${{item.score || 0}}%)`
+            : `${{item.artist || '—'}} — ${{item.title || '—'}} [${{item.kind === 'synced' ? 'LRC' : 'обычный текст'}}]`;
+          return `${{index + 1}}. ${{details}}`;
+        }}).join('\\n');
+        const answer = window.prompt(`Найдены варианты ${{label}}:\n\n${{choices}}\n\nВведите номер кандидата:`, '1');
+        if (answer === null) {{ setCardStatus(card, '', 'Сохранение отменено.'); return; }}
+        const index = Number.parseInt(answer, 10) - 1;
+        if (!Number.isInteger(index) || !candidates[index]) throw new Error('Выбран неверный номер кандидата.');
+        const selected = candidates[index];
+        if (kind === 'cover' && selected.preview_url) window.open(selected.preview_url, '_blank', 'noopener');
+        const preview = kind === 'lyrics' && selected.preview ? `\n\n${{selected.preview.slice(0, 700)}}` : '';
+        if (!window.confirm(`Сохранить выбранный вариант рядом с аудиофайлом? Аудиофайл изменён не будет.${{preview}}`)) {{
+          setCardStatus(card, '', 'Сохранение отменено.'); return;
+        }}
+        const saveResponse = await fetch('/api/enrichment/save', {{
+          method: 'POST', headers: {{ 'Content-Type': 'application/json' }},
+          body: JSON.stringify({{ file: filePath, candidate_id: selected.id, confirm: 'SAVE_ENRICHMENT' }})
+        }});
+        const saveResult = await saveResponse.json();
+        if (!saveResponse.ok || !saveResult.ok) throw new Error(saveResult.error || 'Не удалось сохранить файл.');
+        saved = true;
+        const refreshedTracks = saveResult.refresh?.tracks || [];
+        refreshedTracks.forEach(track => {{
+          const refreshedCard = musicCards.find(item =>
+            normalizePathForCompare(item.dataset.filePath || '') === normalizePathForCompare(track.path || '')
+          );
+          if (refreshedCard) updateMusicCardFromTrack(refreshedCard, track);
+        }});
+        setCardStatus(card, 'done', saveResult.message || 'Сохранено.');
+      }} catch (error) {{
+        setCardStatus(card, 'error', error.message || String(error));
+      }} finally {{
+        if (!saved) button.disabled = false;
+      }}
+    }}
+
     function setMusicActionDisabled(disabled, card = null) {{
       const root = card || document;
       const selector = card ? '.music-action-single' : '.music-action-single, #tagVisible, #layoutVisible';
@@ -2638,14 +2720,24 @@ def render_html(payload: dict) -> str:
       const layoutButton = card.querySelector('[data-action="layout"]');
       card.dataset.layoutStatus = layoutButton?.disabled ? 'done' : 'ready';
       const lyricsButton = card.querySelector('.lyrics-button');
+      const hasLyrics = (tagValuesByKind.lyrics || []).join(' ').toLowerCase().includes('текст песни: есть');
       if (lyricsButton) {{
-        const hasLyrics = (tagValuesByKind.lyrics || []).join(' ').toLowerCase().includes('текст песни: есть');
         lyricsButton.dataset.filePath = path;
         lyricsButton.dataset.trackName = name;
         lyricsButton.disabled = !hasLyrics;
         lyricsButton.setAttribute('aria-disabled', hasLyrics ? 'false' : 'true');
         lyricsButton.title = hasLyrics ? '' : 'Текст песни не найден';
       }}
+      card.querySelectorAll('.enrichment-button').forEach(enrichmentButton => {{
+        const enrichmentKind = enrichmentButton.dataset.kind || '';
+        const alreadyPresent = enrichmentKind === 'cover' ? Boolean(track.has_cover) : hasLyrics;
+        enrichmentButton.dataset.filePath = path;
+        enrichmentButton.disabled = alreadyPresent;
+        enrichmentButton.setAttribute('aria-disabled', alreadyPresent ? 'true' : 'false');
+        enrichmentButton.title = alreadyPresent
+          ? (enrichmentKind === 'cover' ? 'Обложка уже есть' : 'Текст уже есть')
+          : '';
+      }});
       card.querySelectorAll('.music-action-single').forEach(button => {{
         button.dataset.filePath = path;
       }});
@@ -2964,6 +3056,13 @@ def render_html(payload: dict) -> str:
         event.preventDefault();
         event.stopPropagation();
         openLyricsModal(button);
+      }});
+    }});
+    document.querySelectorAll('.enrichment-button').forEach(button => {{
+      button.addEventListener('click', event => {{
+        event.preventDefault();
+        event.stopPropagation();
+        searchAndSaveEnrichment(button);
       }});
     }});
     if (lyricsClose) lyricsClose.addEventListener('click', closeLyricsModal);
