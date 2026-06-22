@@ -220,6 +220,8 @@
       border-radius: 18px;
       background: rgba(255, 255, 255, 0.045);
     }
+    .music-operation-groups { display: grid; grid-template-columns: 1fr; gap: 12px; align-items: stretch; }
+    .music-operation-block { min-width: 0; padding: 12px; border: 1px solid var(--line); border-radius: 14px; background: rgba(15, 23, 42, 0.44); }
     .music-operations-row {
       display: flex;
       flex-wrap: wrap;
@@ -233,6 +235,8 @@
       justify-content: center;
     }
     .music-operations-row > button.small { flex: 0 1 auto; }
+    .music-operation-actions .music-operations-row { flex-wrap: nowrap; width: 100%; }
+    .music-operation-actions .music-operations-row > button.small { flex: 1 1 0; min-width: 0; padding-inline: 12px; }
     .music-operations-title { margin: 0 0 10px; font-weight: 750; }
     .mode-choice { display: inline-flex; align-items: center; gap: 6px; min-height: 42px; padding: 0 12px; border: 1px solid var(--line); border-radius: 999px; background: rgba(15, 23, 42, 0.82); }
     .mode-choice input { flex: 0 0 auto; width: auto; height: auto; margin: 0; }
@@ -313,7 +317,12 @@
       display: none !important;
     }
     .music-list { display: grid; gap: 10px; }
-    .music-card { padding: 14px; border: 1px solid var(--line); border-radius: 18px; background: rgba(13, 18, 32, 0.68); box-shadow: 0 10px 28px rgba(0, 0, 0, 0.14); }
+    .music-card { position: relative; padding: 14px 58px 14px 14px; border: 1px solid var(--line); border-radius: 18px; background: rgba(13, 18, 32, 0.68); box-shadow: 0 10px 28px rgba(0, 0, 0, 0.14); }
+    .music-trash-icon { position: absolute; top: 12px; right: 12px; z-index: 3; width: 40px; height: 40px; display: grid; place-items: center; border: 1px solid rgba(248, 113, 113, 0.38); border-radius: 10px; color: #fca5a5; background: rgba(69, 10, 10, 0.28); cursor: pointer; }
+    .music-trash-icon:hover { color: #fff; border-color: rgba(248, 113, 113, 0.8); background: rgba(127, 29, 29, 0.72); }
+    .trash-svg { display: block; width: 22px; height: 22px; flex: 0 0 auto; }
+    .music-card-identity-mismatch { border-color: rgba(250, 204, 21, 0.85); background: rgba(113, 63, 18, 0.32); box-shadow: 0 0 0 1px rgba(250, 204, 21, 0.18), 0 10px 28px rgba(0, 0, 0, 0.14); }
+    .identity-warning { margin-top: 10px; padding: 10px 12px; border: 1px solid rgba(250, 204, 21, 0.5); border-radius: 12px; color: #fde68a; background: rgba(113, 63, 18, 0.36); }
     .music-card-duplicate { border-color: rgba(245, 158, 11, 0.54); background: rgba(120, 53, 15, 0.2); }
     .music-card-unreadable { border-color: rgba(239, 68, 68, 0.58); background: rgba(127, 29, 29, 0.22); }
     .music-card[hidden] { display: none; }
@@ -337,15 +346,17 @@
     .music-title { font-weight: 750; overflow-wrap: anywhere; }
     .music-path { margin-top: 5px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
     .music-actions {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      display: flex;
+      flex-wrap: nowrap;
       gap: 8px;
-      max-width: 760px;
+      width: 100%;
       margin-top: 12px;
     }
     .music-actions .small {
-      width: 100%;
-      min-width: 0;
+      flex: 1 1 0;
+      width: auto;
+      min-width: 112px;
+      padding-inline: 12px;
       text-align: center;
     }
     .music-actions .music-action-single[data-action="layout"] {
@@ -706,7 +717,11 @@
       .music-cover { width: min(100%, 180px); }
       .track-head { grid-template-columns: 72px minmax(0, 1fr); }
       .duplicate-cover { width: 72px; }
-      .music-actions { grid-template-columns: 1fr; max-width: none; }
+      .music-actions { display: grid; grid-template-columns: 1fr; width: 100%; }
+      .music-actions .small { width: 100%; min-width: 0; }
+      .music-operation-groups { grid-template-columns: 1fr; }
+      .music-operation-actions .music-operations-row { overflow-x: auto; padding-bottom: 4px; }
+      .music-operation-actions .music-operations-row > button.small { flex: 0 0 auto; width: auto; }
       .music-operations-row > button.small,
       .music-operations-row > .mode-choice { width: 100%; }
       .duplicates-heading { align-items: stretch; flex-direction: column; }
@@ -740,35 +755,36 @@
           Возможных групп на проверку: <strong>0</strong><br>
           Файлов с обложкой: <strong>10</strong><br>
           Файлов с текстом песни: <strong>10</strong><br>
+          Не совпадает с аудиоотпечатком: <strong>0</strong><br>
           Нечитаемых аудиофайлов: <strong>0</strong>
         </div>
         <div class="panel-body">
           <p class="summary-subtitle">Форматы файлов</p>
-          
+
             <div class="format-row">
               <div class="format-name">FLAC</div>
               <div class="format-bar"><span style="width:100%"></span></div>
               <div class="format-count">10</div>
             </div>
-            
+
         </div>
       </section>
       <section class="panel">
         <h2>ТОП 10 исполнителей</h2>
         <div class="panel-body">
-          
+
             <div class="artist-row">
               <div class="artist-name" title="Nirvana">Nirvana</div>
               <div class="format-bar"><span style="width:100%"></span></div>
               <div class="format-count">10</div>
             </div>
-            
+
         </div>
       </section>
       <section class="panel">
         <h2>Жанры</h2>
         <div class="panel-body">
-          
+
     <p class="chart-note">Жанры указаны у <strong>10</strong> из <strong>10</strong> файлов. Без жанра: <strong>0</strong>.</p>
     <div class="donut-layout">
       <div class="donut-chart">
@@ -781,37 +797,37 @@
         </div>
       </div>
       <div class="chart-legend">
-        
+
             <div class="chart-legend-row">
               <span class="chart-dot" style="background:#2563eb"></span>
               <span class="chart-label" title="Alternative Rock">Alternative Rock</span>
               <strong>40%</strong>
               <span>4</span>
             </div>
-            
+
             <div class="chart-legend-row">
               <span class="chart-dot" style="background:#dc2626"></span>
               <span class="chart-label" title="Grunge">Grunge</span>
               <strong>50%</strong>
               <span>5</span>
             </div>
-            
+
             <div class="chart-legend-row">
               <span class="chart-dot" style="background:#f59e0b"></span>
               <span class="chart-label" title="Acoustic Rock">Acoustic Rock</span>
               <strong>10%</strong>
               <span>1</span>
             </div>
-            
+
       </div>
     </div>
-    
+
         </div>
       </section>
       <section class="panel">
         <h2>Годы</h2>
         <div class="panel-body">
-          
+
     <p class="chart-note">
       Самый музыкальный год: <strong>1991</strong>,
       <strong>6</strong> файлов.
@@ -829,29 +845,29 @@
           </linearGradient>
         </defs>
         <line class="year-chart-axis" x1="8" y1="132" x2="292" y2="132"></line>
-        
+
             <g>
               <title>80-е: 1980-1989, 2 файлов</title>
               <rect class="year-chart-hit" x="0.00" y="16" width="240.00" height="116" rx="3"></rect>
               <rect class="year-chart-bar" x="16.00" y="103" width="28.00" height="29" rx="3.00"></rect>
               <text class="year-chart-label" x="30.00" y="152" text-anchor="middle">80-е</text>
             </g>
-            
+
             <g>
               <title>90-е: 1990-1999, 8 файлов</title>
               <rect class="year-chart-hit" x="150.00" y="16" width="240.00" height="116" rx="3"></rect>
               <rect class="year-chart-bar" x="256.00" y="16" width="28.00" height="116" rx="3.00"></rect>
               <text class="year-chart-label" x="270.00" y="152" text-anchor="middle">90-е</text>
             </g>
-            
+
       </svg>
     </div>
-    
+
         </div>
       </section>
     </div>
 
-    
+
     <section class="panel heatmap-panel">
       <div class="heatmap-heading">
         <div>
@@ -863,94 +879,94 @@
         <div class="heatmap-grid" style="--heatmap-columns: 6;">
           <div class="heatmap-corner"></div>
           <div class="heatmap-column">80-е</div><div class="heatmap-column">90-е</div><div class="heatmap-column">00-е</div><div class="heatmap-column">10-е</div><div class="heatmap-column">20-е</div><div class="heatmap-column">Без года</div>
-          
+
             <div class="heatmap-row">
               <div class="heatmap-genre" title="Grunge">Grunge</div>
-              
+
                 <div class="heatmap-cell" style="background:rgb(96, 55, 162)" title="Grunge, 80-е: 1 треков">
                   1
                 </div>
-                
+
                 <div class="heatmap-cell" style="background:rgb(255, 174, 48)" title="Grunge, 90-е: 4 треков">
                   4
                 </div>
-                
+
                 <div class="heatmap-cell" style="background:rgba(13, 28, 70, 0.72)" title="Grunge, 00-е: 0 треков">
                   0
                 </div>
-                
+
                 <div class="heatmap-cell" style="background:rgba(13, 28, 70, 0.72)" title="Grunge, 10-е: 0 треков">
                   0
                 </div>
-                
+
                 <div class="heatmap-cell" style="background:rgba(13, 28, 70, 0.72)" title="Grunge, 20-е: 0 треков">
                   0
                 </div>
-                
+
                 <div class="heatmap-cell" style="background:rgba(13, 28, 70, 0.72)" title="Grunge, Без года: 0 треков">
                   0
                 </div>
-                
+
             </div>
-            
+
             <div class="heatmap-row">
               <div class="heatmap-genre" title="Alternative Rock">Alternative Rock</div>
-              
+
                 <div class="heatmap-cell" style="background:rgb(96, 55, 162)" title="Alternative Rock, 80-е: 1 треков">
                   1
                 </div>
-                
+
                 <div class="heatmap-cell" style="background:rgb(241, 102, 73)" title="Alternative Rock, 90-е: 3 треков">
                   3
                 </div>
-                
+
                 <div class="heatmap-cell" style="background:rgba(13, 28, 70, 0.72)" title="Alternative Rock, 00-е: 0 треков">
                   0
                 </div>
-                
+
                 <div class="heatmap-cell" style="background:rgba(13, 28, 70, 0.72)" title="Alternative Rock, 10-е: 0 треков">
                   0
                 </div>
-                
+
                 <div class="heatmap-cell" style="background:rgba(13, 28, 70, 0.72)" title="Alternative Rock, 20-е: 0 треков">
                   0
                 </div>
-                
+
                 <div class="heatmap-cell" style="background:rgba(13, 28, 70, 0.72)" title="Alternative Rock, Без года: 0 треков">
                   0
                 </div>
-                
+
             </div>
-            
+
             <div class="heatmap-row">
               <div class="heatmap-genre" title="Acoustic Rock">Acoustic Rock</div>
-              
+
                 <div class="heatmap-cell" style="background:rgba(13, 28, 70, 0.72)" title="Acoustic Rock, 80-е: 0 треков">
                   0
                 </div>
-                
+
                 <div class="heatmap-cell" style="background:rgb(96, 55, 162)" title="Acoustic Rock, 90-е: 1 треков">
                   1
                 </div>
-                
+
                 <div class="heatmap-cell" style="background:rgba(13, 28, 70, 0.72)" title="Acoustic Rock, 00-е: 0 треков">
                   0
                 </div>
-                
+
                 <div class="heatmap-cell" style="background:rgba(13, 28, 70, 0.72)" title="Acoustic Rock, 10-е: 0 треков">
                   0
                 </div>
-                
+
                 <div class="heatmap-cell" style="background:rgba(13, 28, 70, 0.72)" title="Acoustic Rock, 20-е: 0 треков">
                   0
                 </div>
-                
+
                 <div class="heatmap-cell" style="background:rgba(13, 28, 70, 0.72)" title="Acoustic Rock, Без года: 0 треков">
                   0
                 </div>
-                
+
             </div>
-            
+
         </div>
       </div>
       <div class="heatmap-scale">
@@ -959,7 +975,7 @@
         <span>Больше</span>
       </div>
     </section>
-    
+
 
     <section class="music-section collapsed" id="musicSection">
       <div class="duplicates-heading music-heading">
@@ -976,12 +992,24 @@
       <div class="global-progress" id="scanProgress" aria-hidden="true"><span></span></div>
     </div>
     <div class="music-operations music-toolbar">
-      <p class="music-operations-title">Обработка музыки</p>
-      <div class="music-operations-row">
-        <label class="mode-choice"><input type="radio" name="processMode" value="dry-run" checked> Dry run</label>
-        <label class="mode-choice"><input type="radio" name="processMode" value="real"> Реальная обработка</label>
-        <button class="small" id="tagVisible" type="button">Проставить теги для отфильтрованных</button>
-        <button class="small" id="layoutVisible" type="button">Разложить отфильтрованные по папкам</button>
+      <div class="music-operation-groups">
+        <section class="music-operation-block">
+          <p class="music-operations-title">Тип обработки</p>
+          <div class="music-operations-row">
+            <label class="mode-choice"><input type="radio" name="processMode" value="dry-run" checked> Dry run</label>
+            <label class="mode-choice"><input type="radio" name="processMode" value="real"> Реальная обработка</label>
+          </div>
+        </section>
+        <section class="music-operation-block music-operation-actions">
+          <p class="music-operations-title">Обработка</p>
+          <div class="music-operations-row">
+            <button class="small" id="tagVisible" type="button">Теги beets</button>
+            <button class="small" id="shazamTagVisible" type="button">Теги Shazam</button>
+            <button class="small" id="layoutVisible" type="button">Разложить по папкам</button>
+            <button class="small" id="coverVisible" type="button">Найти обложки</button>
+            <button class="small" id="lyricsVisible" type="button">Найти тексты</button>
+          </div>
+        </section>
       </div>
       <div class="operation-status" id="operationStatus">Выбран безопасный режим dry run. Глобальные кнопки работают по отфильтрованному списку, кнопки внутри карточки — только по своей записи.</div>
     </div>
@@ -1003,6 +1031,11 @@
         <option value="year">Тег: год</option>
         <option value="status">Тег: статус</option>
       </select>
+      <select id="identityFilter">
+        <option value="all">Аудиоотпечаток: все записи</option>
+        <option value="mismatch">Аудиоотпечаток: не совпадает</option>
+        <option value="match">Аудиоотпечаток: без расхождения</option>
+      </select>
       <select id="layoutFilter">
         <option value="all">Раскладка: все записи</option>
         <option value="ready">Раскладка: неразложенные</option>
@@ -1017,7 +1050,10 @@
       </select>
     </div>
     <div class="music-list" id="musicList">
-            <article class="music-card" data-file-path="D:\Music\Nirvana\Bleach\03 - About a Girl.flac" data-layout-status="ready" data-music-search="03 - about a girl.flac d:\music\nirvana\bleach формат: flac битрейт: 921 kbps разрядность: 16 бит частота дискретизации: 44.1 khz теги: полные обложка: есть текст песни: есть размер: 26.8 mb альбом: bleach исполнитель альбома: nirvana исполнитель: nirvana жанр: alternative rock название: about a girl год: 1989 номер трека: 3" data-sort-name="03 - about a girl.flac" data-sort-artist="исполнитель: nirvana" data-sort-album="альбом: bleach" data-sort-year="год: 1989" data-sort-format="формат: flac" data-tag-album="альбом: bleach" data-tag-albumartist="исполнитель альбома: nirvana" data-tag-artist="исполнитель: nirvana" data-tag-bit_depth="разрядность: 16 бит" data-tag-bitrate="битрейт: 921 kbps" data-tag-cover="обложка: есть" data-tag-format="формат: flac" data-tag-genre="жанр: alternative rock" data-tag-lyrics="текст песни: есть" data-tag-sample_rate="частота дискретизации: 44.1 khz" data-tag-size="размер: 26.8 mb" data-tag-tag_completeness="теги: полные" data-tag-title="название: about a girl" data-tag-tracknumber="номер трека: 3" data-tag-year="год: 1989">
+            <article class="music-card" data-file-path="D:\Music\Nirvana\Bleach\03 - About a Girl.flac" data-layout-status="ready" data-identity-mismatch="no" data-music-search="03 - about a girl.flac d:\music\nirvana\bleach формат: flac битрейт: 921 kbps разрядность: 16 бит частота дискретизации: 44.1 khz теги: полные обложка: есть текст песни: есть размер: 26.8 mb альбом: bleach исполнитель альбома: nirvana исполнитель: nirvana жанр: alternative rock название: about a girl год: 1989 номер трека: 3" data-sort-name="03 - about a girl.flac" data-sort-artist="исполнитель: nirvana" data-sort-album="альбом: bleach" data-sort-year="год: 1989" data-sort-format="формат: flac" data-tag-album="альбом: bleach" data-tag-albumartist="исполнитель альбома: nirvana" data-tag-artist="исполнитель: nirvana" data-tag-bit_depth="разрядность: 16 бит" data-tag-bitrate="битрейт: 921 kbps" data-tag-cover="обложка: есть" data-tag-format="формат: flac" data-tag-genre="жанр: alternative rock" data-tag-lyrics="текст песни: есть" data-tag-sample_rate="частота дискретизации: 44.1 khz" data-tag-size="размер: 26.8 mb" data-tag-tag_completeness="теги: полные" data-tag-title="название: about a girl" data-tag-tracknumber="номер трека: 3" data-tag-year="год: 1989">
+              <button class="music-trash-icon trash-one" type="button" data-file-path="D:\Music\Nirvana\Bleach\03 - About a Girl.flac" title="В корзину" aria-label="В корзину">
+                <svg class="trash-svg" width="512" height="512" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" aria-hidden="true"><path fill="currentColor" d="M166.2-16c-13.3 0-25.3 8.3-30 20.8L120 48H24C10.7 48 0 58.7 0 72s10.7 24 24 24h400c13.3 0 24-10.7 24-24s-10.7-24-24-24h-96L311.8 4.8c-4.7-12.5-16.6-20.8-30-20.8zM32 144v304c0 35.3 28.7 64 64 64h256c35.3 0 64-28.7 64-64V144h-48v304c0 8.8-7.2 16-16 16H96c-8.8 0-16-7.2-16-16V144zm160 72c0-13.3-10.7-24-24-24s-24 10.7-24 24v176c0 13.3 10.7 24 24 24s24-10.7 24-24zm112 0c0-13.3-10.7-24-24-24s-24 10.7-24 24v176c0 13.3 10.7 24 24 24s24-10.7 24-24z"></path></svg>
+              </button>
               <div class="music-card-content">
                 <div class="music-cover music-cover-has" title="Обложка: есть"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NDAiIGhlaWdodD0iNjQwIj4KPHJlY3Qgd2lkdGg9IjY0MCIgaGVpZ2h0PSI2NDAiIGZpbGw9IiMxMTE4MjciLz4KPGNpcmNsZSBjeD0iNTIwIiBjeT0iMTIwIiByPSIxNTAiIGZpbGw9IiNkMWQ1ZGIiIG9wYWNpdHk9Ii4xMiIvPgo8dGV4dCB4PSI0OCIgeT0iNDU1IiBmaWxsPSIjZDFkNWRiIiBmb250LWZhbWlseT0iQXJpYWwsc2Fucy1zZXJpZiIgZm9udC1zaXplPSI2NCIgZm9udC13ZWlnaHQ9IjcwMCI+TklSVkFOQTwvdGV4dD4KPHRleHQgeD0iNDgiIHk9IjUyNSIgZmlsbD0iI2QxZDVkYiIgZm9udC1mYW1pbHk9IkFyaWFsLHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iNDIiPkJsZWFjaDwvdGV4dD4KPHRleHQgeD0iNTAiIHk9IjU3NSIgZmlsbD0iI2QxZDVkYiIgb3BhY2l0eT0iLjciIGZvbnQtZmFtaWx5PSJBcmlhbCxzYW5zLXNlcmlmIiBmb250LXNpemU9IjI0Ij5ERU1PIMK3IDE5ODk8L3RleHQ+Cjwvc3ZnPg==" alt="Обложка трека 03 - About a Girl.flac" loading="lazy"></div>
                 <div class="music-card-main">
@@ -1025,11 +1061,14 @@
                   <div class="music-path" title="D:\Music\Nirvana\Bleach\03 - About a Girl.flac">D:\Music\Nirvana\Bleach</div>
                   <div class="audio-player-wrap"><div class="custom-audio-player"><audio class="audio-player" preload="none" src="/api/audio?file=D%3A%5CMusic%5CNirvana%5CBleach%5C03%20-%20About%20a%20Girl.flac">Прослушать 03 - About a Girl.flac</audio><button class="audio-play" type="button" aria-label="Прослушать 03 - About a Girl.flac"><span class="audio-play-icon" aria-hidden="true"></span></button><div class="audio-time audio-current">0:00</div><div class="audio-seek-wrap"><div class="audio-seek-track"><span class="audio-seek-fill"></span></div><input class="audio-seek" type="range" min="0" max="1000" value="0" step="1" aria-label="Позиция воспроизведения"></div><button class="audio-mute" type="button" aria-label="Выключить звук"><svg class="audio-volume-icon audio-volume-on" viewBox="0 0 24 24" aria-hidden="true"><path class="audio-speaker" d="M4 9v6h4l5 4V5L8 9H4z"></path><path class="audio-volume-mark" d="M16 9.5c1.2 1.2 1.2 3.8 0 5"></path></svg><svg class="audio-volume-icon audio-volume-off" viewBox="0 0 24 24" aria-hidden="true"><path class="audio-speaker" d="M3.5 9v6h4l5 4V5l-5 4h-4z"></path><path class="audio-volume-mark" d="M15.5 9l5 6m0-6l-5 6"></path></svg></button></div></div>
                   <div class="music-pills"><span class="music-pill music-pill-format">формат: FLAC</span><span class="music-pill music-pill-bitrate">битрейт: 921 kbps</span><span class="music-pill music-pill-bit_depth">разрядность: 16 бит</span><span class="music-pill music-pill-sample_rate">частота дискретизации: 44.1 kHz</span><span class="music-pill music-pill-tag_completeness">теги: полные</span><span class="music-pill music-pill-cover">обложка: есть</span><span class="music-pill music-pill-lyrics">текст песни: есть</span><span class="music-pill music-pill-size">размер: 26.8 MB</span><span class="music-pill music-pill-album">альбом: Bleach</span><span class="music-pill music-pill-albumartist">исполнитель альбома: Nirvana</span><span class="music-pill music-pill-artist">исполнитель: Nirvana</span><span class="music-pill music-pill-genre">жанр: Alternative Rock</span><span class="music-pill music-pill-title">название: About a Girl</span><span class="music-pill music-pill-year">год: 1989</span><span class="music-pill music-pill-tracknumber">номер трека: 3</span></div>
+
                   <div class="music-actions">
-                    <button class="small music-action-single" type="button" data-action="tag" data-file-path="D:\Music\Nirvana\Bleach\03 - About a Girl.flac">Проставить теги</button>
+                    <button class="small music-action-single" type="button" data-action="tag" data-file-path="D:\Music\Nirvana\Bleach\03 - About a Girl.flac">Теги через beets</button>
+                    <button class="small music-action-single" type="button" data-action="shazam-tag" data-file-path="D:\Music\Nirvana\Bleach\03 - About a Girl.flac">Теги через Shazam</button>
                     <button class="small music-action-single" type="button" data-action="layout" data-file-path="D:\Music\Nirvana\Bleach\03 - About a Girl.flac">Разложить по папкам</button>
+                    <button class="small enrichment-button" type="button" data-kind="cover" data-file-path="D:\Music\Nirvana\Bleach\03 - About a Girl.flac" disabled aria-disabled="true" title="Обложка уже есть">Найти обложку</button>
+                    <button class="small enrichment-button" type="button" data-kind="lyrics" data-file-path="D:\Music\Nirvana\Bleach\03 - About a Girl.flac" disabled aria-disabled="true" title="Текст уже есть">Найти текст</button>
                     <button class="small lyrics-button" type="button" data-file-path="D:\Music\Nirvana\Bleach\03 - About a Girl.flac" data-track-name="03 - About a Girl.flac">Текст песни</button>
-                    <button class="small danger-button trash-one" type="button" data-file-path="D:\Music\Nirvana\Bleach\03 - About a Girl.flac">В корзину</button>
                   </div>
                   <div class="music-card-status" aria-live="polite">
                     <div class="music-card-status-text"></div>
@@ -1038,8 +1077,11 @@
                 </div>
               </div>
             </article>
-            
-            <article class="music-card" data-file-path="D:\Music\Nirvana\Bleach\04 - School.flac" data-layout-status="ready" data-music-search="04 - school.flac d:\music\nirvana\bleach формат: flac битрейт: 948 kbps разрядность: 16 бит частота дискретизации: 44.1 khz теги: полные обложка: есть текст песни: есть размер: 27.5 mb альбом: bleach исполнитель альбома: nirvana исполнитель: nirvana жанр: grunge название: school год: 1989 номер трека: 4" data-sort-name="04 - school.flac" data-sort-artist="исполнитель: nirvana" data-sort-album="альбом: bleach" data-sort-year="год: 1989" data-sort-format="формат: flac" data-tag-album="альбом: bleach" data-tag-albumartist="исполнитель альбома: nirvana" data-tag-artist="исполнитель: nirvana" data-tag-bit_depth="разрядность: 16 бит" data-tag-bitrate="битрейт: 948 kbps" data-tag-cover="обложка: есть" data-tag-format="формат: flac" data-tag-genre="жанр: grunge" data-tag-lyrics="текст песни: есть" data-tag-sample_rate="частота дискретизации: 44.1 khz" data-tag-size="размер: 27.5 mb" data-tag-tag_completeness="теги: полные" data-tag-title="название: school" data-tag-tracknumber="номер трека: 4" data-tag-year="год: 1989">
+
+            <article class="music-card" data-file-path="D:\Music\Nirvana\Bleach\04 - School.flac" data-layout-status="ready" data-identity-mismatch="no" data-music-search="04 - school.flac d:\music\nirvana\bleach формат: flac битрейт: 948 kbps разрядность: 16 бит частота дискретизации: 44.1 khz теги: полные обложка: есть текст песни: есть размер: 27.5 mb альбом: bleach исполнитель альбома: nirvana исполнитель: nirvana жанр: grunge название: school год: 1989 номер трека: 4" data-sort-name="04 - school.flac" data-sort-artist="исполнитель: nirvana" data-sort-album="альбом: bleach" data-sort-year="год: 1989" data-sort-format="формат: flac" data-tag-album="альбом: bleach" data-tag-albumartist="исполнитель альбома: nirvana" data-tag-artist="исполнитель: nirvana" data-tag-bit_depth="разрядность: 16 бит" data-tag-bitrate="битрейт: 948 kbps" data-tag-cover="обложка: есть" data-tag-format="формат: flac" data-tag-genre="жанр: grunge" data-tag-lyrics="текст песни: есть" data-tag-sample_rate="частота дискретизации: 44.1 khz" data-tag-size="размер: 27.5 mb" data-tag-tag_completeness="теги: полные" data-tag-title="название: school" data-tag-tracknumber="номер трека: 4" data-tag-year="год: 1989">
+              <button class="music-trash-icon trash-one" type="button" data-file-path="D:\Music\Nirvana\Bleach\04 - School.flac" title="В корзину" aria-label="В корзину">
+                <svg class="trash-svg" width="512" height="512" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" aria-hidden="true"><path fill="currentColor" d="M166.2-16c-13.3 0-25.3 8.3-30 20.8L120 48H24C10.7 48 0 58.7 0 72s10.7 24 24 24h400c13.3 0 24-10.7 24-24s-10.7-24-24-24h-96L311.8 4.8c-4.7-12.5-16.6-20.8-30-20.8zM32 144v304c0 35.3 28.7 64 64 64h256c35.3 0 64-28.7 64-64V144h-48v304c0 8.8-7.2 16-16 16H96c-8.8 0-16-7.2-16-16V144zm160 72c0-13.3-10.7-24-24-24s-24 10.7-24 24v176c0 13.3 10.7 24 24 24s24-10.7 24-24zm112 0c0-13.3-10.7-24-24-24s-24 10.7-24 24v176c0 13.3 10.7 24 24 24s24-10.7 24-24z"></path></svg>
+              </button>
               <div class="music-card-content">
                 <div class="music-cover music-cover-has" title="Обложка: есть"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NDAiIGhlaWdodD0iNjQwIj4KPHJlY3Qgd2lkdGg9IjY0MCIgaGVpZ2h0PSI2NDAiIGZpbGw9IiMxMTE4MjciLz4KPGNpcmNsZSBjeD0iNTIwIiBjeT0iMTIwIiByPSIxNTAiIGZpbGw9IiNkMWQ1ZGIiIG9wYWNpdHk9Ii4xMiIvPgo8dGV4dCB4PSI0OCIgeT0iNDU1IiBmaWxsPSIjZDFkNWRiIiBmb250LWZhbWlseT0iQXJpYWwsc2Fucy1zZXJpZiIgZm9udC1zaXplPSI2NCIgZm9udC13ZWlnaHQ9IjcwMCI+TklSVkFOQTwvdGV4dD4KPHRleHQgeD0iNDgiIHk9IjUyNSIgZmlsbD0iI2QxZDVkYiIgZm9udC1mYW1pbHk9IkFyaWFsLHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iNDIiPkJsZWFjaDwvdGV4dD4KPHRleHQgeD0iNTAiIHk9IjU3NSIgZmlsbD0iI2QxZDVkYiIgb3BhY2l0eT0iLjciIGZvbnQtZmFtaWx5PSJBcmlhbCxzYW5zLXNlcmlmIiBmb250LXNpemU9IjI0Ij5ERU1PIMK3IDE5ODk8L3RleHQ+Cjwvc3ZnPg==" alt="Обложка трека 04 - School.flac" loading="lazy"></div>
                 <div class="music-card-main">
@@ -1047,11 +1089,14 @@
                   <div class="music-path" title="D:\Music\Nirvana\Bleach\04 - School.flac">D:\Music\Nirvana\Bleach</div>
                   <div class="audio-player-wrap"><div class="custom-audio-player"><audio class="audio-player" preload="none" src="/api/audio?file=D%3A%5CMusic%5CNirvana%5CBleach%5C04%20-%20School.flac">Прослушать 04 - School.flac</audio><button class="audio-play" type="button" aria-label="Прослушать 04 - School.flac"><span class="audio-play-icon" aria-hidden="true"></span></button><div class="audio-time audio-current">0:00</div><div class="audio-seek-wrap"><div class="audio-seek-track"><span class="audio-seek-fill"></span></div><input class="audio-seek" type="range" min="0" max="1000" value="0" step="1" aria-label="Позиция воспроизведения"></div><button class="audio-mute" type="button" aria-label="Выключить звук"><svg class="audio-volume-icon audio-volume-on" viewBox="0 0 24 24" aria-hidden="true"><path class="audio-speaker" d="M4 9v6h4l5 4V5L8 9H4z"></path><path class="audio-volume-mark" d="M16 9.5c1.2 1.2 1.2 3.8 0 5"></path></svg><svg class="audio-volume-icon audio-volume-off" viewBox="0 0 24 24" aria-hidden="true"><path class="audio-speaker" d="M3.5 9v6h4l5 4V5l-5 4h-4z"></path><path class="audio-volume-mark" d="M15.5 9l5 6m0-6l-5 6"></path></svg></button></div></div>
                   <div class="music-pills"><span class="music-pill music-pill-format">формат: FLAC</span><span class="music-pill music-pill-bitrate">битрейт: 948 kbps</span><span class="music-pill music-pill-bit_depth">разрядность: 16 бит</span><span class="music-pill music-pill-sample_rate">частота дискретизации: 44.1 kHz</span><span class="music-pill music-pill-tag_completeness">теги: полные</span><span class="music-pill music-pill-cover">обложка: есть</span><span class="music-pill music-pill-lyrics">текст песни: есть</span><span class="music-pill music-pill-size">размер: 27.5 MB</span><span class="music-pill music-pill-album">альбом: Bleach</span><span class="music-pill music-pill-albumartist">исполнитель альбома: Nirvana</span><span class="music-pill music-pill-artist">исполнитель: Nirvana</span><span class="music-pill music-pill-genre">жанр: Grunge</span><span class="music-pill music-pill-title">название: School</span><span class="music-pill music-pill-year">год: 1989</span><span class="music-pill music-pill-tracknumber">номер трека: 4</span></div>
+
                   <div class="music-actions">
-                    <button class="small music-action-single" type="button" data-action="tag" data-file-path="D:\Music\Nirvana\Bleach\04 - School.flac">Проставить теги</button>
+                    <button class="small music-action-single" type="button" data-action="tag" data-file-path="D:\Music\Nirvana\Bleach\04 - School.flac">Теги через beets</button>
+                    <button class="small music-action-single" type="button" data-action="shazam-tag" data-file-path="D:\Music\Nirvana\Bleach\04 - School.flac">Теги через Shazam</button>
                     <button class="small music-action-single" type="button" data-action="layout" data-file-path="D:\Music\Nirvana\Bleach\04 - School.flac">Разложить по папкам</button>
+                    <button class="small enrichment-button" type="button" data-kind="cover" data-file-path="D:\Music\Nirvana\Bleach\04 - School.flac" disabled aria-disabled="true" title="Обложка уже есть">Найти обложку</button>
+                    <button class="small enrichment-button" type="button" data-kind="lyrics" data-file-path="D:\Music\Nirvana\Bleach\04 - School.flac" disabled aria-disabled="true" title="Текст уже есть">Найти текст</button>
                     <button class="small lyrics-button" type="button" data-file-path="D:\Music\Nirvana\Bleach\04 - School.flac" data-track-name="04 - School.flac">Текст песни</button>
-                    <button class="small danger-button trash-one" type="button" data-file-path="D:\Music\Nirvana\Bleach\04 - School.flac">В корзину</button>
                   </div>
                   <div class="music-card-status" aria-live="polite">
                     <div class="music-card-status-text"></div>
@@ -1060,8 +1105,11 @@
                 </div>
               </div>
             </article>
-            
-            <article class="music-card" data-file-path="D:\Music\Nirvana\Nevermind\01 - Smells Like Teen Spirit.flac" data-layout-status="ready" data-music-search="01 - smells like teen spirit.flac d:\music\nirvana\nevermind формат: flac битрейт: 1012 kbps разрядность: 16 бит частота дискретизации: 44.1 khz теги: полные обложка: есть текст песни: есть размер: 36.4 mb альбом: nevermind исполнитель альбома: nirvana исполнитель: nirvana жанр: grunge название: smells like teen spirit год: 1991 номер трека: 1" data-sort-name="01 - smells like teen spirit.flac" data-sort-artist="исполнитель: nirvana" data-sort-album="альбом: nevermind" data-sort-year="год: 1991" data-sort-format="формат: flac" data-tag-album="альбом: nevermind" data-tag-albumartist="исполнитель альбома: nirvana" data-tag-artist="исполнитель: nirvana" data-tag-bit_depth="разрядность: 16 бит" data-tag-bitrate="битрейт: 1012 kbps" data-tag-cover="обложка: есть" data-tag-format="формат: flac" data-tag-genre="жанр: grunge" data-tag-lyrics="текст песни: есть" data-tag-sample_rate="частота дискретизации: 44.1 khz" data-tag-size="размер: 36.4 mb" data-tag-tag_completeness="теги: полные" data-tag-title="название: smells like teen spirit" data-tag-tracknumber="номер трека: 1" data-tag-year="год: 1991">
+
+            <article class="music-card" data-file-path="D:\Music\Nirvana\Nevermind\01 - Smells Like Teen Spirit.flac" data-layout-status="ready" data-identity-mismatch="no" data-music-search="01 - smells like teen spirit.flac d:\music\nirvana\nevermind формат: flac битрейт: 1012 kbps разрядность: 16 бит частота дискретизации: 44.1 khz теги: полные обложка: есть текст песни: есть размер: 36.4 mb альбом: nevermind исполнитель альбома: nirvana исполнитель: nirvana жанр: grunge название: smells like teen spirit год: 1991 номер трека: 1" data-sort-name="01 - smells like teen spirit.flac" data-sort-artist="исполнитель: nirvana" data-sort-album="альбом: nevermind" data-sort-year="год: 1991" data-sort-format="формат: flac" data-tag-album="альбом: nevermind" data-tag-albumartist="исполнитель альбома: nirvana" data-tag-artist="исполнитель: nirvana" data-tag-bit_depth="разрядность: 16 бит" data-tag-bitrate="битрейт: 1012 kbps" data-tag-cover="обложка: есть" data-tag-format="формат: flac" data-tag-genre="жанр: grunge" data-tag-lyrics="текст песни: есть" data-tag-sample_rate="частота дискретизации: 44.1 khz" data-tag-size="размер: 36.4 mb" data-tag-tag_completeness="теги: полные" data-tag-title="название: smells like teen spirit" data-tag-tracknumber="номер трека: 1" data-tag-year="год: 1991">
+              <button class="music-trash-icon trash-one" type="button" data-file-path="D:\Music\Nirvana\Nevermind\01 - Smells Like Teen Spirit.flac" title="В корзину" aria-label="В корзину">
+                <svg class="trash-svg" width="512" height="512" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" aria-hidden="true"><path fill="currentColor" d="M166.2-16c-13.3 0-25.3 8.3-30 20.8L120 48H24C10.7 48 0 58.7 0 72s10.7 24 24 24h400c13.3 0 24-10.7 24-24s-10.7-24-24-24h-96L311.8 4.8c-4.7-12.5-16.6-20.8-30-20.8zM32 144v304c0 35.3 28.7 64 64 64h256c35.3 0 64-28.7 64-64V144h-48v304c0 8.8-7.2 16-16 16H96c-8.8 0-16-7.2-16-16V144zm160 72c0-13.3-10.7-24-24-24s-24 10.7-24 24v176c0 13.3 10.7 24 24 24s24-10.7 24-24zm112 0c0-13.3-10.7-24-24-24s-24 10.7-24 24v176c0 13.3 10.7 24 24 24s24-10.7 24-24z"></path></svg>
+              </button>
               <div class="music-card-content">
                 <div class="music-cover music-cover-has" title="Обложка: есть"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NDAiIGhlaWdodD0iNjQwIj4KPHJlY3Qgd2lkdGg9IjY0MCIgaGVpZ2h0PSI2NDAiIGZpbGw9IiMwNzU5ODUiLz4KPGNpcmNsZSBjeD0iNTIwIiBjeT0iMTIwIiByPSIxNTAiIGZpbGw9IiNiYWU2ZmQiIG9wYWNpdHk9Ii4xMiIvPgo8dGV4dCB4PSI0OCIgeT0iNDU1IiBmaWxsPSIjYmFlNmZkIiBmb250LWZhbWlseT0iQXJpYWwsc2Fucy1zZXJpZiIgZm9udC1zaXplPSI2NCIgZm9udC13ZWlnaHQ9IjcwMCI+TklSVkFOQTwvdGV4dD4KPHRleHQgeD0iNDgiIHk9IjUyNSIgZmlsbD0iI2JhZTZmZCIgZm9udC1mYW1pbHk9IkFyaWFsLHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iNDIiPk5ldmVybWluZDwvdGV4dD4KPHRleHQgeD0iNTAiIHk9IjU3NSIgZmlsbD0iI2JhZTZmZCIgb3BhY2l0eT0iLjciIGZvbnQtZmFtaWx5PSJBcmlhbCxzYW5zLXNlcmlmIiBmb250LXNpemU9IjI0Ij5ERU1PIMK3IDE5OTE8L3RleHQ+Cjwvc3ZnPg==" alt="Обложка трека 01 - Smells Like Teen Spirit.flac" loading="lazy"></div>
                 <div class="music-card-main">
@@ -1069,11 +1117,14 @@
                   <div class="music-path" title="D:\Music\Nirvana\Nevermind\01 - Smells Like Teen Spirit.flac">D:\Music\Nirvana\Nevermind</div>
                   <div class="audio-player-wrap"><div class="custom-audio-player"><audio class="audio-player" preload="none" src="/api/audio?file=D%3A%5CMusic%5CNirvana%5CNevermind%5C01%20-%20Smells%20Like%20Teen%20Spirit.flac">Прослушать 01 - Smells Like Teen Spirit.flac</audio><button class="audio-play" type="button" aria-label="Прослушать 01 - Smells Like Teen Spirit.flac"><span class="audio-play-icon" aria-hidden="true"></span></button><div class="audio-time audio-current">0:00</div><div class="audio-seek-wrap"><div class="audio-seek-track"><span class="audio-seek-fill"></span></div><input class="audio-seek" type="range" min="0" max="1000" value="0" step="1" aria-label="Позиция воспроизведения"></div><button class="audio-mute" type="button" aria-label="Выключить звук"><svg class="audio-volume-icon audio-volume-on" viewBox="0 0 24 24" aria-hidden="true"><path class="audio-speaker" d="M4 9v6h4l5 4V5L8 9H4z"></path><path class="audio-volume-mark" d="M16 9.5c1.2 1.2 1.2 3.8 0 5"></path></svg><svg class="audio-volume-icon audio-volume-off" viewBox="0 0 24 24" aria-hidden="true"><path class="audio-speaker" d="M3.5 9v6h4l5 4V5l-5 4h-4z"></path><path class="audio-volume-mark" d="M15.5 9l5 6m0-6l-5 6"></path></svg></button></div></div>
                   <div class="music-pills"><span class="music-pill music-pill-format">формат: FLAC</span><span class="music-pill music-pill-bitrate">битрейт: 1012 kbps</span><span class="music-pill music-pill-bit_depth">разрядность: 16 бит</span><span class="music-pill music-pill-sample_rate">частота дискретизации: 44.1 kHz</span><span class="music-pill music-pill-tag_completeness">теги: полные</span><span class="music-pill music-pill-cover">обложка: есть</span><span class="music-pill music-pill-lyrics">текст песни: есть</span><span class="music-pill music-pill-size">размер: 36.4 MB</span><span class="music-pill music-pill-album">альбом: Nevermind</span><span class="music-pill music-pill-albumartist">исполнитель альбома: Nirvana</span><span class="music-pill music-pill-artist">исполнитель: Nirvana</span><span class="music-pill music-pill-genre">жанр: Grunge</span><span class="music-pill music-pill-title">название: Smells Like Teen Spirit</span><span class="music-pill music-pill-year">год: 1991</span><span class="music-pill music-pill-tracknumber">номер трека: 1</span></div>
+
                   <div class="music-actions">
-                    <button class="small music-action-single" type="button" data-action="tag" data-file-path="D:\Music\Nirvana\Nevermind\01 - Smells Like Teen Spirit.flac">Проставить теги</button>
+                    <button class="small music-action-single" type="button" data-action="tag" data-file-path="D:\Music\Nirvana\Nevermind\01 - Smells Like Teen Spirit.flac">Теги через beets</button>
+                    <button class="small music-action-single" type="button" data-action="shazam-tag" data-file-path="D:\Music\Nirvana\Nevermind\01 - Smells Like Teen Spirit.flac">Теги через Shazam</button>
                     <button class="small music-action-single" type="button" data-action="layout" data-file-path="D:\Music\Nirvana\Nevermind\01 - Smells Like Teen Spirit.flac">Разложить по папкам</button>
+                    <button class="small enrichment-button" type="button" data-kind="cover" data-file-path="D:\Music\Nirvana\Nevermind\01 - Smells Like Teen Spirit.flac" disabled aria-disabled="true" title="Обложка уже есть">Найти обложку</button>
+                    <button class="small enrichment-button" type="button" data-kind="lyrics" data-file-path="D:\Music\Nirvana\Nevermind\01 - Smells Like Teen Spirit.flac" disabled aria-disabled="true" title="Текст уже есть">Найти текст</button>
                     <button class="small lyrics-button" type="button" data-file-path="D:\Music\Nirvana\Nevermind\01 - Smells Like Teen Spirit.flac" data-track-name="01 - Smells Like Teen Spirit.flac">Текст песни</button>
-                    <button class="small danger-button trash-one" type="button" data-file-path="D:\Music\Nirvana\Nevermind\01 - Smells Like Teen Spirit.flac">В корзину</button>
                   </div>
                   <div class="music-card-status" aria-live="polite">
                     <div class="music-card-status-text"></div>
@@ -1082,8 +1133,11 @@
                 </div>
               </div>
             </article>
-            
-            <article class="music-card" data-file-path="D:\Music\Nirvana\Nevermind\02 - In Bloom.flac" data-layout-status="ready" data-music-search="02 - in bloom.flac d:\music\nirvana\nevermind формат: flac битрейт: 987 kbps разрядность: 16 бит частота дискретизации: 44.1 khz теги: полные обложка: есть текст песни: есть размер: 33.1 mb альбом: nevermind исполнитель альбома: nirvana исполнитель: nirvana жанр: alternative rock название: in bloom год: 1991 номер трека: 2" data-sort-name="02 - in bloom.flac" data-sort-artist="исполнитель: nirvana" data-sort-album="альбом: nevermind" data-sort-year="год: 1991" data-sort-format="формат: flac" data-tag-album="альбом: nevermind" data-tag-albumartist="исполнитель альбома: nirvana" data-tag-artist="исполнитель: nirvana" data-tag-bit_depth="разрядность: 16 бит" data-tag-bitrate="битрейт: 987 kbps" data-tag-cover="обложка: есть" data-tag-format="формат: flac" data-tag-genre="жанр: alternative rock" data-tag-lyrics="текст песни: есть" data-tag-sample_rate="частота дискретизации: 44.1 khz" data-tag-size="размер: 33.1 mb" data-tag-tag_completeness="теги: полные" data-tag-title="название: in bloom" data-tag-tracknumber="номер трека: 2" data-tag-year="год: 1991">
+
+            <article class="music-card" data-file-path="D:\Music\Nirvana\Nevermind\02 - In Bloom.flac" data-layout-status="ready" data-identity-mismatch="no" data-music-search="02 - in bloom.flac d:\music\nirvana\nevermind формат: flac битрейт: 987 kbps разрядность: 16 бит частота дискретизации: 44.1 khz теги: полные обложка: есть текст песни: есть размер: 33.1 mb альбом: nevermind исполнитель альбома: nirvana исполнитель: nirvana жанр: alternative rock название: in bloom год: 1991 номер трека: 2" data-sort-name="02 - in bloom.flac" data-sort-artist="исполнитель: nirvana" data-sort-album="альбом: nevermind" data-sort-year="год: 1991" data-sort-format="формат: flac" data-tag-album="альбом: nevermind" data-tag-albumartist="исполнитель альбома: nirvana" data-tag-artist="исполнитель: nirvana" data-tag-bit_depth="разрядность: 16 бит" data-tag-bitrate="битрейт: 987 kbps" data-tag-cover="обложка: есть" data-tag-format="формат: flac" data-tag-genre="жанр: alternative rock" data-tag-lyrics="текст песни: есть" data-tag-sample_rate="частота дискретизации: 44.1 khz" data-tag-size="размер: 33.1 mb" data-tag-tag_completeness="теги: полные" data-tag-title="название: in bloom" data-tag-tracknumber="номер трека: 2" data-tag-year="год: 1991">
+              <button class="music-trash-icon trash-one" type="button" data-file-path="D:\Music\Nirvana\Nevermind\02 - In Bloom.flac" title="В корзину" aria-label="В корзину">
+                <svg class="trash-svg" width="512" height="512" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" aria-hidden="true"><path fill="currentColor" d="M166.2-16c-13.3 0-25.3 8.3-30 20.8L120 48H24C10.7 48 0 58.7 0 72s10.7 24 24 24h400c13.3 0 24-10.7 24-24s-10.7-24-24-24h-96L311.8 4.8c-4.7-12.5-16.6-20.8-30-20.8zM32 144v304c0 35.3 28.7 64 64 64h256c35.3 0 64-28.7 64-64V144h-48v304c0 8.8-7.2 16-16 16H96c-8.8 0-16-7.2-16-16V144zm160 72c0-13.3-10.7-24-24-24s-24 10.7-24 24v176c0 13.3 10.7 24 24 24s24-10.7 24-24zm112 0c0-13.3-10.7-24-24-24s-24 10.7-24 24v176c0 13.3 10.7 24 24 24s24-10.7 24-24z"></path></svg>
+              </button>
               <div class="music-card-content">
                 <div class="music-cover music-cover-has" title="Обложка: есть"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NDAiIGhlaWdodD0iNjQwIj4KPHJlY3Qgd2lkdGg9IjY0MCIgaGVpZ2h0PSI2NDAiIGZpbGw9IiMwNzU5ODUiLz4KPGNpcmNsZSBjeD0iNTIwIiBjeT0iMTIwIiByPSIxNTAiIGZpbGw9IiNiYWU2ZmQiIG9wYWNpdHk9Ii4xMiIvPgo8dGV4dCB4PSI0OCIgeT0iNDU1IiBmaWxsPSIjYmFlNmZkIiBmb250LWZhbWlseT0iQXJpYWwsc2Fucy1zZXJpZiIgZm9udC1zaXplPSI2NCIgZm9udC13ZWlnaHQ9IjcwMCI+TklSVkFOQTwvdGV4dD4KPHRleHQgeD0iNDgiIHk9IjUyNSIgZmlsbD0iI2JhZTZmZCIgZm9udC1mYW1pbHk9IkFyaWFsLHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iNDIiPk5ldmVybWluZDwvdGV4dD4KPHRleHQgeD0iNTAiIHk9IjU3NSIgZmlsbD0iI2JhZTZmZCIgb3BhY2l0eT0iLjciIGZvbnQtZmFtaWx5PSJBcmlhbCxzYW5zLXNlcmlmIiBmb250LXNpemU9IjI0Ij5ERU1PIMK3IDE5OTE8L3RleHQ+Cjwvc3ZnPg==" alt="Обложка трека 02 - In Bloom.flac" loading="lazy"></div>
                 <div class="music-card-main">
@@ -1091,11 +1145,14 @@
                   <div class="music-path" title="D:\Music\Nirvana\Nevermind\02 - In Bloom.flac">D:\Music\Nirvana\Nevermind</div>
                   <div class="audio-player-wrap"><div class="custom-audio-player"><audio class="audio-player" preload="none" src="/api/audio?file=D%3A%5CMusic%5CNirvana%5CNevermind%5C02%20-%20In%20Bloom.flac">Прослушать 02 - In Bloom.flac</audio><button class="audio-play" type="button" aria-label="Прослушать 02 - In Bloom.flac"><span class="audio-play-icon" aria-hidden="true"></span></button><div class="audio-time audio-current">0:00</div><div class="audio-seek-wrap"><div class="audio-seek-track"><span class="audio-seek-fill"></span></div><input class="audio-seek" type="range" min="0" max="1000" value="0" step="1" aria-label="Позиция воспроизведения"></div><button class="audio-mute" type="button" aria-label="Выключить звук"><svg class="audio-volume-icon audio-volume-on" viewBox="0 0 24 24" aria-hidden="true"><path class="audio-speaker" d="M4 9v6h4l5 4V5L8 9H4z"></path><path class="audio-volume-mark" d="M16 9.5c1.2 1.2 1.2 3.8 0 5"></path></svg><svg class="audio-volume-icon audio-volume-off" viewBox="0 0 24 24" aria-hidden="true"><path class="audio-speaker" d="M3.5 9v6h4l5 4V5l-5 4h-4z"></path><path class="audio-volume-mark" d="M15.5 9l5 6m0-6l-5 6"></path></svg></button></div></div>
                   <div class="music-pills"><span class="music-pill music-pill-format">формат: FLAC</span><span class="music-pill music-pill-bitrate">битрейт: 987 kbps</span><span class="music-pill music-pill-bit_depth">разрядность: 16 бит</span><span class="music-pill music-pill-sample_rate">частота дискретизации: 44.1 kHz</span><span class="music-pill music-pill-tag_completeness">теги: полные</span><span class="music-pill music-pill-cover">обложка: есть</span><span class="music-pill music-pill-lyrics">текст песни: есть</span><span class="music-pill music-pill-size">размер: 33.1 MB</span><span class="music-pill music-pill-album">альбом: Nevermind</span><span class="music-pill music-pill-albumartist">исполнитель альбома: Nirvana</span><span class="music-pill music-pill-artist">исполнитель: Nirvana</span><span class="music-pill music-pill-genre">жанр: Alternative Rock</span><span class="music-pill music-pill-title">название: In Bloom</span><span class="music-pill music-pill-year">год: 1991</span><span class="music-pill music-pill-tracknumber">номер трека: 2</span></div>
+
                   <div class="music-actions">
-                    <button class="small music-action-single" type="button" data-action="tag" data-file-path="D:\Music\Nirvana\Nevermind\02 - In Bloom.flac">Проставить теги</button>
+                    <button class="small music-action-single" type="button" data-action="tag" data-file-path="D:\Music\Nirvana\Nevermind\02 - In Bloom.flac">Теги через beets</button>
+                    <button class="small music-action-single" type="button" data-action="shazam-tag" data-file-path="D:\Music\Nirvana\Nevermind\02 - In Bloom.flac">Теги через Shazam</button>
                     <button class="small music-action-single" type="button" data-action="layout" data-file-path="D:\Music\Nirvana\Nevermind\02 - In Bloom.flac">Разложить по папкам</button>
+                    <button class="small enrichment-button" type="button" data-kind="cover" data-file-path="D:\Music\Nirvana\Nevermind\02 - In Bloom.flac" disabled aria-disabled="true" title="Обложка уже есть">Найти обложку</button>
+                    <button class="small enrichment-button" type="button" data-kind="lyrics" data-file-path="D:\Music\Nirvana\Nevermind\02 - In Bloom.flac" disabled aria-disabled="true" title="Текст уже есть">Найти текст</button>
                     <button class="small lyrics-button" type="button" data-file-path="D:\Music\Nirvana\Nevermind\02 - In Bloom.flac" data-track-name="02 - In Bloom.flac">Текст песни</button>
-                    <button class="small danger-button trash-one" type="button" data-file-path="D:\Music\Nirvana\Nevermind\02 - In Bloom.flac">В корзину</button>
                   </div>
                   <div class="music-card-status" aria-live="polite">
                     <div class="music-card-status-text"></div>
@@ -1104,8 +1161,11 @@
                 </div>
               </div>
             </article>
-            
-            <article class="music-card" data-file-path="D:\Music\Nirvana\Nevermind\03 - Come as You Are.flac" data-layout-status="ready" data-music-search="03 - come as you are.flac d:\music\nirvana\nevermind формат: flac битрейт: 934 kbps разрядность: 16 бит частота дискретизации: 44.1 khz теги: полные обложка: есть текст песни: есть размер: 28.9 mb альбом: nevermind исполнитель альбома: nirvana исполнитель: nirvana жанр: grunge название: come as you are год: 1991 номер трека: 3" data-sort-name="03 - come as you are.flac" data-sort-artist="исполнитель: nirvana" data-sort-album="альбом: nevermind" data-sort-year="год: 1991" data-sort-format="формат: flac" data-tag-album="альбом: nevermind" data-tag-albumartist="исполнитель альбома: nirvana" data-tag-artist="исполнитель: nirvana" data-tag-bit_depth="разрядность: 16 бит" data-tag-bitrate="битрейт: 934 kbps" data-tag-cover="обложка: есть" data-tag-format="формат: flac" data-tag-genre="жанр: grunge" data-tag-lyrics="текст песни: есть" data-tag-sample_rate="частота дискретизации: 44.1 khz" data-tag-size="размер: 28.9 mb" data-tag-tag_completeness="теги: полные" data-tag-title="название: come as you are" data-tag-tracknumber="номер трека: 3" data-tag-year="год: 1991">
+
+            <article class="music-card" data-file-path="D:\Music\Nirvana\Nevermind\03 - Come as You Are.flac" data-layout-status="ready" data-identity-mismatch="no" data-music-search="03 - come as you are.flac d:\music\nirvana\nevermind формат: flac битрейт: 934 kbps разрядность: 16 бит частота дискретизации: 44.1 khz теги: полные обложка: есть текст песни: есть размер: 28.9 mb альбом: nevermind исполнитель альбома: nirvana исполнитель: nirvana жанр: grunge название: come as you are год: 1991 номер трека: 3" data-sort-name="03 - come as you are.flac" data-sort-artist="исполнитель: nirvana" data-sort-album="альбом: nevermind" data-sort-year="год: 1991" data-sort-format="формат: flac" data-tag-album="альбом: nevermind" data-tag-albumartist="исполнитель альбома: nirvana" data-tag-artist="исполнитель: nirvana" data-tag-bit_depth="разрядность: 16 бит" data-tag-bitrate="битрейт: 934 kbps" data-tag-cover="обложка: есть" data-tag-format="формат: flac" data-tag-genre="жанр: grunge" data-tag-lyrics="текст песни: есть" data-tag-sample_rate="частота дискретизации: 44.1 khz" data-tag-size="размер: 28.9 mb" data-tag-tag_completeness="теги: полные" data-tag-title="название: come as you are" data-tag-tracknumber="номер трека: 3" data-tag-year="год: 1991">
+              <button class="music-trash-icon trash-one" type="button" data-file-path="D:\Music\Nirvana\Nevermind\03 - Come as You Are.flac" title="В корзину" aria-label="В корзину">
+                <svg class="trash-svg" width="512" height="512" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" aria-hidden="true"><path fill="currentColor" d="M166.2-16c-13.3 0-25.3 8.3-30 20.8L120 48H24C10.7 48 0 58.7 0 72s10.7 24 24 24h400c13.3 0 24-10.7 24-24s-10.7-24-24-24h-96L311.8 4.8c-4.7-12.5-16.6-20.8-30-20.8zM32 144v304c0 35.3 28.7 64 64 64h256c35.3 0 64-28.7 64-64V144h-48v304c0 8.8-7.2 16-16 16H96c-8.8 0-16-7.2-16-16V144zm160 72c0-13.3-10.7-24-24-24s-24 10.7-24 24v176c0 13.3 10.7 24 24 24s24-10.7 24-24zm112 0c0-13.3-10.7-24-24-24s-24 10.7-24 24v176c0 13.3 10.7 24 24 24s24-10.7 24-24z"></path></svg>
+              </button>
               <div class="music-card-content">
                 <div class="music-cover music-cover-has" title="Обложка: есть"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NDAiIGhlaWdodD0iNjQwIj4KPHJlY3Qgd2lkdGg9IjY0MCIgaGVpZ2h0PSI2NDAiIGZpbGw9IiMwNzU5ODUiLz4KPGNpcmNsZSBjeD0iNTIwIiBjeT0iMTIwIiByPSIxNTAiIGZpbGw9IiNiYWU2ZmQiIG9wYWNpdHk9Ii4xMiIvPgo8dGV4dCB4PSI0OCIgeT0iNDU1IiBmaWxsPSIjYmFlNmZkIiBmb250LWZhbWlseT0iQXJpYWwsc2Fucy1zZXJpZiIgZm9udC1zaXplPSI2NCIgZm9udC13ZWlnaHQ9IjcwMCI+TklSVkFOQTwvdGV4dD4KPHRleHQgeD0iNDgiIHk9IjUyNSIgZmlsbD0iI2JhZTZmZCIgZm9udC1mYW1pbHk9IkFyaWFsLHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iNDIiPk5ldmVybWluZDwvdGV4dD4KPHRleHQgeD0iNTAiIHk9IjU3NSIgZmlsbD0iI2JhZTZmZCIgb3BhY2l0eT0iLjciIGZvbnQtZmFtaWx5PSJBcmlhbCxzYW5zLXNlcmlmIiBmb250LXNpemU9IjI0Ij5ERU1PIMK3IDE5OTE8L3RleHQ+Cjwvc3ZnPg==" alt="Обложка трека 03 - Come as You Are.flac" loading="lazy"></div>
                 <div class="music-card-main">
@@ -1113,11 +1173,14 @@
                   <div class="music-path" title="D:\Music\Nirvana\Nevermind\03 - Come as You Are.flac">D:\Music\Nirvana\Nevermind</div>
                   <div class="audio-player-wrap"><div class="custom-audio-player"><audio class="audio-player" preload="none" src="/api/audio?file=D%3A%5CMusic%5CNirvana%5CNevermind%5C03%20-%20Come%20as%20You%20Are.flac">Прослушать 03 - Come as You Are.flac</audio><button class="audio-play" type="button" aria-label="Прослушать 03 - Come as You Are.flac"><span class="audio-play-icon" aria-hidden="true"></span></button><div class="audio-time audio-current">0:00</div><div class="audio-seek-wrap"><div class="audio-seek-track"><span class="audio-seek-fill"></span></div><input class="audio-seek" type="range" min="0" max="1000" value="0" step="1" aria-label="Позиция воспроизведения"></div><button class="audio-mute" type="button" aria-label="Выключить звук"><svg class="audio-volume-icon audio-volume-on" viewBox="0 0 24 24" aria-hidden="true"><path class="audio-speaker" d="M4 9v6h4l5 4V5L8 9H4z"></path><path class="audio-volume-mark" d="M16 9.5c1.2 1.2 1.2 3.8 0 5"></path></svg><svg class="audio-volume-icon audio-volume-off" viewBox="0 0 24 24" aria-hidden="true"><path class="audio-speaker" d="M3.5 9v6h4l5 4V5l-5 4h-4z"></path><path class="audio-volume-mark" d="M15.5 9l5 6m0-6l-5 6"></path></svg></button></div></div>
                   <div class="music-pills"><span class="music-pill music-pill-format">формат: FLAC</span><span class="music-pill music-pill-bitrate">битрейт: 934 kbps</span><span class="music-pill music-pill-bit_depth">разрядность: 16 бит</span><span class="music-pill music-pill-sample_rate">частота дискретизации: 44.1 kHz</span><span class="music-pill music-pill-tag_completeness">теги: полные</span><span class="music-pill music-pill-cover">обложка: есть</span><span class="music-pill music-pill-lyrics">текст песни: есть</span><span class="music-pill music-pill-size">размер: 28.9 MB</span><span class="music-pill music-pill-album">альбом: Nevermind</span><span class="music-pill music-pill-albumartist">исполнитель альбома: Nirvana</span><span class="music-pill music-pill-artist">исполнитель: Nirvana</span><span class="music-pill music-pill-genre">жанр: Grunge</span><span class="music-pill music-pill-title">название: Come as You Are</span><span class="music-pill music-pill-year">год: 1991</span><span class="music-pill music-pill-tracknumber">номер трека: 3</span></div>
+
                   <div class="music-actions">
-                    <button class="small music-action-single" type="button" data-action="tag" data-file-path="D:\Music\Nirvana\Nevermind\03 - Come as You Are.flac">Проставить теги</button>
+                    <button class="small music-action-single" type="button" data-action="tag" data-file-path="D:\Music\Nirvana\Nevermind\03 - Come as You Are.flac">Теги через beets</button>
+                    <button class="small music-action-single" type="button" data-action="shazam-tag" data-file-path="D:\Music\Nirvana\Nevermind\03 - Come as You Are.flac">Теги через Shazam</button>
                     <button class="small music-action-single" type="button" data-action="layout" data-file-path="D:\Music\Nirvana\Nevermind\03 - Come as You Are.flac">Разложить по папкам</button>
+                    <button class="small enrichment-button" type="button" data-kind="cover" data-file-path="D:\Music\Nirvana\Nevermind\03 - Come as You Are.flac" disabled aria-disabled="true" title="Обложка уже есть">Найти обложку</button>
+                    <button class="small enrichment-button" type="button" data-kind="lyrics" data-file-path="D:\Music\Nirvana\Nevermind\03 - Come as You Are.flac" disabled aria-disabled="true" title="Текст уже есть">Найти текст</button>
                     <button class="small lyrics-button" type="button" data-file-path="D:\Music\Nirvana\Nevermind\03 - Come as You Are.flac" data-track-name="03 - Come as You Are.flac">Текст песни</button>
-                    <button class="small danger-button trash-one" type="button" data-file-path="D:\Music\Nirvana\Nevermind\03 - Come as You Are.flac">В корзину</button>
                   </div>
                   <div class="music-card-status" aria-live="polite">
                     <div class="music-card-status-text"></div>
@@ -1126,8 +1189,11 @@
                 </div>
               </div>
             </article>
-            
-            <article class="music-card" data-file-path="D:\Music\Nirvana\Nevermind\05 - Lithium.flac" data-layout-status="ready" data-music-search="05 - lithium.flac d:\music\nirvana\nevermind формат: flac битрейт: 976 kbps разрядность: 16 бит частота дискретизации: 44.1 khz теги: полные обложка: есть текст песни: есть размер: 32.2 mb альбом: nevermind исполнитель альбома: nirvana исполнитель: nirvana жанр: alternative rock название: lithium год: 1991 номер трека: 5" data-sort-name="05 - lithium.flac" data-sort-artist="исполнитель: nirvana" data-sort-album="альбом: nevermind" data-sort-year="год: 1991" data-sort-format="формат: flac" data-tag-album="альбом: nevermind" data-tag-albumartist="исполнитель альбома: nirvana" data-tag-artist="исполнитель: nirvana" data-tag-bit_depth="разрядность: 16 бит" data-tag-bitrate="битрейт: 976 kbps" data-tag-cover="обложка: есть" data-tag-format="формат: flac" data-tag-genre="жанр: alternative rock" data-tag-lyrics="текст песни: есть" data-tag-sample_rate="частота дискретизации: 44.1 khz" data-tag-size="размер: 32.2 mb" data-tag-tag_completeness="теги: полные" data-tag-title="название: lithium" data-tag-tracknumber="номер трека: 5" data-tag-year="год: 1991">
+
+            <article class="music-card" data-file-path="D:\Music\Nirvana\Nevermind\05 - Lithium.flac" data-layout-status="ready" data-identity-mismatch="no" data-music-search="05 - lithium.flac d:\music\nirvana\nevermind формат: flac битрейт: 976 kbps разрядность: 16 бит частота дискретизации: 44.1 khz теги: полные обложка: есть текст песни: есть размер: 32.2 mb альбом: nevermind исполнитель альбома: nirvana исполнитель: nirvana жанр: alternative rock название: lithium год: 1991 номер трека: 5" data-sort-name="05 - lithium.flac" data-sort-artist="исполнитель: nirvana" data-sort-album="альбом: nevermind" data-sort-year="год: 1991" data-sort-format="формат: flac" data-tag-album="альбом: nevermind" data-tag-albumartist="исполнитель альбома: nirvana" data-tag-artist="исполнитель: nirvana" data-tag-bit_depth="разрядность: 16 бит" data-tag-bitrate="битрейт: 976 kbps" data-tag-cover="обложка: есть" data-tag-format="формат: flac" data-tag-genre="жанр: alternative rock" data-tag-lyrics="текст песни: есть" data-tag-sample_rate="частота дискретизации: 44.1 khz" data-tag-size="размер: 32.2 mb" data-tag-tag_completeness="теги: полные" data-tag-title="название: lithium" data-tag-tracknumber="номер трека: 5" data-tag-year="год: 1991">
+              <button class="music-trash-icon trash-one" type="button" data-file-path="D:\Music\Nirvana\Nevermind\05 - Lithium.flac" title="В корзину" aria-label="В корзину">
+                <svg class="trash-svg" width="512" height="512" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" aria-hidden="true"><path fill="currentColor" d="M166.2-16c-13.3 0-25.3 8.3-30 20.8L120 48H24C10.7 48 0 58.7 0 72s10.7 24 24 24h400c13.3 0 24-10.7 24-24s-10.7-24-24-24h-96L311.8 4.8c-4.7-12.5-16.6-20.8-30-20.8zM32 144v304c0 35.3 28.7 64 64 64h256c35.3 0 64-28.7 64-64V144h-48v304c0 8.8-7.2 16-16 16H96c-8.8 0-16-7.2-16-16V144zm160 72c0-13.3-10.7-24-24-24s-24 10.7-24 24v176c0 13.3 10.7 24 24 24s24-10.7 24-24zm112 0c0-13.3-10.7-24-24-24s-24 10.7-24 24v176c0 13.3 10.7 24 24 24s24-10.7 24-24z"></path></svg>
+              </button>
               <div class="music-card-content">
                 <div class="music-cover music-cover-has" title="Обложка: есть"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NDAiIGhlaWdodD0iNjQwIj4KPHJlY3Qgd2lkdGg9IjY0MCIgaGVpZ2h0PSI2NDAiIGZpbGw9IiMwNzU5ODUiLz4KPGNpcmNsZSBjeD0iNTIwIiBjeT0iMTIwIiByPSIxNTAiIGZpbGw9IiNiYWU2ZmQiIG9wYWNpdHk9Ii4xMiIvPgo8dGV4dCB4PSI0OCIgeT0iNDU1IiBmaWxsPSIjYmFlNmZkIiBmb250LWZhbWlseT0iQXJpYWwsc2Fucy1zZXJpZiIgZm9udC1zaXplPSI2NCIgZm9udC13ZWlnaHQ9IjcwMCI+TklSVkFOQTwvdGV4dD4KPHRleHQgeD0iNDgiIHk9IjUyNSIgZmlsbD0iI2JhZTZmZCIgZm9udC1mYW1pbHk9IkFyaWFsLHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iNDIiPk5ldmVybWluZDwvdGV4dD4KPHRleHQgeD0iNTAiIHk9IjU3NSIgZmlsbD0iI2JhZTZmZCIgb3BhY2l0eT0iLjciIGZvbnQtZmFtaWx5PSJBcmlhbCxzYW5zLXNlcmlmIiBmb250LXNpemU9IjI0Ij5ERU1PIMK3IDE5OTE8L3RleHQ+Cjwvc3ZnPg==" alt="Обложка трека 05 - Lithium.flac" loading="lazy"></div>
                 <div class="music-card-main">
@@ -1135,11 +1201,14 @@
                   <div class="music-path" title="D:\Music\Nirvana\Nevermind\05 - Lithium.flac">D:\Music\Nirvana\Nevermind</div>
                   <div class="audio-player-wrap"><div class="custom-audio-player"><audio class="audio-player" preload="none" src="/api/audio?file=D%3A%5CMusic%5CNirvana%5CNevermind%5C05%20-%20Lithium.flac">Прослушать 05 - Lithium.flac</audio><button class="audio-play" type="button" aria-label="Прослушать 05 - Lithium.flac"><span class="audio-play-icon" aria-hidden="true"></span></button><div class="audio-time audio-current">0:00</div><div class="audio-seek-wrap"><div class="audio-seek-track"><span class="audio-seek-fill"></span></div><input class="audio-seek" type="range" min="0" max="1000" value="0" step="1" aria-label="Позиция воспроизведения"></div><button class="audio-mute" type="button" aria-label="Выключить звук"><svg class="audio-volume-icon audio-volume-on" viewBox="0 0 24 24" aria-hidden="true"><path class="audio-speaker" d="M4 9v6h4l5 4V5L8 9H4z"></path><path class="audio-volume-mark" d="M16 9.5c1.2 1.2 1.2 3.8 0 5"></path></svg><svg class="audio-volume-icon audio-volume-off" viewBox="0 0 24 24" aria-hidden="true"><path class="audio-speaker" d="M3.5 9v6h4l5 4V5l-5 4h-4z"></path><path class="audio-volume-mark" d="M15.5 9l5 6m0-6l-5 6"></path></svg></button></div></div>
                   <div class="music-pills"><span class="music-pill music-pill-format">формат: FLAC</span><span class="music-pill music-pill-bitrate">битрейт: 976 kbps</span><span class="music-pill music-pill-bit_depth">разрядность: 16 бит</span><span class="music-pill music-pill-sample_rate">частота дискретизации: 44.1 kHz</span><span class="music-pill music-pill-tag_completeness">теги: полные</span><span class="music-pill music-pill-cover">обложка: есть</span><span class="music-pill music-pill-lyrics">текст песни: есть</span><span class="music-pill music-pill-size">размер: 32.2 MB</span><span class="music-pill music-pill-album">альбом: Nevermind</span><span class="music-pill music-pill-albumartist">исполнитель альбома: Nirvana</span><span class="music-pill music-pill-artist">исполнитель: Nirvana</span><span class="music-pill music-pill-genre">жанр: Alternative Rock</span><span class="music-pill music-pill-title">название: Lithium</span><span class="music-pill music-pill-year">год: 1991</span><span class="music-pill music-pill-tracknumber">номер трека: 5</span></div>
+
                   <div class="music-actions">
-                    <button class="small music-action-single" type="button" data-action="tag" data-file-path="D:\Music\Nirvana\Nevermind\05 - Lithium.flac">Проставить теги</button>
+                    <button class="small music-action-single" type="button" data-action="tag" data-file-path="D:\Music\Nirvana\Nevermind\05 - Lithium.flac">Теги через beets</button>
+                    <button class="small music-action-single" type="button" data-action="shazam-tag" data-file-path="D:\Music\Nirvana\Nevermind\05 - Lithium.flac">Теги через Shazam</button>
                     <button class="small music-action-single" type="button" data-action="layout" data-file-path="D:\Music\Nirvana\Nevermind\05 - Lithium.flac">Разложить по папкам</button>
+                    <button class="small enrichment-button" type="button" data-kind="cover" data-file-path="D:\Music\Nirvana\Nevermind\05 - Lithium.flac" disabled aria-disabled="true" title="Обложка уже есть">Найти обложку</button>
+                    <button class="small enrichment-button" type="button" data-kind="lyrics" data-file-path="D:\Music\Nirvana\Nevermind\05 - Lithium.flac" disabled aria-disabled="true" title="Текст уже есть">Найти текст</button>
                     <button class="small lyrics-button" type="button" data-file-path="D:\Music\Nirvana\Nevermind\05 - Lithium.flac" data-track-name="05 - Lithium.flac">Текст песни</button>
-                    <button class="small danger-button trash-one" type="button" data-file-path="D:\Music\Nirvana\Nevermind\05 - Lithium.flac">В корзину</button>
                   </div>
                   <div class="music-card-status" aria-live="polite">
                     <div class="music-card-status-text"></div>
@@ -1148,8 +1217,11 @@
                 </div>
               </div>
             </article>
-            
-            <article class="music-card" data-file-path="D:\Music\Nirvana\Nevermind\06 - Polly.flac" data-layout-status="ready" data-music-search="06 - polly.flac d:\music\nirvana\nevermind формат: flac битрейт: 812 kbps разрядность: 16 бит частота дискретизации: 44.1 khz теги: полные обложка: есть текст песни: есть размер: 17.7 mb альбом: nevermind исполнитель альбома: nirvana исполнитель: nirvana жанр: acoustic rock название: polly год: 1991 номер трека: 6" data-sort-name="06 - polly.flac" data-sort-artist="исполнитель: nirvana" data-sort-album="альбом: nevermind" data-sort-year="год: 1991" data-sort-format="формат: flac" data-tag-album="альбом: nevermind" data-tag-albumartist="исполнитель альбома: nirvana" data-tag-artist="исполнитель: nirvana" data-tag-bit_depth="разрядность: 16 бит" data-tag-bitrate="битрейт: 812 kbps" data-tag-cover="обложка: есть" data-tag-format="формат: flac" data-tag-genre="жанр: acoustic rock" data-tag-lyrics="текст песни: есть" data-tag-sample_rate="частота дискретизации: 44.1 khz" data-tag-size="размер: 17.7 mb" data-tag-tag_completeness="теги: полные" data-tag-title="название: polly" data-tag-tracknumber="номер трека: 6" data-tag-year="год: 1991">
+
+            <article class="music-card" data-file-path="D:\Music\Nirvana\Nevermind\06 - Polly.flac" data-layout-status="ready" data-identity-mismatch="no" data-music-search="06 - polly.flac d:\music\nirvana\nevermind формат: flac битрейт: 812 kbps разрядность: 16 бит частота дискретизации: 44.1 khz теги: полные обложка: есть текст песни: есть размер: 17.7 mb альбом: nevermind исполнитель альбома: nirvana исполнитель: nirvana жанр: acoustic rock название: polly год: 1991 номер трека: 6" data-sort-name="06 - polly.flac" data-sort-artist="исполнитель: nirvana" data-sort-album="альбом: nevermind" data-sort-year="год: 1991" data-sort-format="формат: flac" data-tag-album="альбом: nevermind" data-tag-albumartist="исполнитель альбома: nirvana" data-tag-artist="исполнитель: nirvana" data-tag-bit_depth="разрядность: 16 бит" data-tag-bitrate="битрейт: 812 kbps" data-tag-cover="обложка: есть" data-tag-format="формат: flac" data-tag-genre="жанр: acoustic rock" data-tag-lyrics="текст песни: есть" data-tag-sample_rate="частота дискретизации: 44.1 khz" data-tag-size="размер: 17.7 mb" data-tag-tag_completeness="теги: полные" data-tag-title="название: polly" data-tag-tracknumber="номер трека: 6" data-tag-year="год: 1991">
+              <button class="music-trash-icon trash-one" type="button" data-file-path="D:\Music\Nirvana\Nevermind\06 - Polly.flac" title="В корзину" aria-label="В корзину">
+                <svg class="trash-svg" width="512" height="512" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" aria-hidden="true"><path fill="currentColor" d="M166.2-16c-13.3 0-25.3 8.3-30 20.8L120 48H24C10.7 48 0 58.7 0 72s10.7 24 24 24h400c13.3 0 24-10.7 24-24s-10.7-24-24-24h-96L311.8 4.8c-4.7-12.5-16.6-20.8-30-20.8zM32 144v304c0 35.3 28.7 64 64 64h256c35.3 0 64-28.7 64-64V144h-48v304c0 8.8-7.2 16-16 16H96c-8.8 0-16-7.2-16-16V144zm160 72c0-13.3-10.7-24-24-24s-24 10.7-24 24v176c0 13.3 10.7 24 24 24s24-10.7 24-24zm112 0c0-13.3-10.7-24-24-24s-24 10.7-24 24v176c0 13.3 10.7 24 24 24s24-10.7 24-24z"></path></svg>
+              </button>
               <div class="music-card-content">
                 <div class="music-cover music-cover-has" title="Обложка: есть"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NDAiIGhlaWdodD0iNjQwIj4KPHJlY3Qgd2lkdGg9IjY0MCIgaGVpZ2h0PSI2NDAiIGZpbGw9IiMwNzU5ODUiLz4KPGNpcmNsZSBjeD0iNTIwIiBjeT0iMTIwIiByPSIxNTAiIGZpbGw9IiNiYWU2ZmQiIG9wYWNpdHk9Ii4xMiIvPgo8dGV4dCB4PSI0OCIgeT0iNDU1IiBmaWxsPSIjYmFlNmZkIiBmb250LWZhbWlseT0iQXJpYWwsc2Fucy1zZXJpZiIgZm9udC1zaXplPSI2NCIgZm9udC13ZWlnaHQ9IjcwMCI+TklSVkFOQTwvdGV4dD4KPHRleHQgeD0iNDgiIHk9IjUyNSIgZmlsbD0iI2JhZTZmZCIgZm9udC1mYW1pbHk9IkFyaWFsLHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iNDIiPk5ldmVybWluZDwvdGV4dD4KPHRleHQgeD0iNTAiIHk9IjU3NSIgZmlsbD0iI2JhZTZmZCIgb3BhY2l0eT0iLjciIGZvbnQtZmFtaWx5PSJBcmlhbCxzYW5zLXNlcmlmIiBmb250LXNpemU9IjI0Ij5ERU1PIMK3IDE5OTE8L3RleHQ+Cjwvc3ZnPg==" alt="Обложка трека 06 - Polly.flac" loading="lazy"></div>
                 <div class="music-card-main">
@@ -1157,11 +1229,14 @@
                   <div class="music-path" title="D:\Music\Nirvana\Nevermind\06 - Polly.flac">D:\Music\Nirvana\Nevermind</div>
                   <div class="audio-player-wrap"><div class="custom-audio-player"><audio class="audio-player" preload="none" src="/api/audio?file=D%3A%5CMusic%5CNirvana%5CNevermind%5C06%20-%20Polly.flac">Прослушать 06 - Polly.flac</audio><button class="audio-play" type="button" aria-label="Прослушать 06 - Polly.flac"><span class="audio-play-icon" aria-hidden="true"></span></button><div class="audio-time audio-current">0:00</div><div class="audio-seek-wrap"><div class="audio-seek-track"><span class="audio-seek-fill"></span></div><input class="audio-seek" type="range" min="0" max="1000" value="0" step="1" aria-label="Позиция воспроизведения"></div><button class="audio-mute" type="button" aria-label="Выключить звук"><svg class="audio-volume-icon audio-volume-on" viewBox="0 0 24 24" aria-hidden="true"><path class="audio-speaker" d="M4 9v6h4l5 4V5L8 9H4z"></path><path class="audio-volume-mark" d="M16 9.5c1.2 1.2 1.2 3.8 0 5"></path></svg><svg class="audio-volume-icon audio-volume-off" viewBox="0 0 24 24" aria-hidden="true"><path class="audio-speaker" d="M3.5 9v6h4l5 4V5l-5 4h-4z"></path><path class="audio-volume-mark" d="M15.5 9l5 6m0-6l-5 6"></path></svg></button></div></div>
                   <div class="music-pills"><span class="music-pill music-pill-format">формат: FLAC</span><span class="music-pill music-pill-bitrate">битрейт: 812 kbps</span><span class="music-pill music-pill-bit_depth">разрядность: 16 бит</span><span class="music-pill music-pill-sample_rate">частота дискретизации: 44.1 kHz</span><span class="music-pill music-pill-tag_completeness">теги: полные</span><span class="music-pill music-pill-cover">обложка: есть</span><span class="music-pill music-pill-lyrics">текст песни: есть</span><span class="music-pill music-pill-size">размер: 17.7 MB</span><span class="music-pill music-pill-album">альбом: Nevermind</span><span class="music-pill music-pill-albumartist">исполнитель альбома: Nirvana</span><span class="music-pill music-pill-artist">исполнитель: Nirvana</span><span class="music-pill music-pill-genre">жанр: Acoustic Rock</span><span class="music-pill music-pill-title">название: Polly</span><span class="music-pill music-pill-year">год: 1991</span><span class="music-pill music-pill-tracknumber">номер трека: 6</span></div>
+
                   <div class="music-actions">
-                    <button class="small music-action-single" type="button" data-action="tag" data-file-path="D:\Music\Nirvana\Nevermind\06 - Polly.flac">Проставить теги</button>
+                    <button class="small music-action-single" type="button" data-action="tag" data-file-path="D:\Music\Nirvana\Nevermind\06 - Polly.flac">Теги через beets</button>
+                    <button class="small music-action-single" type="button" data-action="shazam-tag" data-file-path="D:\Music\Nirvana\Nevermind\06 - Polly.flac">Теги через Shazam</button>
                     <button class="small music-action-single" type="button" data-action="layout" data-file-path="D:\Music\Nirvana\Nevermind\06 - Polly.flac">Разложить по папкам</button>
+                    <button class="small enrichment-button" type="button" data-kind="cover" data-file-path="D:\Music\Nirvana\Nevermind\06 - Polly.flac" disabled aria-disabled="true" title="Обложка уже есть">Найти обложку</button>
+                    <button class="small enrichment-button" type="button" data-kind="lyrics" data-file-path="D:\Music\Nirvana\Nevermind\06 - Polly.flac" disabled aria-disabled="true" title="Текст уже есть">Найти текст</button>
                     <button class="small lyrics-button" type="button" data-file-path="D:\Music\Nirvana\Nevermind\06 - Polly.flac" data-track-name="06 - Polly.flac">Текст песни</button>
-                    <button class="small danger-button trash-one" type="button" data-file-path="D:\Music\Nirvana\Nevermind\06 - Polly.flac">В корзину</button>
                   </div>
                   <div class="music-card-status" aria-live="polite">
                     <div class="music-card-status-text"></div>
@@ -1170,8 +1245,11 @@
                 </div>
               </div>
             </article>
-            
-            <article class="music-card" data-file-path="D:\Music\Nirvana\Nevermind\08 - Drain You.flac" data-layout-status="ready" data-music-search="08 - drain you.flac d:\music\nirvana\nevermind формат: flac битрейт: 995 kbps разрядность: 16 бит частота дискретизации: 44.1 khz теги: полные обложка: есть текст песни: есть размер: 31.8 mb альбом: nevermind исполнитель альбома: nirvana исполнитель: nirvana жанр: grunge название: drain you год: 1991 номер трека: 8" data-sort-name="08 - drain you.flac" data-sort-artist="исполнитель: nirvana" data-sort-album="альбом: nevermind" data-sort-year="год: 1991" data-sort-format="формат: flac" data-tag-album="альбом: nevermind" data-tag-albumartist="исполнитель альбома: nirvana" data-tag-artist="исполнитель: nirvana" data-tag-bit_depth="разрядность: 16 бит" data-tag-bitrate="битрейт: 995 kbps" data-tag-cover="обложка: есть" data-tag-format="формат: flac" data-tag-genre="жанр: grunge" data-tag-lyrics="текст песни: есть" data-tag-sample_rate="частота дискретизации: 44.1 khz" data-tag-size="размер: 31.8 mb" data-tag-tag_completeness="теги: полные" data-tag-title="название: drain you" data-tag-tracknumber="номер трека: 8" data-tag-year="год: 1991">
+
+            <article class="music-card" data-file-path="D:\Music\Nirvana\Nevermind\08 - Drain You.flac" data-layout-status="ready" data-identity-mismatch="no" data-music-search="08 - drain you.flac d:\music\nirvana\nevermind формат: flac битрейт: 995 kbps разрядность: 16 бит частота дискретизации: 44.1 khz теги: полные обложка: есть текст песни: есть размер: 31.8 mb альбом: nevermind исполнитель альбома: nirvana исполнитель: nirvana жанр: grunge название: drain you год: 1991 номер трека: 8" data-sort-name="08 - drain you.flac" data-sort-artist="исполнитель: nirvana" data-sort-album="альбом: nevermind" data-sort-year="год: 1991" data-sort-format="формат: flac" data-tag-album="альбом: nevermind" data-tag-albumartist="исполнитель альбома: nirvana" data-tag-artist="исполнитель: nirvana" data-tag-bit_depth="разрядность: 16 бит" data-tag-bitrate="битрейт: 995 kbps" data-tag-cover="обложка: есть" data-tag-format="формат: flac" data-tag-genre="жанр: grunge" data-tag-lyrics="текст песни: есть" data-tag-sample_rate="частота дискретизации: 44.1 khz" data-tag-size="размер: 31.8 mb" data-tag-tag_completeness="теги: полные" data-tag-title="название: drain you" data-tag-tracknumber="номер трека: 8" data-tag-year="год: 1991">
+              <button class="music-trash-icon trash-one" type="button" data-file-path="D:\Music\Nirvana\Nevermind\08 - Drain You.flac" title="В корзину" aria-label="В корзину">
+                <svg class="trash-svg" width="512" height="512" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" aria-hidden="true"><path fill="currentColor" d="M166.2-16c-13.3 0-25.3 8.3-30 20.8L120 48H24C10.7 48 0 58.7 0 72s10.7 24 24 24h400c13.3 0 24-10.7 24-24s-10.7-24-24-24h-96L311.8 4.8c-4.7-12.5-16.6-20.8-30-20.8zM32 144v304c0 35.3 28.7 64 64 64h256c35.3 0 64-28.7 64-64V144h-48v304c0 8.8-7.2 16-16 16H96c-8.8 0-16-7.2-16-16V144zm160 72c0-13.3-10.7-24-24-24s-24 10.7-24 24v176c0 13.3 10.7 24 24 24s24-10.7 24-24zm112 0c0-13.3-10.7-24-24-24s-24 10.7-24 24v176c0 13.3 10.7 24 24 24s24-10.7 24-24z"></path></svg>
+              </button>
               <div class="music-card-content">
                 <div class="music-cover music-cover-has" title="Обложка: есть"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NDAiIGhlaWdodD0iNjQwIj4KPHJlY3Qgd2lkdGg9IjY0MCIgaGVpZ2h0PSI2NDAiIGZpbGw9IiMwNzU5ODUiLz4KPGNpcmNsZSBjeD0iNTIwIiBjeT0iMTIwIiByPSIxNTAiIGZpbGw9IiNiYWU2ZmQiIG9wYWNpdHk9Ii4xMiIvPgo8dGV4dCB4PSI0OCIgeT0iNDU1IiBmaWxsPSIjYmFlNmZkIiBmb250LWZhbWlseT0iQXJpYWwsc2Fucy1zZXJpZiIgZm9udC1zaXplPSI2NCIgZm9udC13ZWlnaHQ9IjcwMCI+TklSVkFOQTwvdGV4dD4KPHRleHQgeD0iNDgiIHk9IjUyNSIgZmlsbD0iI2JhZTZmZCIgZm9udC1mYW1pbHk9IkFyaWFsLHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iNDIiPk5ldmVybWluZDwvdGV4dD4KPHRleHQgeD0iNTAiIHk9IjU3NSIgZmlsbD0iI2JhZTZmZCIgb3BhY2l0eT0iLjciIGZvbnQtZmFtaWx5PSJBcmlhbCxzYW5zLXNlcmlmIiBmb250LXNpemU9IjI0Ij5ERU1PIMK3IDE5OTE8L3RleHQ+Cjwvc3ZnPg==" alt="Обложка трека 08 - Drain You.flac" loading="lazy"></div>
                 <div class="music-card-main">
@@ -1179,11 +1257,14 @@
                   <div class="music-path" title="D:\Music\Nirvana\Nevermind\08 - Drain You.flac">D:\Music\Nirvana\Nevermind</div>
                   <div class="audio-player-wrap"><div class="custom-audio-player"><audio class="audio-player" preload="none" src="/api/audio?file=D%3A%5CMusic%5CNirvana%5CNevermind%5C08%20-%20Drain%20You.flac">Прослушать 08 - Drain You.flac</audio><button class="audio-play" type="button" aria-label="Прослушать 08 - Drain You.flac"><span class="audio-play-icon" aria-hidden="true"></span></button><div class="audio-time audio-current">0:00</div><div class="audio-seek-wrap"><div class="audio-seek-track"><span class="audio-seek-fill"></span></div><input class="audio-seek" type="range" min="0" max="1000" value="0" step="1" aria-label="Позиция воспроизведения"></div><button class="audio-mute" type="button" aria-label="Выключить звук"><svg class="audio-volume-icon audio-volume-on" viewBox="0 0 24 24" aria-hidden="true"><path class="audio-speaker" d="M4 9v6h4l5 4V5L8 9H4z"></path><path class="audio-volume-mark" d="M16 9.5c1.2 1.2 1.2 3.8 0 5"></path></svg><svg class="audio-volume-icon audio-volume-off" viewBox="0 0 24 24" aria-hidden="true"><path class="audio-speaker" d="M3.5 9v6h4l5 4V5l-5 4h-4z"></path><path class="audio-volume-mark" d="M15.5 9l5 6m0-6l-5 6"></path></svg></button></div></div>
                   <div class="music-pills"><span class="music-pill music-pill-format">формат: FLAC</span><span class="music-pill music-pill-bitrate">битрейт: 995 kbps</span><span class="music-pill music-pill-bit_depth">разрядность: 16 бит</span><span class="music-pill music-pill-sample_rate">частота дискретизации: 44.1 kHz</span><span class="music-pill music-pill-tag_completeness">теги: полные</span><span class="music-pill music-pill-cover">обложка: есть</span><span class="music-pill music-pill-lyrics">текст песни: есть</span><span class="music-pill music-pill-size">размер: 31.8 MB</span><span class="music-pill music-pill-album">альбом: Nevermind</span><span class="music-pill music-pill-albumartist">исполнитель альбома: Nirvana</span><span class="music-pill music-pill-artist">исполнитель: Nirvana</span><span class="music-pill music-pill-genre">жанр: Grunge</span><span class="music-pill music-pill-title">название: Drain You</span><span class="music-pill music-pill-year">год: 1991</span><span class="music-pill music-pill-tracknumber">номер трека: 8</span></div>
+
                   <div class="music-actions">
-                    <button class="small music-action-single" type="button" data-action="tag" data-file-path="D:\Music\Nirvana\Nevermind\08 - Drain You.flac">Проставить теги</button>
+                    <button class="small music-action-single" type="button" data-action="tag" data-file-path="D:\Music\Nirvana\Nevermind\08 - Drain You.flac">Теги через beets</button>
+                    <button class="small music-action-single" type="button" data-action="shazam-tag" data-file-path="D:\Music\Nirvana\Nevermind\08 - Drain You.flac">Теги через Shazam</button>
                     <button class="small music-action-single" type="button" data-action="layout" data-file-path="D:\Music\Nirvana\Nevermind\08 - Drain You.flac">Разложить по папкам</button>
+                    <button class="small enrichment-button" type="button" data-kind="cover" data-file-path="D:\Music\Nirvana\Nevermind\08 - Drain You.flac" disabled aria-disabled="true" title="Обложка уже есть">Найти обложку</button>
+                    <button class="small enrichment-button" type="button" data-kind="lyrics" data-file-path="D:\Music\Nirvana\Nevermind\08 - Drain You.flac" disabled aria-disabled="true" title="Текст уже есть">Найти текст</button>
                     <button class="small lyrics-button" type="button" data-file-path="D:\Music\Nirvana\Nevermind\08 - Drain You.flac" data-track-name="08 - Drain You.flac">Текст песни</button>
-                    <button class="small danger-button trash-one" type="button" data-file-path="D:\Music\Nirvana\Nevermind\08 - Drain You.flac">В корзину</button>
                   </div>
                   <div class="music-card-status" aria-live="polite">
                     <div class="music-card-status-text"></div>
@@ -1192,8 +1273,11 @@
                 </div>
               </div>
             </article>
-            
-            <article class="music-card" data-file-path="D:\Music\Nirvana\In Utero\03 - Heart-Shaped Box.flac" data-layout-status="ready" data-music-search="03 - heart-shaped box.flac d:\music\nirvana\in utero формат: flac битрейт: 1038 kbps разрядность: 16 бит частота дискретизации: 44.1 khz теги: полные обложка: есть текст песни: есть размер: 35.7 mb альбом: in utero исполнитель альбома: nirvana исполнитель: nirvana жанр: alternative rock название: heart-shaped box год: 1993 номер трека: 3" data-sort-name="03 - heart-shaped box.flac" data-sort-artist="исполнитель: nirvana" data-sort-album="альбом: in utero" data-sort-year="год: 1993" data-sort-format="формат: flac" data-tag-album="альбом: in utero" data-tag-albumartist="исполнитель альбома: nirvana" data-tag-artist="исполнитель: nirvana" data-tag-bit_depth="разрядность: 16 бит" data-tag-bitrate="битрейт: 1038 kbps" data-tag-cover="обложка: есть" data-tag-format="формат: flac" data-tag-genre="жанр: alternative rock" data-tag-lyrics="текст песни: есть" data-tag-sample_rate="частота дискретизации: 44.1 khz" data-tag-size="размер: 35.7 mb" data-tag-tag_completeness="теги: полные" data-tag-title="название: heart-shaped box" data-tag-tracknumber="номер трека: 3" data-tag-year="год: 1993">
+
+            <article class="music-card" data-file-path="D:\Music\Nirvana\In Utero\03 - Heart-Shaped Box.flac" data-layout-status="ready" data-identity-mismatch="no" data-music-search="03 - heart-shaped box.flac d:\music\nirvana\in utero формат: flac битрейт: 1038 kbps разрядность: 16 бит частота дискретизации: 44.1 khz теги: полные обложка: есть текст песни: есть размер: 35.7 mb альбом: in utero исполнитель альбома: nirvana исполнитель: nirvana жанр: alternative rock название: heart-shaped box год: 1993 номер трека: 3" data-sort-name="03 - heart-shaped box.flac" data-sort-artist="исполнитель: nirvana" data-sort-album="альбом: in utero" data-sort-year="год: 1993" data-sort-format="формат: flac" data-tag-album="альбом: in utero" data-tag-albumartist="исполнитель альбома: nirvana" data-tag-artist="исполнитель: nirvana" data-tag-bit_depth="разрядность: 16 бит" data-tag-bitrate="битрейт: 1038 kbps" data-tag-cover="обложка: есть" data-tag-format="формат: flac" data-tag-genre="жанр: alternative rock" data-tag-lyrics="текст песни: есть" data-tag-sample_rate="частота дискретизации: 44.1 khz" data-tag-size="размер: 35.7 mb" data-tag-tag_completeness="теги: полные" data-tag-title="название: heart-shaped box" data-tag-tracknumber="номер трека: 3" data-tag-year="год: 1993">
+              <button class="music-trash-icon trash-one" type="button" data-file-path="D:\Music\Nirvana\In Utero\03 - Heart-Shaped Box.flac" title="В корзину" aria-label="В корзину">
+                <svg class="trash-svg" width="512" height="512" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" aria-hidden="true"><path fill="currentColor" d="M166.2-16c-13.3 0-25.3 8.3-30 20.8L120 48H24C10.7 48 0 58.7 0 72s10.7 24 24 24h400c13.3 0 24-10.7 24-24s-10.7-24-24-24h-96L311.8 4.8c-4.7-12.5-16.6-20.8-30-20.8zM32 144v304c0 35.3 28.7 64 64 64h256c35.3 0 64-28.7 64-64V144h-48v304c0 8.8-7.2 16-16 16H96c-8.8 0-16-7.2-16-16V144zm160 72c0-13.3-10.7-24-24-24s-24 10.7-24 24v176c0 13.3 10.7 24 24 24s24-10.7 24-24zm112 0c0-13.3-10.7-24-24-24s-24 10.7-24 24v176c0 13.3 10.7 24 24 24s24-10.7 24-24z"></path></svg>
+              </button>
               <div class="music-card-content">
                 <div class="music-cover music-cover-has" title="Обложка: есть"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NDAiIGhlaWdodD0iNjQwIj4KPHJlY3Qgd2lkdGg9IjY0MCIgaGVpZ2h0PSI2NDAiIGZpbGw9IiM3YzJkMTIiLz4KPGNpcmNsZSBjeD0iNTIwIiBjeT0iMTIwIiByPSIxNTAiIGZpbGw9IiNmZWQ3YWEiIG9wYWNpdHk9Ii4xMiIvPgo8dGV4dCB4PSI0OCIgeT0iNDU1IiBmaWxsPSIjZmVkN2FhIiBmb250LWZhbWlseT0iQXJpYWwsc2Fucy1zZXJpZiIgZm9udC1zaXplPSI2NCIgZm9udC13ZWlnaHQ9IjcwMCI+TklSVkFOQTwvdGV4dD4KPHRleHQgeD0iNDgiIHk9IjUyNSIgZmlsbD0iI2ZlZDdhYSIgZm9udC1mYW1pbHk9IkFyaWFsLHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iNDIiPkluIFV0ZXJvPC90ZXh0Pgo8dGV4dCB4PSI1MCIgeT0iNTc1IiBmaWxsPSIjZmVkN2FhIiBvcGFjaXR5PSIuNyIgZm9udC1mYW1pbHk9IkFyaWFsLHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMjQiPkRFTU8gwrcgMTk5MzwvdGV4dD4KPC9zdmc+" alt="Обложка трека 03 - Heart-Shaped Box.flac" loading="lazy"></div>
                 <div class="music-card-main">
@@ -1201,11 +1285,14 @@
                   <div class="music-path" title="D:\Music\Nirvana\In Utero\03 - Heart-Shaped Box.flac">D:\Music\Nirvana\In Utero</div>
                   <div class="audio-player-wrap"><div class="custom-audio-player"><audio class="audio-player" preload="none" src="/api/audio?file=D%3A%5CMusic%5CNirvana%5CIn%20Utero%5C03%20-%20Heart-Shaped%20Box.flac">Прослушать 03 - Heart-Shaped Box.flac</audio><button class="audio-play" type="button" aria-label="Прослушать 03 - Heart-Shaped Box.flac"><span class="audio-play-icon" aria-hidden="true"></span></button><div class="audio-time audio-current">0:00</div><div class="audio-seek-wrap"><div class="audio-seek-track"><span class="audio-seek-fill"></span></div><input class="audio-seek" type="range" min="0" max="1000" value="0" step="1" aria-label="Позиция воспроизведения"></div><button class="audio-mute" type="button" aria-label="Выключить звук"><svg class="audio-volume-icon audio-volume-on" viewBox="0 0 24 24" aria-hidden="true"><path class="audio-speaker" d="M4 9v6h4l5 4V5L8 9H4z"></path><path class="audio-volume-mark" d="M16 9.5c1.2 1.2 1.2 3.8 0 5"></path></svg><svg class="audio-volume-icon audio-volume-off" viewBox="0 0 24 24" aria-hidden="true"><path class="audio-speaker" d="M3.5 9v6h4l5 4V5l-5 4h-4z"></path><path class="audio-volume-mark" d="M15.5 9l5 6m0-6l-5 6"></path></svg></button></div></div>
                   <div class="music-pills"><span class="music-pill music-pill-format">формат: FLAC</span><span class="music-pill music-pill-bitrate">битрейт: 1038 kbps</span><span class="music-pill music-pill-bit_depth">разрядность: 16 бит</span><span class="music-pill music-pill-sample_rate">частота дискретизации: 44.1 kHz</span><span class="music-pill music-pill-tag_completeness">теги: полные</span><span class="music-pill music-pill-cover">обложка: есть</span><span class="music-pill music-pill-lyrics">текст песни: есть</span><span class="music-pill music-pill-size">размер: 35.7 MB</span><span class="music-pill music-pill-album">альбом: In Utero</span><span class="music-pill music-pill-albumartist">исполнитель альбома: Nirvana</span><span class="music-pill music-pill-artist">исполнитель: Nirvana</span><span class="music-pill music-pill-genre">жанр: Alternative Rock</span><span class="music-pill music-pill-title">название: Heart-Shaped Box</span><span class="music-pill music-pill-year">год: 1993</span><span class="music-pill music-pill-tracknumber">номер трека: 3</span></div>
+
                   <div class="music-actions">
-                    <button class="small music-action-single" type="button" data-action="tag" data-file-path="D:\Music\Nirvana\In Utero\03 - Heart-Shaped Box.flac">Проставить теги</button>
+                    <button class="small music-action-single" type="button" data-action="tag" data-file-path="D:\Music\Nirvana\In Utero\03 - Heart-Shaped Box.flac">Теги через beets</button>
+                    <button class="small music-action-single" type="button" data-action="shazam-tag" data-file-path="D:\Music\Nirvana\In Utero\03 - Heart-Shaped Box.flac">Теги через Shazam</button>
                     <button class="small music-action-single" type="button" data-action="layout" data-file-path="D:\Music\Nirvana\In Utero\03 - Heart-Shaped Box.flac">Разложить по папкам</button>
+                    <button class="small enrichment-button" type="button" data-kind="cover" data-file-path="D:\Music\Nirvana\In Utero\03 - Heart-Shaped Box.flac" disabled aria-disabled="true" title="Обложка уже есть">Найти обложку</button>
+                    <button class="small enrichment-button" type="button" data-kind="lyrics" data-file-path="D:\Music\Nirvana\In Utero\03 - Heart-Shaped Box.flac" disabled aria-disabled="true" title="Текст уже есть">Найти текст</button>
                     <button class="small lyrics-button" type="button" data-file-path="D:\Music\Nirvana\In Utero\03 - Heart-Shaped Box.flac" data-track-name="03 - Heart-Shaped Box.flac">Текст песни</button>
-                    <button class="small danger-button trash-one" type="button" data-file-path="D:\Music\Nirvana\In Utero\03 - Heart-Shaped Box.flac">В корзину</button>
                   </div>
                   <div class="music-card-status" aria-live="polite">
                     <div class="music-card-status-text"></div>
@@ -1214,8 +1301,11 @@
                 </div>
               </div>
             </article>
-            
-            <article class="music-card" data-file-path="D:\Music\Nirvana\In Utero\12 - All Apologies.flac" data-layout-status="ready" data-music-search="12 - all apologies.flac d:\music\nirvana\in utero формат: flac битрейт: 962 kbps разрядность: 16 бит частота дискретизации: 44.1 khz теги: полные обложка: есть текст песни: есть размер: 30.6 mb альбом: in utero исполнитель альбома: nirvana исполнитель: nirvana жанр: grunge название: all apologies год: 1993 номер трека: 12" data-sort-name="12 - all apologies.flac" data-sort-artist="исполнитель: nirvana" data-sort-album="альбом: in utero" data-sort-year="год: 1993" data-sort-format="формат: flac" data-tag-album="альбом: in utero" data-tag-albumartist="исполнитель альбома: nirvana" data-tag-artist="исполнитель: nirvana" data-tag-bit_depth="разрядность: 16 бит" data-tag-bitrate="битрейт: 962 kbps" data-tag-cover="обложка: есть" data-tag-format="формат: flac" data-tag-genre="жанр: grunge" data-tag-lyrics="текст песни: есть" data-tag-sample_rate="частота дискретизации: 44.1 khz" data-tag-size="размер: 30.6 mb" data-tag-tag_completeness="теги: полные" data-tag-title="название: all apologies" data-tag-tracknumber="номер трека: 12" data-tag-year="год: 1993">
+
+            <article class="music-card" data-file-path="D:\Music\Nirvana\In Utero\12 - All Apologies.flac" data-layout-status="ready" data-identity-mismatch="no" data-music-search="12 - all apologies.flac d:\music\nirvana\in utero формат: flac битрейт: 962 kbps разрядность: 16 бит частота дискретизации: 44.1 khz теги: полные обложка: есть текст песни: есть размер: 30.6 mb альбом: in utero исполнитель альбома: nirvana исполнитель: nirvana жанр: grunge название: all apologies год: 1993 номер трека: 12" data-sort-name="12 - all apologies.flac" data-sort-artist="исполнитель: nirvana" data-sort-album="альбом: in utero" data-sort-year="год: 1993" data-sort-format="формат: flac" data-tag-album="альбом: in utero" data-tag-albumartist="исполнитель альбома: nirvana" data-tag-artist="исполнитель: nirvana" data-tag-bit_depth="разрядность: 16 бит" data-tag-bitrate="битрейт: 962 kbps" data-tag-cover="обложка: есть" data-tag-format="формат: flac" data-tag-genre="жанр: grunge" data-tag-lyrics="текст песни: есть" data-tag-sample_rate="частота дискретизации: 44.1 khz" data-tag-size="размер: 30.6 mb" data-tag-tag_completeness="теги: полные" data-tag-title="название: all apologies" data-tag-tracknumber="номер трека: 12" data-tag-year="год: 1993">
+              <button class="music-trash-icon trash-one" type="button" data-file-path="D:\Music\Nirvana\In Utero\12 - All Apologies.flac" title="В корзину" aria-label="В корзину">
+                <svg class="trash-svg" width="512" height="512" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" aria-hidden="true"><path fill="currentColor" d="M166.2-16c-13.3 0-25.3 8.3-30 20.8L120 48H24C10.7 48 0 58.7 0 72s10.7 24 24 24h400c13.3 0 24-10.7 24-24s-10.7-24-24-24h-96L311.8 4.8c-4.7-12.5-16.6-20.8-30-20.8zM32 144v304c0 35.3 28.7 64 64 64h256c35.3 0 64-28.7 64-64V144h-48v304c0 8.8-7.2 16-16 16H96c-8.8 0-16-7.2-16-16V144zm160 72c0-13.3-10.7-24-24-24s-24 10.7-24 24v176c0 13.3 10.7 24 24 24s24-10.7 24-24zm112 0c0-13.3-10.7-24-24-24s-24 10.7-24 24v176c0 13.3 10.7 24 24 24s24-10.7 24-24z"></path></svg>
+              </button>
               <div class="music-card-content">
                 <div class="music-cover music-cover-has" title="Обложка: есть"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NDAiIGhlaWdodD0iNjQwIj4KPHJlY3Qgd2lkdGg9IjY0MCIgaGVpZ2h0PSI2NDAiIGZpbGw9IiM3YzJkMTIiLz4KPGNpcmNsZSBjeD0iNTIwIiBjeT0iMTIwIiByPSIxNTAiIGZpbGw9IiNmZWQ3YWEiIG9wYWNpdHk9Ii4xMiIvPgo8dGV4dCB4PSI0OCIgeT0iNDU1IiBmaWxsPSIjZmVkN2FhIiBmb250LWZhbWlseT0iQXJpYWwsc2Fucy1zZXJpZiIgZm9udC1zaXplPSI2NCIgZm9udC13ZWlnaHQ9IjcwMCI+TklSVkFOQTwvdGV4dD4KPHRleHQgeD0iNDgiIHk9IjUyNSIgZmlsbD0iI2ZlZDdhYSIgZm9udC1mYW1pbHk9IkFyaWFsLHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iNDIiPkluIFV0ZXJvPC90ZXh0Pgo8dGV4dCB4PSI1MCIgeT0iNTc1IiBmaWxsPSIjZmVkN2FhIiBvcGFjaXR5PSIuNyIgZm9udC1mYW1pbHk9IkFyaWFsLHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMjQiPkRFTU8gwrcgMTk5MzwvdGV4dD4KPC9zdmc+" alt="Обложка трека 12 - All Apologies.flac" loading="lazy"></div>
                 <div class="music-card-main">
@@ -1223,11 +1313,14 @@
                   <div class="music-path" title="D:\Music\Nirvana\In Utero\12 - All Apologies.flac">D:\Music\Nirvana\In Utero</div>
                   <div class="audio-player-wrap"><div class="custom-audio-player"><audio class="audio-player" preload="none" src="/api/audio?file=D%3A%5CMusic%5CNirvana%5CIn%20Utero%5C12%20-%20All%20Apologies.flac">Прослушать 12 - All Apologies.flac</audio><button class="audio-play" type="button" aria-label="Прослушать 12 - All Apologies.flac"><span class="audio-play-icon" aria-hidden="true"></span></button><div class="audio-time audio-current">0:00</div><div class="audio-seek-wrap"><div class="audio-seek-track"><span class="audio-seek-fill"></span></div><input class="audio-seek" type="range" min="0" max="1000" value="0" step="1" aria-label="Позиция воспроизведения"></div><button class="audio-mute" type="button" aria-label="Выключить звук"><svg class="audio-volume-icon audio-volume-on" viewBox="0 0 24 24" aria-hidden="true"><path class="audio-speaker" d="M4 9v6h4l5 4V5L8 9H4z"></path><path class="audio-volume-mark" d="M16 9.5c1.2 1.2 1.2 3.8 0 5"></path></svg><svg class="audio-volume-icon audio-volume-off" viewBox="0 0 24 24" aria-hidden="true"><path class="audio-speaker" d="M3.5 9v6h4l5 4V5l-5 4h-4z"></path><path class="audio-volume-mark" d="M15.5 9l5 6m0-6l-5 6"></path></svg></button></div></div>
                   <div class="music-pills"><span class="music-pill music-pill-format">формат: FLAC</span><span class="music-pill music-pill-bitrate">битрейт: 962 kbps</span><span class="music-pill music-pill-bit_depth">разрядность: 16 бит</span><span class="music-pill music-pill-sample_rate">частота дискретизации: 44.1 kHz</span><span class="music-pill music-pill-tag_completeness">теги: полные</span><span class="music-pill music-pill-cover">обложка: есть</span><span class="music-pill music-pill-lyrics">текст песни: есть</span><span class="music-pill music-pill-size">размер: 30.6 MB</span><span class="music-pill music-pill-album">альбом: In Utero</span><span class="music-pill music-pill-albumartist">исполнитель альбома: Nirvana</span><span class="music-pill music-pill-artist">исполнитель: Nirvana</span><span class="music-pill music-pill-genre">жанр: Grunge</span><span class="music-pill music-pill-title">название: All Apologies</span><span class="music-pill music-pill-year">год: 1993</span><span class="music-pill music-pill-tracknumber">номер трека: 12</span></div>
+
                   <div class="music-actions">
-                    <button class="small music-action-single" type="button" data-action="tag" data-file-path="D:\Music\Nirvana\In Utero\12 - All Apologies.flac">Проставить теги</button>
+                    <button class="small music-action-single" type="button" data-action="tag" data-file-path="D:\Music\Nirvana\In Utero\12 - All Apologies.flac">Теги через beets</button>
+                    <button class="small music-action-single" type="button" data-action="shazam-tag" data-file-path="D:\Music\Nirvana\In Utero\12 - All Apologies.flac">Теги через Shazam</button>
                     <button class="small music-action-single" type="button" data-action="layout" data-file-path="D:\Music\Nirvana\In Utero\12 - All Apologies.flac">Разложить по папкам</button>
+                    <button class="small enrichment-button" type="button" data-kind="cover" data-file-path="D:\Music\Nirvana\In Utero\12 - All Apologies.flac" disabled aria-disabled="true" title="Обложка уже есть">Найти обложку</button>
+                    <button class="small enrichment-button" type="button" data-kind="lyrics" data-file-path="D:\Music\Nirvana\In Utero\12 - All Apologies.flac" disabled aria-disabled="true" title="Текст уже есть">Найти текст</button>
                     <button class="small lyrics-button" type="button" data-file-path="D:\Music\Nirvana\In Utero\12 - All Apologies.flac" data-track-name="12 - All Apologies.flac">Текст песни</button>
-                    <button class="small danger-button trash-one" type="button" data-file-path="D:\Music\Nirvana\In Utero\12 - All Apologies.flac">В корзину</button>
                   </div>
                   <div class="music-card-status" aria-live="polite">
                     <div class="music-card-status-text"></div>
@@ -1271,7 +1364,7 @@
     </div>
   </div>
 
-  <script id="payload" type="application/json">{&quot;summary&quot;: {&quot;groups&quot;: 0, &quot;duplicates&quot;: 0, &quot;review_groups&quot;: 0, &quot;review_files&quot;: 0}, &quot;library&quot;: {&quot;enabled&quot;: true, &quot;path&quot;: &quot;D:\\Music\\Nirvana (демонстрационный пример)&quot;, &quot;total_files&quot;: 10, &quot;audio_files&quot;: 10, &quot;albums&quot;: 3, &quot;artists&quot;: 1, &quot;formats&quot;: {&quot;FLAC&quot;: 10}, &quot;top_artists&quot;: [[&quot;Nirvana&quot;, 10]], &quot;genres&quot;: {&quot;Alternative Rock&quot;: 4, &quot;Grunge&quot;: 5, &quot;Acoustic Rock&quot;: 1}, &quot;years&quot;: {&quot;1989&quot;: 2, &quot;1991&quot;: 6, &quot;1993&quot;: 2}, &quot;unreadable_files&quot;: 0, &quot;files_with_cover&quot;: 10, &quot;files_with_lyrics&quot;: 10, &quot;tracks&quot;: [{&quot;name&quot;: &quot;03 - About a Girl.flac&quot;, &quot;path&quot;: &quot;D:\\Music\\Nirvana\\Bleach\\03 - About a Girl.flac&quot;, &quot;folder&quot;: &quot;D:\\Music\\Nirvana\\Bleach&quot;, &quot;tags&quot;: [{&quot;label&quot;: &quot;формат&quot;, &quot;value&quot;: &quot;FLAC&quot;, &quot;kind&quot;: &quot;format&quot;}, {&quot;label&quot;: &quot;битрейт&quot;, &quot;value&quot;: &quot;921 kbps&quot;, &quot;kind&quot;: &quot;bitrate&quot;}, {&quot;label&quot;: &quot;разрядность&quot;, &quot;value&quot;: &quot;16 бит&quot;, &quot;kind&quot;: &quot;bit_depth&quot;}, {&quot;label&quot;: &quot;частота дискретизации&quot;, &quot;value&quot;: &quot;44.1 kHz&quot;, &quot;kind&quot;: &quot;sample_rate&quot;}, {&quot;label&quot;: &quot;теги&quot;, &quot;value&quot;: &quot;полные&quot;, &quot;kind&quot;: &quot;tag_completeness&quot;}, {&quot;label&quot;: &quot;обложка&quot;, &quot;value&quot;: &quot;есть&quot;, &quot;kind&quot;: &quot;cover&quot;}, {&quot;label&quot;: &quot;текст песни&quot;, &quot;value&quot;: &quot;есть&quot;, &quot;kind&quot;: &quot;lyrics&quot;}, {&quot;label&quot;: &quot;размер&quot;, &quot;value&quot;: &quot;26.8 MB&quot;, &quot;kind&quot;: &quot;size&quot;}, {&quot;label&quot;: &quot;альбом&quot;, &quot;value&quot;: &quot;Bleach&quot;, &quot;kind&quot;: &quot;album&quot;}, {&quot;label&quot;: &quot;исполнитель альбома&quot;, &quot;value&quot;: &quot;Nirvana&quot;, &quot;kind&quot;: &quot;albumartist&quot;}, {&quot;label&quot;: &quot;исполнитель&quot;, &quot;value&quot;: &quot;Nirvana&quot;, &quot;kind&quot;: &quot;artist&quot;}, {&quot;label&quot;: &quot;жанр&quot;, &quot;value&quot;: &quot;Alternative Rock&quot;, &quot;kind&quot;: &quot;genre&quot;}, {&quot;label&quot;: &quot;название&quot;, &quot;value&quot;: &quot;About a Girl&quot;, &quot;kind&quot;: &quot;title&quot;}, {&quot;label&quot;: &quot;год&quot;, &quot;value&quot;: &quot;1989&quot;, &quot;kind&quot;: &quot;year&quot;}, {&quot;label&quot;: &quot;номер трека&quot;, &quot;value&quot;: &quot;3&quot;, &quot;kind&quot;: &quot;tracknumber&quot;}], &quot;has_cover&quot;: true, &quot;cover_data_uri&quot;: &quot;data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NDAiIGhlaWdodD0iNjQwIj4KPHJlY3Qgd2lkdGg9IjY0MCIgaGVpZ2h0PSI2NDAiIGZpbGw9IiMxMTE4MjciLz4KPGNpcmNsZSBjeD0iNTIwIiBjeT0iMTIwIiByPSIxNTAiIGZpbGw9IiNkMWQ1ZGIiIG9wYWNpdHk9Ii4xMiIvPgo8dGV4dCB4PSI0OCIgeT0iNDU1IiBmaWxsPSIjZDFkNWRiIiBmb250LWZhbWlseT0iQXJpYWwsc2Fucy1zZXJpZiIgZm9udC1zaXplPSI2NCIgZm9udC13ZWlnaHQ9IjcwMCI+TklSVkFOQTwvdGV4dD4KPHRleHQgeD0iNDgiIHk9IjUyNSIgZmlsbD0iI2QxZDVkYiIgZm9udC1mYW1pbHk9IkFyaWFsLHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iNDIiPkJsZWFjaDwvdGV4dD4KPHRleHQgeD0iNTAiIHk9IjU3NSIgZmlsbD0iI2QxZDVkYiIgb3BhY2l0eT0iLjciIGZvbnQtZmFtaWx5PSJBcmlhbCxzYW5zLXNlcmlmIiBmb250LXNpemU9IjI0Ij5ERU1PIMK3IDE5ODk8L3RleHQ+Cjwvc3ZnPg==&quot;, &quot;cover_url&quot;: &quot;&quot;}, {&quot;name&quot;: &quot;04 - School.flac&quot;, &quot;path&quot;: &quot;D:\\Music\\Nirvana\\Bleach\\04 - School.flac&quot;, &quot;folder&quot;: &quot;D:\\Music\\Nirvana\\Bleach&quot;, &quot;tags&quot;: [{&quot;label&quot;: &quot;формат&quot;, &quot;value&quot;: &quot;FLAC&quot;, &quot;kind&quot;: &quot;format&quot;}, {&quot;label&quot;: &quot;битрейт&quot;, &quot;value&quot;: &quot;948 kbps&quot;, &quot;kind&quot;: &quot;bitrate&quot;}, {&quot;label&quot;: &quot;разрядность&quot;, &quot;value&quot;: &quot;16 бит&quot;, &quot;kind&quot;: &quot;bit_depth&quot;}, {&quot;label&quot;: &quot;частота дискретизации&quot;, &quot;value&quot;: &quot;44.1 kHz&quot;, &quot;kind&quot;: &quot;sample_rate&quot;}, {&quot;label&quot;: &quot;теги&quot;, &quot;value&quot;: &quot;полные&quot;, &quot;kind&quot;: &quot;tag_completeness&quot;}, {&quot;label&quot;: &quot;обложка&quot;, &quot;value&quot;: &quot;есть&quot;, &quot;kind&quot;: &quot;cover&quot;}, {&quot;label&quot;: &quot;текст песни&quot;, &quot;value&quot;: &quot;есть&quot;, &quot;kind&quot;: &quot;lyrics&quot;}, {&quot;label&quot;: &quot;размер&quot;, &quot;value&quot;: &quot;27.5 MB&quot;, &quot;kind&quot;: &quot;size&quot;}, {&quot;label&quot;: &quot;альбом&quot;, &quot;value&quot;: &quot;Bleach&quot;, &quot;kind&quot;: &quot;album&quot;}, {&quot;label&quot;: &quot;исполнитель альбома&quot;, &quot;value&quot;: &quot;Nirvana&quot;, &quot;kind&quot;: &quot;albumartist&quot;}, {&quot;label&quot;: &quot;исполнитель&quot;, &quot;value&quot;: &quot;Nirvana&quot;, &quot;kind&quot;: &quot;artist&quot;}, {&quot;label&quot;: &quot;жанр&quot;, &quot;value&quot;: &quot;Grunge&quot;, &quot;kind&quot;: &quot;genre&quot;}, {&quot;label&quot;: &quot;название&quot;, &quot;value&quot;: &quot;School&quot;, &quot;kind&quot;: &quot;title&quot;}, {&quot;label&quot;: &quot;год&quot;, &quot;value&quot;: &quot;1989&quot;, &quot;kind&quot;: &quot;year&quot;}, {&quot;label&quot;: &quot;номер трека&quot;, &quot;value&quot;: &quot;4&quot;, &quot;kind&quot;: &quot;tracknumber&quot;}], &quot;has_cover&quot;: true, &quot;cover_data_uri&quot;: &quot;data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NDAiIGhlaWdodD0iNjQwIj4KPHJlY3Qgd2lkdGg9IjY0MCIgaGVpZ2h0PSI2NDAiIGZpbGw9IiMxMTE4MjciLz4KPGNpcmNsZSBjeD0iNTIwIiBjeT0iMTIwIiByPSIxNTAiIGZpbGw9IiNkMWQ1ZGIiIG9wYWNpdHk9Ii4xMiIvPgo8dGV4dCB4PSI0OCIgeT0iNDU1IiBmaWxsPSIjZDFkNWRiIiBmb250LWZhbWlseT0iQXJpYWwsc2Fucy1zZXJpZiIgZm9udC1zaXplPSI2NCIgZm9udC13ZWlnaHQ9IjcwMCI+TklSVkFOQTwvdGV4dD4KPHRleHQgeD0iNDgiIHk9IjUyNSIgZmlsbD0iI2QxZDVkYiIgZm9udC1mYW1pbHk9IkFyaWFsLHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iNDIiPkJsZWFjaDwvdGV4dD4KPHRleHQgeD0iNTAiIHk9IjU3NSIgZmlsbD0iI2QxZDVkYiIgb3BhY2l0eT0iLjciIGZvbnQtZmFtaWx5PSJBcmlhbCxzYW5zLXNlcmlmIiBmb250LXNpemU9IjI0Ij5ERU1PIMK3IDE5ODk8L3RleHQ+Cjwvc3ZnPg==&quot;, &quot;cover_url&quot;: &quot;&quot;}, {&quot;name&quot;: &quot;01 - Smells Like Teen Spirit.flac&quot;, &quot;path&quot;: &quot;D:\\Music\\Nirvana\\Nevermind\\01 - Smells Like Teen Spirit.flac&quot;, &quot;folder&quot;: &quot;D:\\Music\\Nirvana\\Nevermind&quot;, &quot;tags&quot;: [{&quot;label&quot;: &quot;формат&quot;, &quot;value&quot;: &quot;FLAC&quot;, &quot;kind&quot;: &quot;format&quot;}, {&quot;label&quot;: &quot;битрейт&quot;, &quot;value&quot;: &quot;1012 kbps&quot;, &quot;kind&quot;: &quot;bitrate&quot;}, {&quot;label&quot;: &quot;разрядность&quot;, &quot;value&quot;: &quot;16 бит&quot;, &quot;kind&quot;: &quot;bit_depth&quot;}, {&quot;label&quot;: &quot;частота дискретизации&quot;, &quot;value&quot;: &quot;44.1 kHz&quot;, &quot;kind&quot;: &quot;sample_rate&quot;}, {&quot;label&quot;: &quot;теги&quot;, &quot;value&quot;: &quot;полные&quot;, &quot;kind&quot;: &quot;tag_completeness&quot;}, {&quot;label&quot;: &quot;обложка&quot;, &quot;value&quot;: &quot;есть&quot;, &quot;kind&quot;: &quot;cover&quot;}, {&quot;label&quot;: &quot;текст песни&quot;, &quot;value&quot;: &quot;есть&quot;, &quot;kind&quot;: &quot;lyrics&quot;}, {&quot;label&quot;: &quot;размер&quot;, &quot;value&quot;: &quot;36.4 MB&quot;, &quot;kind&quot;: &quot;size&quot;}, {&quot;label&quot;: &quot;альбом&quot;, &quot;value&quot;: &quot;Nevermind&quot;, &quot;kind&quot;: &quot;album&quot;}, {&quot;label&quot;: &quot;исполнитель альбома&quot;, &quot;value&quot;: &quot;Nirvana&quot;, &quot;kind&quot;: &quot;albumartist&quot;}, {&quot;label&quot;: &quot;исполнитель&quot;, &quot;value&quot;: &quot;Nirvana&quot;, &quot;kind&quot;: &quot;artist&quot;}, {&quot;label&quot;: &quot;жанр&quot;, &quot;value&quot;: &quot;Grunge&quot;, &quot;kind&quot;: &quot;genre&quot;}, {&quot;label&quot;: &quot;название&quot;, &quot;value&quot;: &quot;Smells Like Teen Spirit&quot;, &quot;kind&quot;: &quot;title&quot;}, {&quot;label&quot;: &quot;год&quot;, &quot;value&quot;: &quot;1991&quot;, &quot;kind&quot;: &quot;year&quot;}, {&quot;label&quot;: &quot;номер трека&quot;, &quot;value&quot;: &quot;1&quot;, &quot;kind&quot;: &quot;tracknumber&quot;}], &quot;has_cover&quot;: true, &quot;cover_data_uri&quot;: &quot;data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NDAiIGhlaWdodD0iNjQwIj4KPHJlY3Qgd2lkdGg9IjY0MCIgaGVpZ2h0PSI2NDAiIGZpbGw9IiMwNzU5ODUiLz4KPGNpcmNsZSBjeD0iNTIwIiBjeT0iMTIwIiByPSIxNTAiIGZpbGw9IiNiYWU2ZmQiIG9wYWNpdHk9Ii4xMiIvPgo8dGV4dCB4PSI0OCIgeT0iNDU1IiBmaWxsPSIjYmFlNmZkIiBmb250LWZhbWlseT0iQXJpYWwsc2Fucy1zZXJpZiIgZm9udC1zaXplPSI2NCIgZm9udC13ZWlnaHQ9IjcwMCI+TklSVkFOQTwvdGV4dD4KPHRleHQgeD0iNDgiIHk9IjUyNSIgZmlsbD0iI2JhZTZmZCIgZm9udC1mYW1pbHk9IkFyaWFsLHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iNDIiPk5ldmVybWluZDwvdGV4dD4KPHRleHQgeD0iNTAiIHk9IjU3NSIgZmlsbD0iI2JhZTZmZCIgb3BhY2l0eT0iLjciIGZvbnQtZmFtaWx5PSJBcmlhbCxzYW5zLXNlcmlmIiBmb250LXNpemU9IjI0Ij5ERU1PIMK3IDE5OTE8L3RleHQ+Cjwvc3ZnPg==&quot;, &quot;cover_url&quot;: &quot;&quot;}, {&quot;name&quot;: &quot;02 - In Bloom.flac&quot;, &quot;path&quot;: &quot;D:\\Music\\Nirvana\\Nevermind\\02 - In Bloom.flac&quot;, &quot;folder&quot;: &quot;D:\\Music\\Nirvana\\Nevermind&quot;, &quot;tags&quot;: [{&quot;label&quot;: &quot;формат&quot;, &quot;value&quot;: &quot;FLAC&quot;, &quot;kind&quot;: &quot;format&quot;}, {&quot;label&quot;: &quot;битрейт&quot;, &quot;value&quot;: &quot;987 kbps&quot;, &quot;kind&quot;: &quot;bitrate&quot;}, {&quot;label&quot;: &quot;разрядность&quot;, &quot;value&quot;: &quot;16 бит&quot;, &quot;kind&quot;: &quot;bit_depth&quot;}, {&quot;label&quot;: &quot;частота дискретизации&quot;, &quot;value&quot;: &quot;44.1 kHz&quot;, &quot;kind&quot;: &quot;sample_rate&quot;}, {&quot;label&quot;: &quot;теги&quot;, &quot;value&quot;: &quot;полные&quot;, &quot;kind&quot;: &quot;tag_completeness&quot;}, {&quot;label&quot;: &quot;обложка&quot;, &quot;value&quot;: &quot;есть&quot;, &quot;kind&quot;: &quot;cover&quot;}, {&quot;label&quot;: &quot;текст песни&quot;, &quot;value&quot;: &quot;есть&quot;, &quot;kind&quot;: &quot;lyrics&quot;}, {&quot;label&quot;: &quot;размер&quot;, &quot;value&quot;: &quot;33.1 MB&quot;, &quot;kind&quot;: &quot;size&quot;}, {&quot;label&quot;: &quot;альбом&quot;, &quot;value&quot;: &quot;Nevermind&quot;, &quot;kind&quot;: &quot;album&quot;}, {&quot;label&quot;: &quot;исполнитель альбома&quot;, &quot;value&quot;: &quot;Nirvana&quot;, &quot;kind&quot;: &quot;albumartist&quot;}, {&quot;label&quot;: &quot;исполнитель&quot;, &quot;value&quot;: &quot;Nirvana&quot;, &quot;kind&quot;: &quot;artist&quot;}, {&quot;label&quot;: &quot;жанр&quot;, &quot;value&quot;: &quot;Alternative Rock&quot;, &quot;kind&quot;: &quot;genre&quot;}, {&quot;label&quot;: &quot;название&quot;, &quot;value&quot;: &quot;In Bloom&quot;, &quot;kind&quot;: &quot;title&quot;}, {&quot;label&quot;: &quot;год&quot;, &quot;value&quot;: &quot;1991&quot;, &quot;kind&quot;: &quot;year&quot;}, {&quot;label&quot;: &quot;номер трека&quot;, &quot;value&quot;: &quot;2&quot;, &quot;kind&quot;: &quot;tracknumber&quot;}], &quot;has_cover&quot;: true, &quot;cover_data_uri&quot;: &quot;data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NDAiIGhlaWdodD0iNjQwIj4KPHJlY3Qgd2lkdGg9IjY0MCIgaGVpZ2h0PSI2NDAiIGZpbGw9IiMwNzU5ODUiLz4KPGNpcmNsZSBjeD0iNTIwIiBjeT0iMTIwIiByPSIxNTAiIGZpbGw9IiNiYWU2ZmQiIG9wYWNpdHk9Ii4xMiIvPgo8dGV4dCB4PSI0OCIgeT0iNDU1IiBmaWxsPSIjYmFlNmZkIiBmb250LWZhbWlseT0iQXJpYWwsc2Fucy1zZXJpZiIgZm9udC1zaXplPSI2NCIgZm9udC13ZWlnaHQ9IjcwMCI+TklSVkFOQTwvdGV4dD4KPHRleHQgeD0iNDgiIHk9IjUyNSIgZmlsbD0iI2JhZTZmZCIgZm9udC1mYW1pbHk9IkFyaWFsLHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iNDIiPk5ldmVybWluZDwvdGV4dD4KPHRleHQgeD0iNTAiIHk9IjU3NSIgZmlsbD0iI2JhZTZmZCIgb3BhY2l0eT0iLjciIGZvbnQtZmFtaWx5PSJBcmlhbCxzYW5zLXNlcmlmIiBmb250LXNpemU9IjI0Ij5ERU1PIMK3IDE5OTE8L3RleHQ+Cjwvc3ZnPg==&quot;, &quot;cover_url&quot;: &quot;&quot;}, {&quot;name&quot;: &quot;03 - Come as You Are.flac&quot;, &quot;path&quot;: &quot;D:\\Music\\Nirvana\\Nevermind\\03 - Come as You Are.flac&quot;, &quot;folder&quot;: &quot;D:\\Music\\Nirvana\\Nevermind&quot;, &quot;tags&quot;: [{&quot;label&quot;: &quot;формат&quot;, &quot;value&quot;: &quot;FLAC&quot;, &quot;kind&quot;: &quot;format&quot;}, {&quot;label&quot;: &quot;битрейт&quot;, &quot;value&quot;: &quot;934 kbps&quot;, &quot;kind&quot;: &quot;bitrate&quot;}, {&quot;label&quot;: &quot;разрядность&quot;, &quot;value&quot;: &quot;16 бит&quot;, &quot;kind&quot;: &quot;bit_depth&quot;}, {&quot;label&quot;: &quot;частота дискретизации&quot;, &quot;value&quot;: &quot;44.1 kHz&quot;, &quot;kind&quot;: &quot;sample_rate&quot;}, {&quot;label&quot;: &quot;теги&quot;, &quot;value&quot;: &quot;полные&quot;, &quot;kind&quot;: &quot;tag_completeness&quot;}, {&quot;label&quot;: &quot;обложка&quot;, &quot;value&quot;: &quot;есть&quot;, &quot;kind&quot;: &quot;cover&quot;}, {&quot;label&quot;: &quot;текст песни&quot;, &quot;value&quot;: &quot;есть&quot;, &quot;kind&quot;: &quot;lyrics&quot;}, {&quot;label&quot;: &quot;размер&quot;, &quot;value&quot;: &quot;28.9 MB&quot;, &quot;kind&quot;: &quot;size&quot;}, {&quot;label&quot;: &quot;альбом&quot;, &quot;value&quot;: &quot;Nevermind&quot;, &quot;kind&quot;: &quot;album&quot;}, {&quot;label&quot;: &quot;исполнитель альбома&quot;, &quot;value&quot;: &quot;Nirvana&quot;, &quot;kind&quot;: &quot;albumartist&quot;}, {&quot;label&quot;: &quot;исполнитель&quot;, &quot;value&quot;: &quot;Nirvana&quot;, &quot;kind&quot;: &quot;artist&quot;}, {&quot;label&quot;: &quot;жанр&quot;, &quot;value&quot;: &quot;Grunge&quot;, &quot;kind&quot;: &quot;genre&quot;}, {&quot;label&quot;: &quot;название&quot;, &quot;value&quot;: &quot;Come as You Are&quot;, &quot;kind&quot;: &quot;title&quot;}, {&quot;label&quot;: &quot;год&quot;, &quot;value&quot;: &quot;1991&quot;, &quot;kind&quot;: &quot;year&quot;}, {&quot;label&quot;: &quot;номер трека&quot;, &quot;value&quot;: &quot;3&quot;, &quot;kind&quot;: &quot;tracknumber&quot;}], &quot;has_cover&quot;: true, &quot;cover_data_uri&quot;: &quot;data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NDAiIGhlaWdodD0iNjQwIj4KPHJlY3Qgd2lkdGg9IjY0MCIgaGVpZ2h0PSI2NDAiIGZpbGw9IiMwNzU5ODUiLz4KPGNpcmNsZSBjeD0iNTIwIiBjeT0iMTIwIiByPSIxNTAiIGZpbGw9IiNiYWU2ZmQiIG9wYWNpdHk9Ii4xMiIvPgo8dGV4dCB4PSI0OCIgeT0iNDU1IiBmaWxsPSIjYmFlNmZkIiBmb250LWZhbWlseT0iQXJpYWwsc2Fucy1zZXJpZiIgZm9udC1zaXplPSI2NCIgZm9udC13ZWlnaHQ9IjcwMCI+TklSVkFOQTwvdGV4dD4KPHRleHQgeD0iNDgiIHk9IjUyNSIgZmlsbD0iI2JhZTZmZCIgZm9udC1mYW1pbHk9IkFyaWFsLHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iNDIiPk5ldmVybWluZDwvdGV4dD4KPHRleHQgeD0iNTAiIHk9IjU3NSIgZmlsbD0iI2JhZTZmZCIgb3BhY2l0eT0iLjciIGZvbnQtZmFtaWx5PSJBcmlhbCxzYW5zLXNlcmlmIiBmb250LXNpemU9IjI0Ij5ERU1PIMK3IDE5OTE8L3RleHQ+Cjwvc3ZnPg==&quot;, &quot;cover_url&quot;: &quot;&quot;}, {&quot;name&quot;: &quot;05 - Lithium.flac&quot;, &quot;path&quot;: &quot;D:\\Music\\Nirvana\\Nevermind\\05 - Lithium.flac&quot;, &quot;folder&quot;: &quot;D:\\Music\\Nirvana\\Nevermind&quot;, &quot;tags&quot;: [{&quot;label&quot;: &quot;формат&quot;, &quot;value&quot;: &quot;FLAC&quot;, &quot;kind&quot;: &quot;format&quot;}, {&quot;label&quot;: &quot;битрейт&quot;, &quot;value&quot;: &quot;976 kbps&quot;, &quot;kind&quot;: &quot;bitrate&quot;}, {&quot;label&quot;: &quot;разрядность&quot;, &quot;value&quot;: &quot;16 бит&quot;, &quot;kind&quot;: &quot;bit_depth&quot;}, {&quot;label&quot;: &quot;частота дискретизации&quot;, &quot;value&quot;: &quot;44.1 kHz&quot;, &quot;kind&quot;: &quot;sample_rate&quot;}, {&quot;label&quot;: &quot;теги&quot;, &quot;value&quot;: &quot;полные&quot;, &quot;kind&quot;: &quot;tag_completeness&quot;}, {&quot;label&quot;: &quot;обложка&quot;, &quot;value&quot;: &quot;есть&quot;, &quot;kind&quot;: &quot;cover&quot;}, {&quot;label&quot;: &quot;текст песни&quot;, &quot;value&quot;: &quot;есть&quot;, &quot;kind&quot;: &quot;lyrics&quot;}, {&quot;label&quot;: &quot;размер&quot;, &quot;value&quot;: &quot;32.2 MB&quot;, &quot;kind&quot;: &quot;size&quot;}, {&quot;label&quot;: &quot;альбом&quot;, &quot;value&quot;: &quot;Nevermind&quot;, &quot;kind&quot;: &quot;album&quot;}, {&quot;label&quot;: &quot;исполнитель альбома&quot;, &quot;value&quot;: &quot;Nirvana&quot;, &quot;kind&quot;: &quot;albumartist&quot;}, {&quot;label&quot;: &quot;исполнитель&quot;, &quot;value&quot;: &quot;Nirvana&quot;, &quot;kind&quot;: &quot;artist&quot;}, {&quot;label&quot;: &quot;жанр&quot;, &quot;value&quot;: &quot;Alternative Rock&quot;, &quot;kind&quot;: &quot;genre&quot;}, {&quot;label&quot;: &quot;название&quot;, &quot;value&quot;: &quot;Lithium&quot;, &quot;kind&quot;: &quot;title&quot;}, {&quot;label&quot;: &quot;год&quot;, &quot;value&quot;: &quot;1991&quot;, &quot;kind&quot;: &quot;year&quot;}, {&quot;label&quot;: &quot;номер трека&quot;, &quot;value&quot;: &quot;5&quot;, &quot;kind&quot;: &quot;tracknumber&quot;}], &quot;has_cover&quot;: true, &quot;cover_data_uri&quot;: &quot;data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NDAiIGhlaWdodD0iNjQwIj4KPHJlY3Qgd2lkdGg9IjY0MCIgaGVpZ2h0PSI2NDAiIGZpbGw9IiMwNzU5ODUiLz4KPGNpcmNsZSBjeD0iNTIwIiBjeT0iMTIwIiByPSIxNTAiIGZpbGw9IiNiYWU2ZmQiIG9wYWNpdHk9Ii4xMiIvPgo8dGV4dCB4PSI0OCIgeT0iNDU1IiBmaWxsPSIjYmFlNmZkIiBmb250LWZhbWlseT0iQXJpYWwsc2Fucy1zZXJpZiIgZm9udC1zaXplPSI2NCIgZm9udC13ZWlnaHQ9IjcwMCI+TklSVkFOQTwvdGV4dD4KPHRleHQgeD0iNDgiIHk9IjUyNSIgZmlsbD0iI2JhZTZmZCIgZm9udC1mYW1pbHk9IkFyaWFsLHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iNDIiPk5ldmVybWluZDwvdGV4dD4KPHRleHQgeD0iNTAiIHk9IjU3NSIgZmlsbD0iI2JhZTZmZCIgb3BhY2l0eT0iLjciIGZvbnQtZmFtaWx5PSJBcmlhbCxzYW5zLXNlcmlmIiBmb250LXNpemU9IjI0Ij5ERU1PIMK3IDE5OTE8L3RleHQ+Cjwvc3ZnPg==&quot;, &quot;cover_url&quot;: &quot;&quot;}, {&quot;name&quot;: &quot;06 - Polly.flac&quot;, &quot;path&quot;: &quot;D:\\Music\\Nirvana\\Nevermind\\06 - Polly.flac&quot;, &quot;folder&quot;: &quot;D:\\Music\\Nirvana\\Nevermind&quot;, &quot;tags&quot;: [{&quot;label&quot;: &quot;формат&quot;, &quot;value&quot;: &quot;FLAC&quot;, &quot;kind&quot;: &quot;format&quot;}, {&quot;label&quot;: &quot;битрейт&quot;, &quot;value&quot;: &quot;812 kbps&quot;, &quot;kind&quot;: &quot;bitrate&quot;}, {&quot;label&quot;: &quot;разрядность&quot;, &quot;value&quot;: &quot;16 бит&quot;, &quot;kind&quot;: &quot;bit_depth&quot;}, {&quot;label&quot;: &quot;частота дискретизации&quot;, &quot;value&quot;: &quot;44.1 kHz&quot;, &quot;kind&quot;: &quot;sample_rate&quot;}, {&quot;label&quot;: &quot;теги&quot;, &quot;value&quot;: &quot;полные&quot;, &quot;kind&quot;: &quot;tag_completeness&quot;}, {&quot;label&quot;: &quot;обложка&quot;, &quot;value&quot;: &quot;есть&quot;, &quot;kind&quot;: &quot;cover&quot;}, {&quot;label&quot;: &quot;текст песни&quot;, &quot;value&quot;: &quot;есть&quot;, &quot;kind&quot;: &quot;lyrics&quot;}, {&quot;label&quot;: &quot;размер&quot;, &quot;value&quot;: &quot;17.7 MB&quot;, &quot;kind&quot;: &quot;size&quot;}, {&quot;label&quot;: &quot;альбом&quot;, &quot;value&quot;: &quot;Nevermind&quot;, &quot;kind&quot;: &quot;album&quot;}, {&quot;label&quot;: &quot;исполнитель альбома&quot;, &quot;value&quot;: &quot;Nirvana&quot;, &quot;kind&quot;: &quot;albumartist&quot;}, {&quot;label&quot;: &quot;исполнитель&quot;, &quot;value&quot;: &quot;Nirvana&quot;, &quot;kind&quot;: &quot;artist&quot;}, {&quot;label&quot;: &quot;жанр&quot;, &quot;value&quot;: &quot;Acoustic Rock&quot;, &quot;kind&quot;: &quot;genre&quot;}, {&quot;label&quot;: &quot;название&quot;, &quot;value&quot;: &quot;Polly&quot;, &quot;kind&quot;: &quot;title&quot;}, {&quot;label&quot;: &quot;год&quot;, &quot;value&quot;: &quot;1991&quot;, &quot;kind&quot;: &quot;year&quot;}, {&quot;label&quot;: &quot;номер трека&quot;, &quot;value&quot;: &quot;6&quot;, &quot;kind&quot;: &quot;tracknumber&quot;}], &quot;has_cover&quot;: true, &quot;cover_data_uri&quot;: &quot;data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NDAiIGhlaWdodD0iNjQwIj4KPHJlY3Qgd2lkdGg9IjY0MCIgaGVpZ2h0PSI2NDAiIGZpbGw9IiMwNzU5ODUiLz4KPGNpcmNsZSBjeD0iNTIwIiBjeT0iMTIwIiByPSIxNTAiIGZpbGw9IiNiYWU2ZmQiIG9wYWNpdHk9Ii4xMiIvPgo8dGV4dCB4PSI0OCIgeT0iNDU1IiBmaWxsPSIjYmFlNmZkIiBmb250LWZhbWlseT0iQXJpYWwsc2Fucy1zZXJpZiIgZm9udC1zaXplPSI2NCIgZm9udC13ZWlnaHQ9IjcwMCI+TklSVkFOQTwvdGV4dD4KPHRleHQgeD0iNDgiIHk9IjUyNSIgZmlsbD0iI2JhZTZmZCIgZm9udC1mYW1pbHk9IkFyaWFsLHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iNDIiPk5ldmVybWluZDwvdGV4dD4KPHRleHQgeD0iNTAiIHk9IjU3NSIgZmlsbD0iI2JhZTZmZCIgb3BhY2l0eT0iLjciIGZvbnQtZmFtaWx5PSJBcmlhbCxzYW5zLXNlcmlmIiBmb250LXNpemU9IjI0Ij5ERU1PIMK3IDE5OTE8L3RleHQ+Cjwvc3ZnPg==&quot;, &quot;cover_url&quot;: &quot;&quot;}, {&quot;name&quot;: &quot;08 - Drain You.flac&quot;, &quot;path&quot;: &quot;D:\\Music\\Nirvana\\Nevermind\\08 - Drain You.flac&quot;, &quot;folder&quot;: &quot;D:\\Music\\Nirvana\\Nevermind&quot;, &quot;tags&quot;: [{&quot;label&quot;: &quot;формат&quot;, &quot;value&quot;: &quot;FLAC&quot;, &quot;kind&quot;: &quot;format&quot;}, {&quot;label&quot;: &quot;битрейт&quot;, &quot;value&quot;: &quot;995 kbps&quot;, &quot;kind&quot;: &quot;bitrate&quot;}, {&quot;label&quot;: &quot;разрядность&quot;, &quot;value&quot;: &quot;16 бит&quot;, &quot;kind&quot;: &quot;bit_depth&quot;}, {&quot;label&quot;: &quot;частота дискретизации&quot;, &quot;value&quot;: &quot;44.1 kHz&quot;, &quot;kind&quot;: &quot;sample_rate&quot;}, {&quot;label&quot;: &quot;теги&quot;, &quot;value&quot;: &quot;полные&quot;, &quot;kind&quot;: &quot;tag_completeness&quot;}, {&quot;label&quot;: &quot;обложка&quot;, &quot;value&quot;: &quot;есть&quot;, &quot;kind&quot;: &quot;cover&quot;}, {&quot;label&quot;: &quot;текст песни&quot;, &quot;value&quot;: &quot;есть&quot;, &quot;kind&quot;: &quot;lyrics&quot;}, {&quot;label&quot;: &quot;размер&quot;, &quot;value&quot;: &quot;31.8 MB&quot;, &quot;kind&quot;: &quot;size&quot;}, {&quot;label&quot;: &quot;альбом&quot;, &quot;value&quot;: &quot;Nevermind&quot;, &quot;kind&quot;: &quot;album&quot;}, {&quot;label&quot;: &quot;исполнитель альбома&quot;, &quot;value&quot;: &quot;Nirvana&quot;, &quot;kind&quot;: &quot;albumartist&quot;}, {&quot;label&quot;: &quot;исполнитель&quot;, &quot;value&quot;: &quot;Nirvana&quot;, &quot;kind&quot;: &quot;artist&quot;}, {&quot;label&quot;: &quot;жанр&quot;, &quot;value&quot;: &quot;Grunge&quot;, &quot;kind&quot;: &quot;genre&quot;}, {&quot;label&quot;: &quot;название&quot;, &quot;value&quot;: &quot;Drain You&quot;, &quot;kind&quot;: &quot;title&quot;}, {&quot;label&quot;: &quot;год&quot;, &quot;value&quot;: &quot;1991&quot;, &quot;kind&quot;: &quot;year&quot;}, {&quot;label&quot;: &quot;номер трека&quot;, &quot;value&quot;: &quot;8&quot;, &quot;kind&quot;: &quot;tracknumber&quot;}], &quot;has_cover&quot;: true, &quot;cover_data_uri&quot;: &quot;data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NDAiIGhlaWdodD0iNjQwIj4KPHJlY3Qgd2lkdGg9IjY0MCIgaGVpZ2h0PSI2NDAiIGZpbGw9IiMwNzU5ODUiLz4KPGNpcmNsZSBjeD0iNTIwIiBjeT0iMTIwIiByPSIxNTAiIGZpbGw9IiNiYWU2ZmQiIG9wYWNpdHk9Ii4xMiIvPgo8dGV4dCB4PSI0OCIgeT0iNDU1IiBmaWxsPSIjYmFlNmZkIiBmb250LWZhbWlseT0iQXJpYWwsc2Fucy1zZXJpZiIgZm9udC1zaXplPSI2NCIgZm9udC13ZWlnaHQ9IjcwMCI+TklSVkFOQTwvdGV4dD4KPHRleHQgeD0iNDgiIHk9IjUyNSIgZmlsbD0iI2JhZTZmZCIgZm9udC1mYW1pbHk9IkFyaWFsLHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iNDIiPk5ldmVybWluZDwvdGV4dD4KPHRleHQgeD0iNTAiIHk9IjU3NSIgZmlsbD0iI2JhZTZmZCIgb3BhY2l0eT0iLjciIGZvbnQtZmFtaWx5PSJBcmlhbCxzYW5zLXNlcmlmIiBmb250LXNpemU9IjI0Ij5ERU1PIMK3IDE5OTE8L3RleHQ+Cjwvc3ZnPg==&quot;, &quot;cover_url&quot;: &quot;&quot;}, {&quot;name&quot;: &quot;03 - Heart-Shaped Box.flac&quot;, &quot;path&quot;: &quot;D:\\Music\\Nirvana\\In Utero\\03 - Heart-Shaped Box.flac&quot;, &quot;folder&quot;: &quot;D:\\Music\\Nirvana\\In Utero&quot;, &quot;tags&quot;: [{&quot;label&quot;: &quot;формат&quot;, &quot;value&quot;: &quot;FLAC&quot;, &quot;kind&quot;: &quot;format&quot;}, {&quot;label&quot;: &quot;битрейт&quot;, &quot;value&quot;: &quot;1038 kbps&quot;, &quot;kind&quot;: &quot;bitrate&quot;}, {&quot;label&quot;: &quot;разрядность&quot;, &quot;value&quot;: &quot;16 бит&quot;, &quot;kind&quot;: &quot;bit_depth&quot;}, {&quot;label&quot;: &quot;частота дискретизации&quot;, &quot;value&quot;: &quot;44.1 kHz&quot;, &quot;kind&quot;: &quot;sample_rate&quot;}, {&quot;label&quot;: &quot;теги&quot;, &quot;value&quot;: &quot;полные&quot;, &quot;kind&quot;: &quot;tag_completeness&quot;}, {&quot;label&quot;: &quot;обложка&quot;, &quot;value&quot;: &quot;есть&quot;, &quot;kind&quot;: &quot;cover&quot;}, {&quot;label&quot;: &quot;текст песни&quot;, &quot;value&quot;: &quot;есть&quot;, &quot;kind&quot;: &quot;lyrics&quot;}, {&quot;label&quot;: &quot;размер&quot;, &quot;value&quot;: &quot;35.7 MB&quot;, &quot;kind&quot;: &quot;size&quot;}, {&quot;label&quot;: &quot;альбом&quot;, &quot;value&quot;: &quot;In Utero&quot;, &quot;kind&quot;: &quot;album&quot;}, {&quot;label&quot;: &quot;исполнитель альбома&quot;, &quot;value&quot;: &quot;Nirvana&quot;, &quot;kind&quot;: &quot;albumartist&quot;}, {&quot;label&quot;: &quot;исполнитель&quot;, &quot;value&quot;: &quot;Nirvana&quot;, &quot;kind&quot;: &quot;artist&quot;}, {&quot;label&quot;: &quot;жанр&quot;, &quot;value&quot;: &quot;Alternative Rock&quot;, &quot;kind&quot;: &quot;genre&quot;}, {&quot;label&quot;: &quot;название&quot;, &quot;value&quot;: &quot;Heart-Shaped Box&quot;, &quot;kind&quot;: &quot;title&quot;}, {&quot;label&quot;: &quot;год&quot;, &quot;value&quot;: &quot;1993&quot;, &quot;kind&quot;: &quot;year&quot;}, {&quot;label&quot;: &quot;номер трека&quot;, &quot;value&quot;: &quot;3&quot;, &quot;kind&quot;: &quot;tracknumber&quot;}], &quot;has_cover&quot;: true, &quot;cover_data_uri&quot;: &quot;data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NDAiIGhlaWdodD0iNjQwIj4KPHJlY3Qgd2lkdGg9IjY0MCIgaGVpZ2h0PSI2NDAiIGZpbGw9IiM3YzJkMTIiLz4KPGNpcmNsZSBjeD0iNTIwIiBjeT0iMTIwIiByPSIxNTAiIGZpbGw9IiNmZWQ3YWEiIG9wYWNpdHk9Ii4xMiIvPgo8dGV4dCB4PSI0OCIgeT0iNDU1IiBmaWxsPSIjZmVkN2FhIiBmb250LWZhbWlseT0iQXJpYWwsc2Fucy1zZXJpZiIgZm9udC1zaXplPSI2NCIgZm9udC13ZWlnaHQ9IjcwMCI+TklSVkFOQTwvdGV4dD4KPHRleHQgeD0iNDgiIHk9IjUyNSIgZmlsbD0iI2ZlZDdhYSIgZm9udC1mYW1pbHk9IkFyaWFsLHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iNDIiPkluIFV0ZXJvPC90ZXh0Pgo8dGV4dCB4PSI1MCIgeT0iNTc1IiBmaWxsPSIjZmVkN2FhIiBvcGFjaXR5PSIuNyIgZm9udC1mYW1pbHk9IkFyaWFsLHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMjQiPkRFTU8gwrcgMTk5MzwvdGV4dD4KPC9zdmc+&quot;, &quot;cover_url&quot;: &quot;&quot;}, {&quot;name&quot;: &quot;12 - All Apologies.flac&quot;, &quot;path&quot;: &quot;D:\\Music\\Nirvana\\In Utero\\12 - All Apologies.flac&quot;, &quot;folder&quot;: &quot;D:\\Music\\Nirvana\\In Utero&quot;, &quot;tags&quot;: [{&quot;label&quot;: &quot;формат&quot;, &quot;value&quot;: &quot;FLAC&quot;, &quot;kind&quot;: &quot;format&quot;}, {&quot;label&quot;: &quot;битрейт&quot;, &quot;value&quot;: &quot;962 kbps&quot;, &quot;kind&quot;: &quot;bitrate&quot;}, {&quot;label&quot;: &quot;разрядность&quot;, &quot;value&quot;: &quot;16 бит&quot;, &quot;kind&quot;: &quot;bit_depth&quot;}, {&quot;label&quot;: &quot;частота дискретизации&quot;, &quot;value&quot;: &quot;44.1 kHz&quot;, &quot;kind&quot;: &quot;sample_rate&quot;}, {&quot;label&quot;: &quot;теги&quot;, &quot;value&quot;: &quot;полные&quot;, &quot;kind&quot;: &quot;tag_completeness&quot;}, {&quot;label&quot;: &quot;обложка&quot;, &quot;value&quot;: &quot;есть&quot;, &quot;kind&quot;: &quot;cover&quot;}, {&quot;label&quot;: &quot;текст песни&quot;, &quot;value&quot;: &quot;есть&quot;, &quot;kind&quot;: &quot;lyrics&quot;}, {&quot;label&quot;: &quot;размер&quot;, &quot;value&quot;: &quot;30.6 MB&quot;, &quot;kind&quot;: &quot;size&quot;}, {&quot;label&quot;: &quot;альбом&quot;, &quot;value&quot;: &quot;In Utero&quot;, &quot;kind&quot;: &quot;album&quot;}, {&quot;label&quot;: &quot;исполнитель альбома&quot;, &quot;value&quot;: &quot;Nirvana&quot;, &quot;kind&quot;: &quot;albumartist&quot;}, {&quot;label&quot;: &quot;исполнитель&quot;, &quot;value&quot;: &quot;Nirvana&quot;, &quot;kind&quot;: &quot;artist&quot;}, {&quot;label&quot;: &quot;жанр&quot;, &quot;value&quot;: &quot;Grunge&quot;, &quot;kind&quot;: &quot;genre&quot;}, {&quot;label&quot;: &quot;название&quot;, &quot;value&quot;: &quot;All Apologies&quot;, &quot;kind&quot;: &quot;title&quot;}, {&quot;label&quot;: &quot;год&quot;, &quot;value&quot;: &quot;1993&quot;, &quot;kind&quot;: &quot;year&quot;}, {&quot;label&quot;: &quot;номер трека&quot;, &quot;value&quot;: &quot;12&quot;, &quot;kind&quot;: &quot;tracknumber&quot;}], &quot;has_cover&quot;: true, &quot;cover_data_uri&quot;: &quot;data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NDAiIGhlaWdodD0iNjQwIj4KPHJlY3Qgd2lkdGg9IjY0MCIgaGVpZ2h0PSI2NDAiIGZpbGw9IiM3YzJkMTIiLz4KPGNpcmNsZSBjeD0iNTIwIiBjeT0iMTIwIiByPSIxNTAiIGZpbGw9IiNmZWQ3YWEiIG9wYWNpdHk9Ii4xMiIvPgo8dGV4dCB4PSI0OCIgeT0iNDU1IiBmaWxsPSIjZmVkN2FhIiBmb250LWZhbWlseT0iQXJpYWwsc2Fucy1zZXJpZiIgZm9udC1zaXplPSI2NCIgZm9udC13ZWlnaHQ9IjcwMCI+TklSVkFOQTwvdGV4dD4KPHRleHQgeD0iNDgiIHk9IjUyNSIgZmlsbD0iI2ZlZDdhYSIgZm9udC1mYW1pbHk9IkFyaWFsLHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iNDIiPkluIFV0ZXJvPC90ZXh0Pgo8dGV4dCB4PSI1MCIgeT0iNTc1IiBmaWxsPSIjZmVkN2FhIiBvcGFjaXR5PSIuNyIgZm9udC1mYW1pbHk9IkFyaWFsLHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMjQiPkRFTU8gwrcgMTk5MzwvdGV4dD4KPC9zdmc+&quot;, &quot;cover_url&quot;: &quot;&quot;}]}, &quot;groups&quot;: []}</script>
+  <script id="payload" type="application/json">{&quot;summary&quot;: {&quot;groups&quot;: 0, &quot;duplicates&quot;: 0, &quot;review_groups&quot;: 0, &quot;review_files&quot;: 0}, &quot;library&quot;: {&quot;enabled&quot;: true, &quot;path&quot;: &quot;D:\\Music\\Nirvana (демонстрационный пример)&quot;, &quot;total_files&quot;: 10, &quot;audio_files&quot;: 10, &quot;albums&quot;: 3, &quot;artists&quot;: 1, &quot;formats&quot;: {&quot;FLAC&quot;: 10}, &quot;top_artists&quot;: [[&quot;Nirvana&quot;, 10]], &quot;genres&quot;: {&quot;Alternative Rock&quot;: 4, &quot;Grunge&quot;: 5, &quot;Acoustic Rock&quot;: 1}, &quot;years&quot;: {&quot;1989&quot;: 2, &quot;1991&quot;: 6, &quot;1993&quot;: 2}, &quot;unreadable_files&quot;: 0, &quot;files_with_cover&quot;: 10, &quot;files_with_lyrics&quot;: 10, &quot;tracks&quot;: [{&quot;name&quot;: &quot;03 - About a Girl.flac&quot;, &quot;path&quot;: &quot;D:\\Music\\Nirvana\\Bleach\\03 - About a Girl.flac&quot;, &quot;folder&quot;: &quot;D:\\Music\\Nirvana\\Bleach&quot;, &quot;tags&quot;: [{&quot;label&quot;: &quot;формат&quot;, &quot;value&quot;: &quot;FLAC&quot;, &quot;kind&quot;: &quot;format&quot;}, {&quot;label&quot;: &quot;битрейт&quot;, &quot;value&quot;: &quot;921 kbps&quot;, &quot;kind&quot;: &quot;bitrate&quot;}, {&quot;label&quot;: &quot;разрядность&quot;, &quot;value&quot;: &quot;16 бит&quot;, &quot;kind&quot;: &quot;bit_depth&quot;}, {&quot;label&quot;: &quot;частота дискретизации&quot;, &quot;value&quot;: &quot;44.1 kHz&quot;, &quot;kind&quot;: &quot;sample_rate&quot;}, {&quot;label&quot;: &quot;теги&quot;, &quot;value&quot;: &quot;полные&quot;, &quot;kind&quot;: &quot;tag_completeness&quot;}, {&quot;label&quot;: &quot;обложка&quot;, &quot;value&quot;: &quot;есть&quot;, &quot;kind&quot;: &quot;cover&quot;}, {&quot;label&quot;: &quot;текст песни&quot;, &quot;value&quot;: &quot;есть&quot;, &quot;kind&quot;: &quot;lyrics&quot;}, {&quot;label&quot;: &quot;размер&quot;, &quot;value&quot;: &quot;26.8 MB&quot;, &quot;kind&quot;: &quot;size&quot;}, {&quot;label&quot;: &quot;альбом&quot;, &quot;value&quot;: &quot;Bleach&quot;, &quot;kind&quot;: &quot;album&quot;}, {&quot;label&quot;: &quot;исполнитель альбома&quot;, &quot;value&quot;: &quot;Nirvana&quot;, &quot;kind&quot;: &quot;albumartist&quot;}, {&quot;label&quot;: &quot;исполнитель&quot;, &quot;value&quot;: &quot;Nirvana&quot;, &quot;kind&quot;: &quot;artist&quot;}, {&quot;label&quot;: &quot;жанр&quot;, &quot;value&quot;: &quot;Alternative Rock&quot;, &quot;kind&quot;: &quot;genre&quot;}, {&quot;label&quot;: &quot;название&quot;, &quot;value&quot;: &quot;About a Girl&quot;, &quot;kind&quot;: &quot;title&quot;}, {&quot;label&quot;: &quot;год&quot;, &quot;value&quot;: &quot;1989&quot;, &quot;kind&quot;: &quot;year&quot;}, {&quot;label&quot;: &quot;номер трека&quot;, &quot;value&quot;: &quot;3&quot;, &quot;kind&quot;: &quot;tracknumber&quot;}], &quot;has_cover&quot;: true, &quot;cover_data_uri&quot;: &quot;data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NDAiIGhlaWdodD0iNjQwIj4KPHJlY3Qgd2lkdGg9IjY0MCIgaGVpZ2h0PSI2NDAiIGZpbGw9IiMxMTE4MjciLz4KPGNpcmNsZSBjeD0iNTIwIiBjeT0iMTIwIiByPSIxNTAiIGZpbGw9IiNkMWQ1ZGIiIG9wYWNpdHk9Ii4xMiIvPgo8dGV4dCB4PSI0OCIgeT0iNDU1IiBmaWxsPSIjZDFkNWRiIiBmb250LWZhbWlseT0iQXJpYWwsc2Fucy1zZXJpZiIgZm9udC1zaXplPSI2NCIgZm9udC13ZWlnaHQ9IjcwMCI+TklSVkFOQTwvdGV4dD4KPHRleHQgeD0iNDgiIHk9IjUyNSIgZmlsbD0iI2QxZDVkYiIgZm9udC1mYW1pbHk9IkFyaWFsLHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iNDIiPkJsZWFjaDwvdGV4dD4KPHRleHQgeD0iNTAiIHk9IjU3NSIgZmlsbD0iI2QxZDVkYiIgb3BhY2l0eT0iLjciIGZvbnQtZmFtaWx5PSJBcmlhbCxzYW5zLXNlcmlmIiBmb250LXNpemU9IjI0Ij5ERU1PIMK3IDE5ODk8L3RleHQ+Cjwvc3ZnPg==&quot;, &quot;cover_url&quot;: &quot;&quot;, &quot;identity&quot;: {}, &quot;identity_mismatch&quot;: false}, {&quot;name&quot;: &quot;04 - School.flac&quot;, &quot;path&quot;: &quot;D:\\Music\\Nirvana\\Bleach\\04 - School.flac&quot;, &quot;folder&quot;: &quot;D:\\Music\\Nirvana\\Bleach&quot;, &quot;tags&quot;: [{&quot;label&quot;: &quot;формат&quot;, &quot;value&quot;: &quot;FLAC&quot;, &quot;kind&quot;: &quot;format&quot;}, {&quot;label&quot;: &quot;битрейт&quot;, &quot;value&quot;: &quot;948 kbps&quot;, &quot;kind&quot;: &quot;bitrate&quot;}, {&quot;label&quot;: &quot;разрядность&quot;, &quot;value&quot;: &quot;16 бит&quot;, &quot;kind&quot;: &quot;bit_depth&quot;}, {&quot;label&quot;: &quot;частота дискретизации&quot;, &quot;value&quot;: &quot;44.1 kHz&quot;, &quot;kind&quot;: &quot;sample_rate&quot;}, {&quot;label&quot;: &quot;теги&quot;, &quot;value&quot;: &quot;полные&quot;, &quot;kind&quot;: &quot;tag_completeness&quot;}, {&quot;label&quot;: &quot;обложка&quot;, &quot;value&quot;: &quot;есть&quot;, &quot;kind&quot;: &quot;cover&quot;}, {&quot;label&quot;: &quot;текст песни&quot;, &quot;value&quot;: &quot;есть&quot;, &quot;kind&quot;: &quot;lyrics&quot;}, {&quot;label&quot;: &quot;размер&quot;, &quot;value&quot;: &quot;27.5 MB&quot;, &quot;kind&quot;: &quot;size&quot;}, {&quot;label&quot;: &quot;альбом&quot;, &quot;value&quot;: &quot;Bleach&quot;, &quot;kind&quot;: &quot;album&quot;}, {&quot;label&quot;: &quot;исполнитель альбома&quot;, &quot;value&quot;: &quot;Nirvana&quot;, &quot;kind&quot;: &quot;albumartist&quot;}, {&quot;label&quot;: &quot;исполнитель&quot;, &quot;value&quot;: &quot;Nirvana&quot;, &quot;kind&quot;: &quot;artist&quot;}, {&quot;label&quot;: &quot;жанр&quot;, &quot;value&quot;: &quot;Grunge&quot;, &quot;kind&quot;: &quot;genre&quot;}, {&quot;label&quot;: &quot;название&quot;, &quot;value&quot;: &quot;School&quot;, &quot;kind&quot;: &quot;title&quot;}, {&quot;label&quot;: &quot;год&quot;, &quot;value&quot;: &quot;1989&quot;, &quot;kind&quot;: &quot;year&quot;}, {&quot;label&quot;: &quot;номер трека&quot;, &quot;value&quot;: &quot;4&quot;, &quot;kind&quot;: &quot;tracknumber&quot;}], &quot;has_cover&quot;: true, &quot;cover_data_uri&quot;: &quot;data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NDAiIGhlaWdodD0iNjQwIj4KPHJlY3Qgd2lkdGg9IjY0MCIgaGVpZ2h0PSI2NDAiIGZpbGw9IiMxMTE4MjciLz4KPGNpcmNsZSBjeD0iNTIwIiBjeT0iMTIwIiByPSIxNTAiIGZpbGw9IiNkMWQ1ZGIiIG9wYWNpdHk9Ii4xMiIvPgo8dGV4dCB4PSI0OCIgeT0iNDU1IiBmaWxsPSIjZDFkNWRiIiBmb250LWZhbWlseT0iQXJpYWwsc2Fucy1zZXJpZiIgZm9udC1zaXplPSI2NCIgZm9udC13ZWlnaHQ9IjcwMCI+TklSVkFOQTwvdGV4dD4KPHRleHQgeD0iNDgiIHk9IjUyNSIgZmlsbD0iI2QxZDVkYiIgZm9udC1mYW1pbHk9IkFyaWFsLHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iNDIiPkJsZWFjaDwvdGV4dD4KPHRleHQgeD0iNTAiIHk9IjU3NSIgZmlsbD0iI2QxZDVkYiIgb3BhY2l0eT0iLjciIGZvbnQtZmFtaWx5PSJBcmlhbCxzYW5zLXNlcmlmIiBmb250LXNpemU9IjI0Ij5ERU1PIMK3IDE5ODk8L3RleHQ+Cjwvc3ZnPg==&quot;, &quot;cover_url&quot;: &quot;&quot;, &quot;identity&quot;: {}, &quot;identity_mismatch&quot;: false}, {&quot;name&quot;: &quot;01 - Smells Like Teen Spirit.flac&quot;, &quot;path&quot;: &quot;D:\\Music\\Nirvana\\Nevermind\\01 - Smells Like Teen Spirit.flac&quot;, &quot;folder&quot;: &quot;D:\\Music\\Nirvana\\Nevermind&quot;, &quot;tags&quot;: [{&quot;label&quot;: &quot;формат&quot;, &quot;value&quot;: &quot;FLAC&quot;, &quot;kind&quot;: &quot;format&quot;}, {&quot;label&quot;: &quot;битрейт&quot;, &quot;value&quot;: &quot;1012 kbps&quot;, &quot;kind&quot;: &quot;bitrate&quot;}, {&quot;label&quot;: &quot;разрядность&quot;, &quot;value&quot;: &quot;16 бит&quot;, &quot;kind&quot;: &quot;bit_depth&quot;}, {&quot;label&quot;: &quot;частота дискретизации&quot;, &quot;value&quot;: &quot;44.1 kHz&quot;, &quot;kind&quot;: &quot;sample_rate&quot;}, {&quot;label&quot;: &quot;теги&quot;, &quot;value&quot;: &quot;полные&quot;, &quot;kind&quot;: &quot;tag_completeness&quot;}, {&quot;label&quot;: &quot;обложка&quot;, &quot;value&quot;: &quot;есть&quot;, &quot;kind&quot;: &quot;cover&quot;}, {&quot;label&quot;: &quot;текст песни&quot;, &quot;value&quot;: &quot;есть&quot;, &quot;kind&quot;: &quot;lyrics&quot;}, {&quot;label&quot;: &quot;размер&quot;, &quot;value&quot;: &quot;36.4 MB&quot;, &quot;kind&quot;: &quot;size&quot;}, {&quot;label&quot;: &quot;альбом&quot;, &quot;value&quot;: &quot;Nevermind&quot;, &quot;kind&quot;: &quot;album&quot;}, {&quot;label&quot;: &quot;исполнитель альбома&quot;, &quot;value&quot;: &quot;Nirvana&quot;, &quot;kind&quot;: &quot;albumartist&quot;}, {&quot;label&quot;: &quot;исполнитель&quot;, &quot;value&quot;: &quot;Nirvana&quot;, &quot;kind&quot;: &quot;artist&quot;}, {&quot;label&quot;: &quot;жанр&quot;, &quot;value&quot;: &quot;Grunge&quot;, &quot;kind&quot;: &quot;genre&quot;}, {&quot;label&quot;: &quot;название&quot;, &quot;value&quot;: &quot;Smells Like Teen Spirit&quot;, &quot;kind&quot;: &quot;title&quot;}, {&quot;label&quot;: &quot;год&quot;, &quot;value&quot;: &quot;1991&quot;, &quot;kind&quot;: &quot;year&quot;}, {&quot;label&quot;: &quot;номер трека&quot;, &quot;value&quot;: &quot;1&quot;, &quot;kind&quot;: &quot;tracknumber&quot;}], &quot;has_cover&quot;: true, &quot;cover_data_uri&quot;: &quot;data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NDAiIGhlaWdodD0iNjQwIj4KPHJlY3Qgd2lkdGg9IjY0MCIgaGVpZ2h0PSI2NDAiIGZpbGw9IiMwNzU5ODUiLz4KPGNpcmNsZSBjeD0iNTIwIiBjeT0iMTIwIiByPSIxNTAiIGZpbGw9IiNiYWU2ZmQiIG9wYWNpdHk9Ii4xMiIvPgo8dGV4dCB4PSI0OCIgeT0iNDU1IiBmaWxsPSIjYmFlNmZkIiBmb250LWZhbWlseT0iQXJpYWwsc2Fucy1zZXJpZiIgZm9udC1zaXplPSI2NCIgZm9udC13ZWlnaHQ9IjcwMCI+TklSVkFOQTwvdGV4dD4KPHRleHQgeD0iNDgiIHk9IjUyNSIgZmlsbD0iI2JhZTZmZCIgZm9udC1mYW1pbHk9IkFyaWFsLHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iNDIiPk5ldmVybWluZDwvdGV4dD4KPHRleHQgeD0iNTAiIHk9IjU3NSIgZmlsbD0iI2JhZTZmZCIgb3BhY2l0eT0iLjciIGZvbnQtZmFtaWx5PSJBcmlhbCxzYW5zLXNlcmlmIiBmb250LXNpemU9IjI0Ij5ERU1PIMK3IDE5OTE8L3RleHQ+Cjwvc3ZnPg==&quot;, &quot;cover_url&quot;: &quot;&quot;, &quot;identity&quot;: {}, &quot;identity_mismatch&quot;: false}, {&quot;name&quot;: &quot;02 - In Bloom.flac&quot;, &quot;path&quot;: &quot;D:\\Music\\Nirvana\\Nevermind\\02 - In Bloom.flac&quot;, &quot;folder&quot;: &quot;D:\\Music\\Nirvana\\Nevermind&quot;, &quot;tags&quot;: [{&quot;label&quot;: &quot;формат&quot;, &quot;value&quot;: &quot;FLAC&quot;, &quot;kind&quot;: &quot;format&quot;}, {&quot;label&quot;: &quot;битрейт&quot;, &quot;value&quot;: &quot;987 kbps&quot;, &quot;kind&quot;: &quot;bitrate&quot;}, {&quot;label&quot;: &quot;разрядность&quot;, &quot;value&quot;: &quot;16 бит&quot;, &quot;kind&quot;: &quot;bit_depth&quot;}, {&quot;label&quot;: &quot;частота дискретизации&quot;, &quot;value&quot;: &quot;44.1 kHz&quot;, &quot;kind&quot;: &quot;sample_rate&quot;}, {&quot;label&quot;: &quot;теги&quot;, &quot;value&quot;: &quot;полные&quot;, &quot;kind&quot;: &quot;tag_completeness&quot;}, {&quot;label&quot;: &quot;обложка&quot;, &quot;value&quot;: &quot;есть&quot;, &quot;kind&quot;: &quot;cover&quot;}, {&quot;label&quot;: &quot;текст песни&quot;, &quot;value&quot;: &quot;есть&quot;, &quot;kind&quot;: &quot;lyrics&quot;}, {&quot;label&quot;: &quot;размер&quot;, &quot;value&quot;: &quot;33.1 MB&quot;, &quot;kind&quot;: &quot;size&quot;}, {&quot;label&quot;: &quot;альбом&quot;, &quot;value&quot;: &quot;Nevermind&quot;, &quot;kind&quot;: &quot;album&quot;}, {&quot;label&quot;: &quot;исполнитель альбома&quot;, &quot;value&quot;: &quot;Nirvana&quot;, &quot;kind&quot;: &quot;albumartist&quot;}, {&quot;label&quot;: &quot;исполнитель&quot;, &quot;value&quot;: &quot;Nirvana&quot;, &quot;kind&quot;: &quot;artist&quot;}, {&quot;label&quot;: &quot;жанр&quot;, &quot;value&quot;: &quot;Alternative Rock&quot;, &quot;kind&quot;: &quot;genre&quot;}, {&quot;label&quot;: &quot;название&quot;, &quot;value&quot;: &quot;In Bloom&quot;, &quot;kind&quot;: &quot;title&quot;}, {&quot;label&quot;: &quot;год&quot;, &quot;value&quot;: &quot;1991&quot;, &quot;kind&quot;: &quot;year&quot;}, {&quot;label&quot;: &quot;номер трека&quot;, &quot;value&quot;: &quot;2&quot;, &quot;kind&quot;: &quot;tracknumber&quot;}], &quot;has_cover&quot;: true, &quot;cover_data_uri&quot;: &quot;data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NDAiIGhlaWdodD0iNjQwIj4KPHJlY3Qgd2lkdGg9IjY0MCIgaGVpZ2h0PSI2NDAiIGZpbGw9IiMwNzU5ODUiLz4KPGNpcmNsZSBjeD0iNTIwIiBjeT0iMTIwIiByPSIxNTAiIGZpbGw9IiNiYWU2ZmQiIG9wYWNpdHk9Ii4xMiIvPgo8dGV4dCB4PSI0OCIgeT0iNDU1IiBmaWxsPSIjYmFlNmZkIiBmb250LWZhbWlseT0iQXJpYWwsc2Fucy1zZXJpZiIgZm9udC1zaXplPSI2NCIgZm9udC13ZWlnaHQ9IjcwMCI+TklSVkFOQTwvdGV4dD4KPHRleHQgeD0iNDgiIHk9IjUyNSIgZmlsbD0iI2JhZTZmZCIgZm9udC1mYW1pbHk9IkFyaWFsLHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iNDIiPk5ldmVybWluZDwvdGV4dD4KPHRleHQgeD0iNTAiIHk9IjU3NSIgZmlsbD0iI2JhZTZmZCIgb3BhY2l0eT0iLjciIGZvbnQtZmFtaWx5PSJBcmlhbCxzYW5zLXNlcmlmIiBmb250LXNpemU9IjI0Ij5ERU1PIMK3IDE5OTE8L3RleHQ+Cjwvc3ZnPg==&quot;, &quot;cover_url&quot;: &quot;&quot;, &quot;identity&quot;: {}, &quot;identity_mismatch&quot;: false}, {&quot;name&quot;: &quot;03 - Come as You Are.flac&quot;, &quot;path&quot;: &quot;D:\\Music\\Nirvana\\Nevermind\\03 - Come as You Are.flac&quot;, &quot;folder&quot;: &quot;D:\\Music\\Nirvana\\Nevermind&quot;, &quot;tags&quot;: [{&quot;label&quot;: &quot;формат&quot;, &quot;value&quot;: &quot;FLAC&quot;, &quot;kind&quot;: &quot;format&quot;}, {&quot;label&quot;: &quot;битрейт&quot;, &quot;value&quot;: &quot;934 kbps&quot;, &quot;kind&quot;: &quot;bitrate&quot;}, {&quot;label&quot;: &quot;разрядность&quot;, &quot;value&quot;: &quot;16 бит&quot;, &quot;kind&quot;: &quot;bit_depth&quot;}, {&quot;label&quot;: &quot;частота дискретизации&quot;, &quot;value&quot;: &quot;44.1 kHz&quot;, &quot;kind&quot;: &quot;sample_rate&quot;}, {&quot;label&quot;: &quot;теги&quot;, &quot;value&quot;: &quot;полные&quot;, &quot;kind&quot;: &quot;tag_completeness&quot;}, {&quot;label&quot;: &quot;обложка&quot;, &quot;value&quot;: &quot;есть&quot;, &quot;kind&quot;: &quot;cover&quot;}, {&quot;label&quot;: &quot;текст песни&quot;, &quot;value&quot;: &quot;есть&quot;, &quot;kind&quot;: &quot;lyrics&quot;}, {&quot;label&quot;: &quot;размер&quot;, &quot;value&quot;: &quot;28.9 MB&quot;, &quot;kind&quot;: &quot;size&quot;}, {&quot;label&quot;: &quot;альбом&quot;, &quot;value&quot;: &quot;Nevermind&quot;, &quot;kind&quot;: &quot;album&quot;}, {&quot;label&quot;: &quot;исполнитель альбома&quot;, &quot;value&quot;: &quot;Nirvana&quot;, &quot;kind&quot;: &quot;albumartist&quot;}, {&quot;label&quot;: &quot;исполнитель&quot;, &quot;value&quot;: &quot;Nirvana&quot;, &quot;kind&quot;: &quot;artist&quot;}, {&quot;label&quot;: &quot;жанр&quot;, &quot;value&quot;: &quot;Grunge&quot;, &quot;kind&quot;: &quot;genre&quot;}, {&quot;label&quot;: &quot;название&quot;, &quot;value&quot;: &quot;Come as You Are&quot;, &quot;kind&quot;: &quot;title&quot;}, {&quot;label&quot;: &quot;год&quot;, &quot;value&quot;: &quot;1991&quot;, &quot;kind&quot;: &quot;year&quot;}, {&quot;label&quot;: &quot;номер трека&quot;, &quot;value&quot;: &quot;3&quot;, &quot;kind&quot;: &quot;tracknumber&quot;}], &quot;has_cover&quot;: true, &quot;cover_data_uri&quot;: &quot;data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NDAiIGhlaWdodD0iNjQwIj4KPHJlY3Qgd2lkdGg9IjY0MCIgaGVpZ2h0PSI2NDAiIGZpbGw9IiMwNzU5ODUiLz4KPGNpcmNsZSBjeD0iNTIwIiBjeT0iMTIwIiByPSIxNTAiIGZpbGw9IiNiYWU2ZmQiIG9wYWNpdHk9Ii4xMiIvPgo8dGV4dCB4PSI0OCIgeT0iNDU1IiBmaWxsPSIjYmFlNmZkIiBmb250LWZhbWlseT0iQXJpYWwsc2Fucy1zZXJpZiIgZm9udC1zaXplPSI2NCIgZm9udC13ZWlnaHQ9IjcwMCI+TklSVkFOQTwvdGV4dD4KPHRleHQgeD0iNDgiIHk9IjUyNSIgZmlsbD0iI2JhZTZmZCIgZm9udC1mYW1pbHk9IkFyaWFsLHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iNDIiPk5ldmVybWluZDwvdGV4dD4KPHRleHQgeD0iNTAiIHk9IjU3NSIgZmlsbD0iI2JhZTZmZCIgb3BhY2l0eT0iLjciIGZvbnQtZmFtaWx5PSJBcmlhbCxzYW5zLXNlcmlmIiBmb250LXNpemU9IjI0Ij5ERU1PIMK3IDE5OTE8L3RleHQ+Cjwvc3ZnPg==&quot;, &quot;cover_url&quot;: &quot;&quot;, &quot;identity&quot;: {}, &quot;identity_mismatch&quot;: false}, {&quot;name&quot;: &quot;05 - Lithium.flac&quot;, &quot;path&quot;: &quot;D:\\Music\\Nirvana\\Nevermind\\05 - Lithium.flac&quot;, &quot;folder&quot;: &quot;D:\\Music\\Nirvana\\Nevermind&quot;, &quot;tags&quot;: [{&quot;label&quot;: &quot;формат&quot;, &quot;value&quot;: &quot;FLAC&quot;, &quot;kind&quot;: &quot;format&quot;}, {&quot;label&quot;: &quot;битрейт&quot;, &quot;value&quot;: &quot;976 kbps&quot;, &quot;kind&quot;: &quot;bitrate&quot;}, {&quot;label&quot;: &quot;разрядность&quot;, &quot;value&quot;: &quot;16 бит&quot;, &quot;kind&quot;: &quot;bit_depth&quot;}, {&quot;label&quot;: &quot;частота дискретизации&quot;, &quot;value&quot;: &quot;44.1 kHz&quot;, &quot;kind&quot;: &quot;sample_rate&quot;}, {&quot;label&quot;: &quot;теги&quot;, &quot;value&quot;: &quot;полные&quot;, &quot;kind&quot;: &quot;tag_completeness&quot;}, {&quot;label&quot;: &quot;обложка&quot;, &quot;value&quot;: &quot;есть&quot;, &quot;kind&quot;: &quot;cover&quot;}, {&quot;label&quot;: &quot;текст песни&quot;, &quot;value&quot;: &quot;есть&quot;, &quot;kind&quot;: &quot;lyrics&quot;}, {&quot;label&quot;: &quot;размер&quot;, &quot;value&quot;: &quot;32.2 MB&quot;, &quot;kind&quot;: &quot;size&quot;}, {&quot;label&quot;: &quot;альбом&quot;, &quot;value&quot;: &quot;Nevermind&quot;, &quot;kind&quot;: &quot;album&quot;}, {&quot;label&quot;: &quot;исполнитель альбома&quot;, &quot;value&quot;: &quot;Nirvana&quot;, &quot;kind&quot;: &quot;albumartist&quot;}, {&quot;label&quot;: &quot;исполнитель&quot;, &quot;value&quot;: &quot;Nirvana&quot;, &quot;kind&quot;: &quot;artist&quot;}, {&quot;label&quot;: &quot;жанр&quot;, &quot;value&quot;: &quot;Alternative Rock&quot;, &quot;kind&quot;: &quot;genre&quot;}, {&quot;label&quot;: &quot;название&quot;, &quot;value&quot;: &quot;Lithium&quot;, &quot;kind&quot;: &quot;title&quot;}, {&quot;label&quot;: &quot;год&quot;, &quot;value&quot;: &quot;1991&quot;, &quot;kind&quot;: &quot;year&quot;}, {&quot;label&quot;: &quot;номер трека&quot;, &quot;value&quot;: &quot;5&quot;, &quot;kind&quot;: &quot;tracknumber&quot;}], &quot;has_cover&quot;: true, &quot;cover_data_uri&quot;: &quot;data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NDAiIGhlaWdodD0iNjQwIj4KPHJlY3Qgd2lkdGg9IjY0MCIgaGVpZ2h0PSI2NDAiIGZpbGw9IiMwNzU5ODUiLz4KPGNpcmNsZSBjeD0iNTIwIiBjeT0iMTIwIiByPSIxNTAiIGZpbGw9IiNiYWU2ZmQiIG9wYWNpdHk9Ii4xMiIvPgo8dGV4dCB4PSI0OCIgeT0iNDU1IiBmaWxsPSIjYmFlNmZkIiBmb250LWZhbWlseT0iQXJpYWwsc2Fucy1zZXJpZiIgZm9udC1zaXplPSI2NCIgZm9udC13ZWlnaHQ9IjcwMCI+TklSVkFOQTwvdGV4dD4KPHRleHQgeD0iNDgiIHk9IjUyNSIgZmlsbD0iI2JhZTZmZCIgZm9udC1mYW1pbHk9IkFyaWFsLHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iNDIiPk5ldmVybWluZDwvdGV4dD4KPHRleHQgeD0iNTAiIHk9IjU3NSIgZmlsbD0iI2JhZTZmZCIgb3BhY2l0eT0iLjciIGZvbnQtZmFtaWx5PSJBcmlhbCxzYW5zLXNlcmlmIiBmb250LXNpemU9IjI0Ij5ERU1PIMK3IDE5OTE8L3RleHQ+Cjwvc3ZnPg==&quot;, &quot;cover_url&quot;: &quot;&quot;, &quot;identity&quot;: {}, &quot;identity_mismatch&quot;: false}, {&quot;name&quot;: &quot;06 - Polly.flac&quot;, &quot;path&quot;: &quot;D:\\Music\\Nirvana\\Nevermind\\06 - Polly.flac&quot;, &quot;folder&quot;: &quot;D:\\Music\\Nirvana\\Nevermind&quot;, &quot;tags&quot;: [{&quot;label&quot;: &quot;формат&quot;, &quot;value&quot;: &quot;FLAC&quot;, &quot;kind&quot;: &quot;format&quot;}, {&quot;label&quot;: &quot;битрейт&quot;, &quot;value&quot;: &quot;812 kbps&quot;, &quot;kind&quot;: &quot;bitrate&quot;}, {&quot;label&quot;: &quot;разрядность&quot;, &quot;value&quot;: &quot;16 бит&quot;, &quot;kind&quot;: &quot;bit_depth&quot;}, {&quot;label&quot;: &quot;частота дискретизации&quot;, &quot;value&quot;: &quot;44.1 kHz&quot;, &quot;kind&quot;: &quot;sample_rate&quot;}, {&quot;label&quot;: &quot;теги&quot;, &quot;value&quot;: &quot;полные&quot;, &quot;kind&quot;: &quot;tag_completeness&quot;}, {&quot;label&quot;: &quot;обложка&quot;, &quot;value&quot;: &quot;есть&quot;, &quot;kind&quot;: &quot;cover&quot;}, {&quot;label&quot;: &quot;текст песни&quot;, &quot;value&quot;: &quot;есть&quot;, &quot;kind&quot;: &quot;lyrics&quot;}, {&quot;label&quot;: &quot;размер&quot;, &quot;value&quot;: &quot;17.7 MB&quot;, &quot;kind&quot;: &quot;size&quot;}, {&quot;label&quot;: &quot;альбом&quot;, &quot;value&quot;: &quot;Nevermind&quot;, &quot;kind&quot;: &quot;album&quot;}, {&quot;label&quot;: &quot;исполнитель альбома&quot;, &quot;value&quot;: &quot;Nirvana&quot;, &quot;kind&quot;: &quot;albumartist&quot;}, {&quot;label&quot;: &quot;исполнитель&quot;, &quot;value&quot;: &quot;Nirvana&quot;, &quot;kind&quot;: &quot;artist&quot;}, {&quot;label&quot;: &quot;жанр&quot;, &quot;value&quot;: &quot;Acoustic Rock&quot;, &quot;kind&quot;: &quot;genre&quot;}, {&quot;label&quot;: &quot;название&quot;, &quot;value&quot;: &quot;Polly&quot;, &quot;kind&quot;: &quot;title&quot;}, {&quot;label&quot;: &quot;год&quot;, &quot;value&quot;: &quot;1991&quot;, &quot;kind&quot;: &quot;year&quot;}, {&quot;label&quot;: &quot;номер трека&quot;, &quot;value&quot;: &quot;6&quot;, &quot;kind&quot;: &quot;tracknumber&quot;}], &quot;has_cover&quot;: true, &quot;cover_data_uri&quot;: &quot;data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NDAiIGhlaWdodD0iNjQwIj4KPHJlY3Qgd2lkdGg9IjY0MCIgaGVpZ2h0PSI2NDAiIGZpbGw9IiMwNzU5ODUiLz4KPGNpcmNsZSBjeD0iNTIwIiBjeT0iMTIwIiByPSIxNTAiIGZpbGw9IiNiYWU2ZmQiIG9wYWNpdHk9Ii4xMiIvPgo8dGV4dCB4PSI0OCIgeT0iNDU1IiBmaWxsPSIjYmFlNmZkIiBmb250LWZhbWlseT0iQXJpYWwsc2Fucy1zZXJpZiIgZm9udC1zaXplPSI2NCIgZm9udC13ZWlnaHQ9IjcwMCI+TklSVkFOQTwvdGV4dD4KPHRleHQgeD0iNDgiIHk9IjUyNSIgZmlsbD0iI2JhZTZmZCIgZm9udC1mYW1pbHk9IkFyaWFsLHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iNDIiPk5ldmVybWluZDwvdGV4dD4KPHRleHQgeD0iNTAiIHk9IjU3NSIgZmlsbD0iI2JhZTZmZCIgb3BhY2l0eT0iLjciIGZvbnQtZmFtaWx5PSJBcmlhbCxzYW5zLXNlcmlmIiBmb250LXNpemU9IjI0Ij5ERU1PIMK3IDE5OTE8L3RleHQ+Cjwvc3ZnPg==&quot;, &quot;cover_url&quot;: &quot;&quot;, &quot;identity&quot;: {}, &quot;identity_mismatch&quot;: false}, {&quot;name&quot;: &quot;08 - Drain You.flac&quot;, &quot;path&quot;: &quot;D:\\Music\\Nirvana\\Nevermind\\08 - Drain You.flac&quot;, &quot;folder&quot;: &quot;D:\\Music\\Nirvana\\Nevermind&quot;, &quot;tags&quot;: [{&quot;label&quot;: &quot;формат&quot;, &quot;value&quot;: &quot;FLAC&quot;, &quot;kind&quot;: &quot;format&quot;}, {&quot;label&quot;: &quot;битрейт&quot;, &quot;value&quot;: &quot;995 kbps&quot;, &quot;kind&quot;: &quot;bitrate&quot;}, {&quot;label&quot;: &quot;разрядность&quot;, &quot;value&quot;: &quot;16 бит&quot;, &quot;kind&quot;: &quot;bit_depth&quot;}, {&quot;label&quot;: &quot;частота дискретизации&quot;, &quot;value&quot;: &quot;44.1 kHz&quot;, &quot;kind&quot;: &quot;sample_rate&quot;}, {&quot;label&quot;: &quot;теги&quot;, &quot;value&quot;: &quot;полные&quot;, &quot;kind&quot;: &quot;tag_completeness&quot;}, {&quot;label&quot;: &quot;обложка&quot;, &quot;value&quot;: &quot;есть&quot;, &quot;kind&quot;: &quot;cover&quot;}, {&quot;label&quot;: &quot;текст песни&quot;, &quot;value&quot;: &quot;есть&quot;, &quot;kind&quot;: &quot;lyrics&quot;}, {&quot;label&quot;: &quot;размер&quot;, &quot;value&quot;: &quot;31.8 MB&quot;, &quot;kind&quot;: &quot;size&quot;}, {&quot;label&quot;: &quot;альбом&quot;, &quot;value&quot;: &quot;Nevermind&quot;, &quot;kind&quot;: &quot;album&quot;}, {&quot;label&quot;: &quot;исполнитель альбома&quot;, &quot;value&quot;: &quot;Nirvana&quot;, &quot;kind&quot;: &quot;albumartist&quot;}, {&quot;label&quot;: &quot;исполнитель&quot;, &quot;value&quot;: &quot;Nirvana&quot;, &quot;kind&quot;: &quot;artist&quot;}, {&quot;label&quot;: &quot;жанр&quot;, &quot;value&quot;: &quot;Grunge&quot;, &quot;kind&quot;: &quot;genre&quot;}, {&quot;label&quot;: &quot;название&quot;, &quot;value&quot;: &quot;Drain You&quot;, &quot;kind&quot;: &quot;title&quot;}, {&quot;label&quot;: &quot;год&quot;, &quot;value&quot;: &quot;1991&quot;, &quot;kind&quot;: &quot;year&quot;}, {&quot;label&quot;: &quot;номер трека&quot;, &quot;value&quot;: &quot;8&quot;, &quot;kind&quot;: &quot;tracknumber&quot;}], &quot;has_cover&quot;: true, &quot;cover_data_uri&quot;: &quot;data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NDAiIGhlaWdodD0iNjQwIj4KPHJlY3Qgd2lkdGg9IjY0MCIgaGVpZ2h0PSI2NDAiIGZpbGw9IiMwNzU5ODUiLz4KPGNpcmNsZSBjeD0iNTIwIiBjeT0iMTIwIiByPSIxNTAiIGZpbGw9IiNiYWU2ZmQiIG9wYWNpdHk9Ii4xMiIvPgo8dGV4dCB4PSI0OCIgeT0iNDU1IiBmaWxsPSIjYmFlNmZkIiBmb250LWZhbWlseT0iQXJpYWwsc2Fucy1zZXJpZiIgZm9udC1zaXplPSI2NCIgZm9udC13ZWlnaHQ9IjcwMCI+TklSVkFOQTwvdGV4dD4KPHRleHQgeD0iNDgiIHk9IjUyNSIgZmlsbD0iI2JhZTZmZCIgZm9udC1mYW1pbHk9IkFyaWFsLHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iNDIiPk5ldmVybWluZDwvdGV4dD4KPHRleHQgeD0iNTAiIHk9IjU3NSIgZmlsbD0iI2JhZTZmZCIgb3BhY2l0eT0iLjciIGZvbnQtZmFtaWx5PSJBcmlhbCxzYW5zLXNlcmlmIiBmb250LXNpemU9IjI0Ij5ERU1PIMK3IDE5OTE8L3RleHQ+Cjwvc3ZnPg==&quot;, &quot;cover_url&quot;: &quot;&quot;, &quot;identity&quot;: {}, &quot;identity_mismatch&quot;: false}, {&quot;name&quot;: &quot;03 - Heart-Shaped Box.flac&quot;, &quot;path&quot;: &quot;D:\\Music\\Nirvana\\In Utero\\03 - Heart-Shaped Box.flac&quot;, &quot;folder&quot;: &quot;D:\\Music\\Nirvana\\In Utero&quot;, &quot;tags&quot;: [{&quot;label&quot;: &quot;формат&quot;, &quot;value&quot;: &quot;FLAC&quot;, &quot;kind&quot;: &quot;format&quot;}, {&quot;label&quot;: &quot;битрейт&quot;, &quot;value&quot;: &quot;1038 kbps&quot;, &quot;kind&quot;: &quot;bitrate&quot;}, {&quot;label&quot;: &quot;разрядность&quot;, &quot;value&quot;: &quot;16 бит&quot;, &quot;kind&quot;: &quot;bit_depth&quot;}, {&quot;label&quot;: &quot;частота дискретизации&quot;, &quot;value&quot;: &quot;44.1 kHz&quot;, &quot;kind&quot;: &quot;sample_rate&quot;}, {&quot;label&quot;: &quot;теги&quot;, &quot;value&quot;: &quot;полные&quot;, &quot;kind&quot;: &quot;tag_completeness&quot;}, {&quot;label&quot;: &quot;обложка&quot;, &quot;value&quot;: &quot;есть&quot;, &quot;kind&quot;: &quot;cover&quot;}, {&quot;label&quot;: &quot;текст песни&quot;, &quot;value&quot;: &quot;есть&quot;, &quot;kind&quot;: &quot;lyrics&quot;}, {&quot;label&quot;: &quot;размер&quot;, &quot;value&quot;: &quot;35.7 MB&quot;, &quot;kind&quot;: &quot;size&quot;}, {&quot;label&quot;: &quot;альбом&quot;, &quot;value&quot;: &quot;In Utero&quot;, &quot;kind&quot;: &quot;album&quot;}, {&quot;label&quot;: &quot;исполнитель альбома&quot;, &quot;value&quot;: &quot;Nirvana&quot;, &quot;kind&quot;: &quot;albumartist&quot;}, {&quot;label&quot;: &quot;исполнитель&quot;, &quot;value&quot;: &quot;Nirvana&quot;, &quot;kind&quot;: &quot;artist&quot;}, {&quot;label&quot;: &quot;жанр&quot;, &quot;value&quot;: &quot;Alternative Rock&quot;, &quot;kind&quot;: &quot;genre&quot;}, {&quot;label&quot;: &quot;название&quot;, &quot;value&quot;: &quot;Heart-Shaped Box&quot;, &quot;kind&quot;: &quot;title&quot;}, {&quot;label&quot;: &quot;год&quot;, &quot;value&quot;: &quot;1993&quot;, &quot;kind&quot;: &quot;year&quot;}, {&quot;label&quot;: &quot;номер трека&quot;, &quot;value&quot;: &quot;3&quot;, &quot;kind&quot;: &quot;tracknumber&quot;}], &quot;has_cover&quot;: true, &quot;cover_data_uri&quot;: &quot;data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NDAiIGhlaWdodD0iNjQwIj4KPHJlY3Qgd2lkdGg9IjY0MCIgaGVpZ2h0PSI2NDAiIGZpbGw9IiM3YzJkMTIiLz4KPGNpcmNsZSBjeD0iNTIwIiBjeT0iMTIwIiByPSIxNTAiIGZpbGw9IiNmZWQ3YWEiIG9wYWNpdHk9Ii4xMiIvPgo8dGV4dCB4PSI0OCIgeT0iNDU1IiBmaWxsPSIjZmVkN2FhIiBmb250LWZhbWlseT0iQXJpYWwsc2Fucy1zZXJpZiIgZm9udC1zaXplPSI2NCIgZm9udC13ZWlnaHQ9IjcwMCI+TklSVkFOQTwvdGV4dD4KPHRleHQgeD0iNDgiIHk9IjUyNSIgZmlsbD0iI2ZlZDdhYSIgZm9udC1mYW1pbHk9IkFyaWFsLHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iNDIiPkluIFV0ZXJvPC90ZXh0Pgo8dGV4dCB4PSI1MCIgeT0iNTc1IiBmaWxsPSIjZmVkN2FhIiBvcGFjaXR5PSIuNyIgZm9udC1mYW1pbHk9IkFyaWFsLHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMjQiPkRFTU8gwrcgMTk5MzwvdGV4dD4KPC9zdmc+&quot;, &quot;cover_url&quot;: &quot;&quot;, &quot;identity&quot;: {}, &quot;identity_mismatch&quot;: false}, {&quot;name&quot;: &quot;12 - All Apologies.flac&quot;, &quot;path&quot;: &quot;D:\\Music\\Nirvana\\In Utero\\12 - All Apologies.flac&quot;, &quot;folder&quot;: &quot;D:\\Music\\Nirvana\\In Utero&quot;, &quot;tags&quot;: [{&quot;label&quot;: &quot;формат&quot;, &quot;value&quot;: &quot;FLAC&quot;, &quot;kind&quot;: &quot;format&quot;}, {&quot;label&quot;: &quot;битрейт&quot;, &quot;value&quot;: &quot;962 kbps&quot;, &quot;kind&quot;: &quot;bitrate&quot;}, {&quot;label&quot;: &quot;разрядность&quot;, &quot;value&quot;: &quot;16 бит&quot;, &quot;kind&quot;: &quot;bit_depth&quot;}, {&quot;label&quot;: &quot;частота дискретизации&quot;, &quot;value&quot;: &quot;44.1 kHz&quot;, &quot;kind&quot;: &quot;sample_rate&quot;}, {&quot;label&quot;: &quot;теги&quot;, &quot;value&quot;: &quot;полные&quot;, &quot;kind&quot;: &quot;tag_completeness&quot;}, {&quot;label&quot;: &quot;обложка&quot;, &quot;value&quot;: &quot;есть&quot;, &quot;kind&quot;: &quot;cover&quot;}, {&quot;label&quot;: &quot;текст песни&quot;, &quot;value&quot;: &quot;есть&quot;, &quot;kind&quot;: &quot;lyrics&quot;}, {&quot;label&quot;: &quot;размер&quot;, &quot;value&quot;: &quot;30.6 MB&quot;, &quot;kind&quot;: &quot;size&quot;}, {&quot;label&quot;: &quot;альбом&quot;, &quot;value&quot;: &quot;In Utero&quot;, &quot;kind&quot;: &quot;album&quot;}, {&quot;label&quot;: &quot;исполнитель альбома&quot;, &quot;value&quot;: &quot;Nirvana&quot;, &quot;kind&quot;: &quot;albumartist&quot;}, {&quot;label&quot;: &quot;исполнитель&quot;, &quot;value&quot;: &quot;Nirvana&quot;, &quot;kind&quot;: &quot;artist&quot;}, {&quot;label&quot;: &quot;жанр&quot;, &quot;value&quot;: &quot;Grunge&quot;, &quot;kind&quot;: &quot;genre&quot;}, {&quot;label&quot;: &quot;название&quot;, &quot;value&quot;: &quot;All Apologies&quot;, &quot;kind&quot;: &quot;title&quot;}, {&quot;label&quot;: &quot;год&quot;, &quot;value&quot;: &quot;1993&quot;, &quot;kind&quot;: &quot;year&quot;}, {&quot;label&quot;: &quot;номер трека&quot;, &quot;value&quot;: &quot;12&quot;, &quot;kind&quot;: &quot;tracknumber&quot;}], &quot;has_cover&quot;: true, &quot;cover_data_uri&quot;: &quot;data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NDAiIGhlaWdodD0iNjQwIj4KPHJlY3Qgd2lkdGg9IjY0MCIgaGVpZ2h0PSI2NDAiIGZpbGw9IiM3YzJkMTIiLz4KPGNpcmNsZSBjeD0iNTIwIiBjeT0iMTIwIiByPSIxNTAiIGZpbGw9IiNmZWQ3YWEiIG9wYWNpdHk9Ii4xMiIvPgo8dGV4dCB4PSI0OCIgeT0iNDU1IiBmaWxsPSIjZmVkN2FhIiBmb250LWZhbWlseT0iQXJpYWwsc2Fucy1zZXJpZiIgZm9udC1zaXplPSI2NCIgZm9udC13ZWlnaHQ9IjcwMCI+TklSVkFOQTwvdGV4dD4KPHRleHQgeD0iNDgiIHk9IjUyNSIgZmlsbD0iI2ZlZDdhYSIgZm9udC1mYW1pbHk9IkFyaWFsLHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iNDIiPkluIFV0ZXJvPC90ZXh0Pgo8dGV4dCB4PSI1MCIgeT0iNTc1IiBmaWxsPSIjZmVkN2FhIiBvcGFjaXR5PSIuNyIgZm9udC1mYW1pbHk9IkFyaWFsLHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMjQiPkRFTU8gwrcgMTk5MzwvdGV4dD4KPC9zdmc+&quot;, &quot;cover_url&quot;: &quot;&quot;, &quot;identity&quot;: {}, &quot;identity_mismatch&quot;: false}], &quot;identity_mismatches&quot;: 0}, &quot;groups&quot;: []}</script>
   <script>
     let cards = Array.from(document.querySelectorAll('.group-card'));
     const sort = document.getElementById('sort');
@@ -1280,6 +1373,7 @@
     const musicSearch = document.getElementById('musicSearch');
     const tagFilter = document.getElementById('tagFilter');
     const layoutFilter = document.getElementById('layoutFilter');
+    const identityFilter = document.getElementById('identityFilter');
     const musicEmpty = document.getElementById('musicEmpty');
     const quarantineButton = document.getElementById('quarantineCommand');
     const quarantinePanel = document.getElementById('quarantinePanel');
@@ -1296,7 +1390,10 @@
     const collapseMusic = document.getElementById('collapseMusic');
     const operationStatus = document.getElementById('operationStatus');
     const tagVisible = document.getElementById('tagVisible');
+    const shazamTagVisible = document.getElementById('shazamTagVisible');
     const layoutVisible = document.getElementById('layoutVisible');
+    const coverVisible = document.getElementById('coverVisible');
+    const lyricsVisible = document.getElementById('lyricsVisible');
     const lyricsModal = document.getElementById('lyricsModal');
     const lyricsTitle = document.getElementById('lyricsTitle');
     const lyricsPath = document.getElementById('lyricsPath');
@@ -1314,7 +1411,7 @@
       if (!operationStatus) return;
 
       if (mode === 'real') {
-        operationStatus.textContent = 'Выбрана реальная обработка. «Разложить» будет перемещать файлы в папки текущей библиотеки по исполнителю и альбому. Глобальные кнопки работают по отфильтрованному списку, кнопки внутри карточки — только по своей записи.';
+        operationStatus.textContent = 'Выбрана реальная обработка. Глобальные кнопки работают по отфильтрованному списку, кнопки внутри карточки — только по своей записи.';
       } else {
         operationStatus.textContent = 'Выбран безопасный режим dry run. Глобальные кнопки работают по отфильтрованному списку, кнопки внутри карточки — только по своей записи.';
       }
@@ -1369,9 +1466,97 @@
       }
     }
 
+    async function searchAndSaveEnrichment(button) {
+      const card = button.closest('.music-card');
+      const filePath = button.dataset.filePath || card?.dataset.filePath || '';
+      const kind = button.dataset.kind || '';
+      if (!filePath || !kind || button.disabled) return;
+      const label = kind === 'cover' ? 'обложки' : 'текста песни';
+      button.disabled = true;
+      let saved = false;
+      setCardStatus(card, 'running', `Ищу варианты ${label}...`);
+      try {
+        const searchResponse = await fetch('/api/enrichment/search', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ file: filePath, kind })
+        });
+        const searchResult = await searchResponse.json();
+        if (!searchResponse.ok || !searchResult.ok) throw new Error(searchResult.error || 'Поиск не выполнен.');
+        const candidates = searchResult.candidates || [];
+        if (!candidates.length) throw new Error('Подходящие варианты не найдены.');
+        const choices = candidates.map((item, index) => {
+          const details = kind === 'cover'
+            ? `${item.artist || '—'} — ${item.album || '—'} (${item.date || item.country || 'год не указан'}, совпадение ${item.score || 0}%)`
+            : `${item.artist || '—'} — ${item.title || '—'} [${item.kind === 'synced' ? 'LRC' : 'обычный текст'}]`;
+          return `${index + 1}. ${details}`;
+        }).join('\n');
+        const answer = window.prompt(`Найдены варианты ${label}:
+
+${choices}
+
+Введите номер кандидата:`, '1');
+        if (answer === null) { setCardStatus(card, '', 'Сохранение отменено.'); return; }
+        const index = Number.parseInt(answer, 10) - 1;
+        if (!Number.isInteger(index) || !candidates[index]) throw new Error('Выбран неверный номер кандидата.');
+        const selected = candidates[index];
+        if (kind === 'cover' && selected.preview_url) window.open(selected.preview_url, '_blank', 'noopener');
+        const preview = kind === 'lyrics' && selected.preview ? `
+
+${selected.preview.slice(0, 700)}` : '';
+        if (!window.confirm(`Сохранить выбранный вариант рядом с аудиофайлом? Аудиофайл изменён не будет.${preview}`)) {
+          setCardStatus(card, '', 'Сохранение отменено.'); return;
+        }
+        const saveResponse = await fetch('/api/enrichment/save', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ file: filePath, candidate_id: selected.id, confirm: 'SAVE_ENRICHMENT' })
+        });
+        const saveResult = await saveResponse.json();
+        if (!saveResponse.ok || !saveResult.ok) throw new Error(saveResult.error || 'Не удалось сохранить файл.');
+        saved = true;
+        const refreshedTracks = saveResult.refresh?.tracks || [];
+        refreshedTracks.forEach(track => {
+          const refreshedCard = musicCards.find(item =>
+            normalizePathForCompare(item.dataset.filePath || '') === normalizePathForCompare(track.path || '')
+          );
+          if (refreshedCard) updateMusicCardFromTrack(refreshedCard, track);
+        });
+        setCardStatus(card, 'done', saveResult.message || 'Сохранено.');
+      } catch (error) {
+        setCardStatus(card, 'error', error.message || String(error));
+      } finally {
+        if (!saved) button.disabled = false;
+      }
+    }
+
+    async function runVisibleEnrichment(kind) {
+      const buttons = musicCards
+        .filter(card => !card.hidden)
+        .map(card => card.querySelector(`.enrichment-button[data-kind="${kind}"]`))
+        .filter(button => button && !button.disabled);
+      const label = kind === 'cover' ? '???????' : '???????';
+      if (!buttons.length) {
+        operationStatus.textContent = `??? ?????? ${label} ??? ?????????? ?????? ? ??????? ???????.`;
+        return;
+      }
+      if (!window.confirm(`????????? ???????????????? ????? ${label} ??? ??????????????? ??????: ${buttons.length}? ??? ??????? ?????????? ???????? ??????????? ?????????????.`)) return;
+      coverVisible.disabled = true;
+      lyricsVisible.disabled = true;
+      operationStatus.textContent = `??? ???????? ${label}. ??????: ${buttons.length}...`;
+      try {
+        for (let index = 0; index < buttons.length; index += 1) {
+          operationStatus.textContent = `????? ${label}: ${index + 1} ?? ${buttons.length}.`;
+          await searchAndSaveEnrichment(buttons[index]);
+        }
+        operationStatus.textContent = `????? ${label} ????????. ?????????? ??????: ${buttons.length}.`;
+      } finally {
+        coverVisible.disabled = false;
+        lyricsVisible.disabled = false;
+      }
+    }
+
     function setMusicActionDisabled(disabled, card = null) {
       const root = card || document;
-      const selector = card ? '.music-action-single' : '.music-action-single, #tagVisible, #layoutVisible';
+      const selector = card ? '.music-action-single' : '.music-action-single, #tagVisible, #shazamTagVisible, #layoutVisible, #coverVisible, #lyricsVisible';
       root.querySelectorAll(selector).forEach(button => {
         button.disabled = disabled;
       });
@@ -1565,14 +1750,24 @@
       const layoutButton = card.querySelector('[data-action="layout"]');
       card.dataset.layoutStatus = layoutButton?.disabled ? 'done' : 'ready';
       const lyricsButton = card.querySelector('.lyrics-button');
+      const hasLyrics = (tagValuesByKind.lyrics || []).join(' ').toLowerCase().includes('текст песни: есть');
       if (lyricsButton) {
-        const hasLyrics = (tagValuesByKind.lyrics || []).join(' ').toLowerCase().includes('текст песни: есть');
         lyricsButton.dataset.filePath = path;
         lyricsButton.dataset.trackName = name;
         lyricsButton.disabled = !hasLyrics;
         lyricsButton.setAttribute('aria-disabled', hasLyrics ? 'false' : 'true');
         lyricsButton.title = hasLyrics ? '' : 'Текст песни не найден';
       }
+      card.querySelectorAll('.enrichment-button').forEach(enrichmentButton => {
+        const enrichmentKind = enrichmentButton.dataset.kind || '';
+        const alreadyPresent = enrichmentKind === 'cover' ? Boolean(track.has_cover) : hasLyrics;
+        enrichmentButton.dataset.filePath = path;
+        enrichmentButton.disabled = alreadyPresent;
+        enrichmentButton.setAttribute('aria-disabled', alreadyPresent ? 'true' : 'false');
+        enrichmentButton.title = alreadyPresent
+          ? (enrichmentKind === 'cover' ? 'Обложка уже есть' : 'Текст уже есть')
+          : '';
+      });
       card.querySelectorAll('.music-action-single').forEach(button => {
         button.dataset.filePath = path;
       });
@@ -1598,12 +1793,20 @@
         return;
       }
 
+      let confirmationToken = '';
+      if (action === 'shazam-tag') {
+        const approved = window.confirm('Для распознавания будет отправлен аудиоотпечаток в неофициальный Shazam. Продолжить?');
+        if (!approved) return;
+        confirmationToken = 'ALLOW_SHAZAM_LOOKUP';
+      }
       if (mode === 'real') {
-        const targetText = scope === 'single'
-          ? 'одну выбранную запись'
-          : `отфильтрованные записи: ${uniqueFiles.length}`;
-        const confirmed = window.confirm(`Запустить реальную обработку через beets для: ${targetText}?`);
-        if (!confirmed) return;
+        const targetText = scope === 'single' ? 'одну выбранную запись' : `отфильтрованные записи: ${uniqueFiles.length}`;
+        const question = action === 'shazam-tag'
+          ? `Записать теги Shazam в: ${targetText}? Старые теги будут сохранены в журнале.`
+          : `Запустить реальную обработку для: ${targetText}?`;
+        if (!window.confirm(question)) return;
+        if (action === 'shazam-tag') confirmationToken = 'APPLY_SHAZAM_TAGS';
+        if (action === 'identity-correction') confirmationToken = 'APPLY_IDENTITY_CORRECTION';
       }
 
       setMusicActionDisabled(true, useCardStatus ? sourceCard : null);
@@ -1618,7 +1821,7 @@
         const response = await fetch('/api/music-operation', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action, mode, scope, files: uniqueFiles }),
+          body: JSON.stringify({ action, mode, scope, files: uniqueFiles, confirm: confirmationToken }),
         });
 
         const result = await response.json();
@@ -1632,7 +1835,7 @@
         if (!response.ok || !result.ok) throw new Error(result.error || 'Команда не выполнена');
 
         operationStatus.textContent = result.message || 'Операция завершена.';
-        if (!handleInCard && mode === 'real' && result.reload) setTimeout(() => window.location.reload(), 900);
+        if (mode === 'real' && result.reload) setTimeout(() => window.location.reload(), 900);
       } catch (error) {
         if (useCardStatus) setCardStatus(sourceCard, 'error', error.message || String(error));
         operationStatus.textContent = error.message || String(error);
@@ -1656,6 +1859,7 @@
       const value = musicSearch.value.trim().toLowerCase();
       const tagKind = tagFilter.value;
       const layoutKind = layoutFilter.value;
+      const identityKind = identityFilter.value;
       let visibleCount = 0;
       musicCards.forEach(card => {
         const searchArea = tagKind === 'all'
@@ -1663,7 +1867,9 @@
           : (card.getAttribute(`data-tag-${tagKind}`) || '');
         const matchesText = !value || searchArea.includes(value);
         const matchesLayout = layoutKind === 'all' || card.dataset.layoutStatus === layoutKind;
-        const visible = matchesText && matchesLayout;
+        const mismatch = card.dataset.identityMismatch === 'yes';
+        const matchesIdentity = identityKind === 'all' || (identityKind === 'mismatch' ? mismatch : !mismatch);
+        const visible = matchesText && matchesLayout && matchesIdentity;
         card.hidden = !visible;
         if (visible) visibleCount += 1;
       });
@@ -1893,6 +2099,13 @@
         openLyricsModal(button);
       });
     });
+    document.querySelectorAll('.enrichment-button').forEach(button => {
+      button.addEventListener('click', event => {
+        event.preventDefault();
+        event.stopPropagation();
+        searchAndSaveEnrichment(button);
+      });
+    });
     if (lyricsClose) lyricsClose.addEventListener('click', closeLyricsModal);
     if (lyricsModal) {
       lyricsModal.addEventListener('click', event => {
@@ -1904,7 +2117,10 @@
     });
 
     tagVisible.addEventListener('click', () => runMusicOperation('tag', visibleMusicPaths(), 'filtered'));
+    shazamTagVisible.addEventListener('click', () => runMusicOperation('shazam-tag', visibleMusicPaths(), 'filtered'));
     layoutVisible.addEventListener('click', () => runMusicOperation('layout', visibleMusicPaths(), 'filtered'));
+    coverVisible.addEventListener('click', () => runVisibleEnrichment('cover'));
+    lyricsVisible.addEventListener('click', () => runVisibleEnrichment('lyrics'));
     if (rescanLibrary) {
       rescanLibrary.addEventListener('click', rescanCurrentLibrary);
     }
@@ -1918,6 +2134,7 @@
     musicSearch.addEventListener('input', applyMusicFilters);
     tagFilter.addEventListener('change', applyMusicFilters);
     layoutFilter.addEventListener('change', applyMusicFilters);
+    identityFilter.addEventListener('change', applyMusicFilters);
     sort.addEventListener('change', applySort);
     if (expandMusic) {
       expandMusic.addEventListener('click', () => musicSection.classList.remove('collapsed'));
