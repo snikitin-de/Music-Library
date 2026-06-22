@@ -15,6 +15,8 @@ reports/*.html
 reports/*.json
 reports/*.log
 reports/beets-web-config.yaml
+reports/shazam-python.txt
+reports/cover_backups/
 
 # local music folders
 Unsorted/

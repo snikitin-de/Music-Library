@@ -1,0 +1,4 @@
+# Run the Shazam helper with Python 3.12. Python 3.14 is not supported reliably
+# by the current native shazamio-core build on Windows.
+shazamio==0.8.1
+imageio-ffmpeg>=0.6.0

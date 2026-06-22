@@ -8,6 +8,7 @@ reports/duplicates.csv. It never deletes files.
 from __future__ import annotations
 
 import argparse
+import base64
 import csv
 import html
 import json
@@ -62,6 +63,9 @@ REPORT_HTML = ROOT / "reports" / "library.html"
 REPORT_CSV = ROOT / "reports" / "duplicates.csv"
 REVIEW_CSV = ROOT / "reports" / "duplicates_needs_review.csv"
 FILE_ACTIONS_CSV = ROOT / "reports" / "file_actions.csv"
+TAG_ACTIONS_CSV = ROOT / "reports" / "tag_actions.csv"
+AUDIO_IDENTITY_JSON = ROOT / "reports" / "audio_identity.json"
+COVER_BACKUP_DIR = ROOT / "reports" / "cover_backups"
 BEETS_CONFIG = ROOT / "beets-config.yaml"
 WEB_BEETS_CONFIG = ROOT / "reports" / "beets-web-config.yaml"
 
@@ -323,6 +327,15 @@ def append_file_action(action: str, source: str, destination: str, status: str) 
                 "status": status,
             }
         )
+
+
+def append_tag_action(source: str, destination: str, old_tags: dict[str, object], new_tags: dict[str, object], status: str) -> None:
+    TAG_ACTIONS_CSV.parent.mkdir(parents=True, exist_ok=True)
+    exists = TAG_ACTIONS_CSV.exists()
+    with TAG_ACTIONS_CSV.open("a", encoding="utf-8-sig", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=["timestamp", "source_file", "destination_file", "old_tags_json", "new_tags_json", "status"])
+        if not exists: writer.writeheader()
+        writer.writerow({"timestamp": datetime.now().isoformat(timespec="seconds"), "source_file": source, "destination_file": destination, "old_tags_json": json.dumps(old_tags, ensure_ascii=False), "new_tags_json": json.dumps(new_tags, ensure_ascii=False), "status": status})
 
 
 def safe_quarantine_path(original: Path, library: Path, quarantine: Path) -> Path:
@@ -743,6 +756,7 @@ def refresh_report_tracks(files: list[str]) -> dict[str, object]:
     )
     library["genres"] = collect_genres_from_tracks(tracks)
     library["years"] = collect_years_from_tracks(tracks)
+    library["identity_mismatches"] = sum(bool(track.get("identity_mismatch")) for track in tracks)
 
     report_rows = [
         ReportRow(
@@ -1065,6 +1079,23 @@ def unique_destination_path(destination: Path) -> Path:
     raise RuntimeError(f"Could not create a unique destination for: {destination}")
 
 
+def layout_library_root() -> Path:
+    root = Path(library_path())
+    managed = root / MANAGED_LIBRARY_FOLDER
+    return managed if managed.exists() and managed.is_dir() else root
+
+
+def path_matches_layout(source: Path, folder: Path, file_name: str) -> bool:
+    expected = Path(file_name)
+    if norm_path(str(source.parent)) != norm_path(str(folder)):
+        return False
+    if source.suffix.casefold() != expected.suffix.casefold():
+        return False
+    return source.stem == expected.stem or bool(
+        re.fullmatch(re.escape(expected.stem) + r" \(\d+\)", source.stem)
+    )
+
+
 def manual_layout_file(source_raw: str) -> dict[str, str]:
     source = resolve_audio_path(source_raw)
     if source is None or not path_exists(source):
@@ -1086,16 +1117,11 @@ def manual_layout_file(source_raw: str) -> dict[str, str]:
     album_part = safe_path_part(album, "Unknown Album")
     title_part = safe_path_part(title, source.stem)
 
-    folder = Path(library_path()) / artist_part / album_part
+    folder = layout_library_root() / artist_part / album_part
     file_name = safe_path_part(f"{title_part} - {artist_part}", source.stem) + source.suffix.lower()
+    if path_matches_layout(source, folder, file_name):
+        return {"source": str(source), "destination": str(source), "status": "already_in_place"}
     destination = unique_destination_path(folder / file_name)
-
-    if norm_path(str(source)) == norm_path(str(destination)):
-        return {
-            "source": str(source),
-            "destination": str(destination),
-            "status": "already_in_place",
-        }
 
     folder.mkdir(parents=True, exist_ok=True)
     move_file_with_retry(source, destination)
@@ -1124,15 +1150,11 @@ def run_manual_layout(files: list[str], mode: str) -> dict[str, object]:
         album_part = safe_path_part(album, "Unknown Album")
         title_part = safe_path_part(title, source.stem)
 
-        folder = Path(library_path()) / artist_part / album_part
+        folder = layout_library_root() / artist_part / album_part
         file_name = safe_path_part(f"{title_part} - {artist_part}", source.stem) + source.suffix.lower()
-        destination = unique_destination_path(folder / file_name)
-
-        planned.append({
-            "source": str(source),
-            "destination": str(destination),
-            "status": "planned",
-        })
+        already = path_matches_layout(source, folder, file_name)
+        destination = source if already else unique_destination_path(folder / file_name)
+        planned.append({"source": str(source), "destination": str(destination), "status": "already_in_place" if already else "planned"})
 
     if mode == "dry-run":
         return {
@@ -1154,6 +1176,251 @@ def run_manual_layout(files: list[str], mode: str) -> dict[str, object]:
     }
 
 
+
+
+IDENTITY_TAG_FIELDS = {"artist": "recognized_artist", "albumartist": "recognized_artist", "title": "recognized_title", "album": "recognized_album", "date": "recognized_year", "genre": "recognized_genre"}
+
+
+def identity_track_for_file(file_path: str) -> dict:
+    wanted = norm_path(file_path)
+    for track in read_payload().get("library", {}).get("tracks", []):
+        if norm_path(str(track.get("path", ""))) == wanted: return track
+    raise RuntimeError("File is not listed in the current music report.")
+
+
+def identity_destination(source: Path, values: dict[str, str]) -> Path:
+    artist = safe_path_part(values.get("albumartist") or values.get("artist"), "Unknown Artist")
+    album = safe_path_part(values.get("album", ""), "Unknown Album")
+    title = safe_path_part(values.get("title", ""), source.stem)
+    destination = layout_library_root() / artist / album / (safe_path_part(f"{title} - {artist}", source.stem) + source.suffix.lower())
+    return destination if norm_path(str(source)) == norm_path(str(destination)) else unique_destination_path(destination)
+
+
+def update_identity_cache(source: str, destination: str) -> None:
+    if not AUDIO_IDENTITY_JSON.exists(): return
+    try: data = json.loads(AUDIO_IDENTITY_JSON.read_text(encoding="utf-8-sig"))
+    except (OSError, ValueError): return
+    files = data.get("files", {})
+    key = next((key for key in files if norm_path(key) == norm_path(source)), None)
+    item = files.pop(key, None) if key else None
+    if item is not None:
+        item.update({"status": "corrected", "mismatch": False})
+        files[destination] = item
+        AUDIO_IDENTITY_JSON.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def backup_and_remove_embedded_cover(path: Path) -> dict[str, object]:
+    audio = MutagenFile(path, easy=False)
+    if audio is None:
+        return {"removed": False, "reason": "unsupported"}
+    cover_data = b""; cover_mime = "image/jpeg"
+    pictures = list(getattr(audio, "pictures", []) or [])
+    if pictures:
+        cover_data = bytes(getattr(pictures[0], "data", b"") or b"")
+        cover_mime = str(getattr(pictures[0], "mime", "image/jpeg") or "image/jpeg")
+    keys_to_remove: list[object] = []
+    tags = getattr(audio, "tags", None)
+    if tags is not None:
+        for key, value in list(tags.items()):
+            key_text = str(key).lower()
+            if not (key_text.startswith("apic") or key_text == "covr" or "metadata_block_picture" in key_text):
+                continue
+            keys_to_remove.append(key); values = value if isinstance(value, list) else [value]
+            if cover_data: continue
+            for item in values:
+                data = bytes(getattr(item, "data", b"") or b""); mime = str(getattr(item, "mime", "image/jpeg") or "image/jpeg")
+                if not data and "metadata_block_picture" in key_text:
+                    try:
+                        from mutagen.flac import Picture
+                        picture = Picture(base64.b64decode(str(item))); data, mime = picture.data, picture.mime
+                    except Exception: data = b""
+                if not data and key_text == "covr":
+                    try: data = bytes(item)
+                    except Exception: data = b""
+                if data: cover_data, cover_mime = data, mime; break
+    if not pictures and not keys_to_remove: return {"removed": False, "reason": "no_embedded_cover"}
+    if not cover_data: return {"removed": False, "reason": "backup_unavailable"}
+    extension = ".png" if "png" in cover_mime.lower() else ".jpg"
+    COVER_BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+    backup = COVER_BACKUP_DIR / f"{safe_path_part(path.stem, 'cover')}-{uuid.uuid4().hex[:10]}{extension}"
+    backup.write_bytes(cover_data)
+    if pictures and hasattr(audio, "clear_pictures"): audio.clear_pictures()
+    if tags is not None:
+        for key in keys_to_remove:
+            try: del tags[key]
+            except KeyError: pass
+    audio.save(); append_file_action("cover_backup_removed", str(path), str(backup), "saved_and_removed")
+    return {"removed": True, "backup": str(backup)}
+
+
+def restore_easy_tags(path: Path, old_tags: dict[str, object]) -> None:
+    audio = MutagenFile(path, easy=True)
+    if audio is None: return
+    if audio.tags is None: audio.add_tags()
+    for key, value in old_tags.items():
+        if value is None:
+            try: del audio[key]
+            except KeyError: pass
+        else: audio[key] = value
+    audio.save()
+
+
+def shazam_runtime_python() -> Path:
+    candidates = []
+    configured = ROOT / "reports" / "shazam-python.txt"
+    if configured.exists():
+        try:
+            candidates.append(Path(configured.read_text(encoding="utf-8-sig").strip()))
+        except OSError:
+            pass
+    if os.environ.get("SHAZAM_PYTHON"):
+        candidates.append(Path(os.environ["SHAZAM_PYTHON"]))
+    candidates.extend([
+        ROOT / ".venv-shazam" / "Scripts" / "python.exe",
+        Path("C:/tmp/music-shazam-venv/Scripts/python.exe"),
+    ])
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    raise RuntimeError("Не найден Python 3.12 с shazamio. Укажите путь в reports/shazam-python.txt.")
+
+
+def recognize_with_shazam(source: Path) -> dict[str, object]:
+    result = subprocess.run(
+        [str(shazam_runtime_python()), str(ROOT / "scripts" / "shazam_recognize.py"), "--file", str(source)],
+        cwd=ROOT,
+        env={**dict(os.environ), "PYTHONIOENCODING": "utf-8", "NO_COLOR": "1"},
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=120,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(result.stderr.strip() or result.stdout.strip() or "Shazam не выполнил распознавание.")
+    lines = [line.strip() for line in result.stdout.splitlines() if line.strip().startswith("{")]
+    if not lines:
+        raise RuntimeError("Shazam вернул пустой ответ.")
+    data = json.loads(lines[-1])
+    if not data.get("ok") or not data.get("artist") or not data.get("title"):
+        raise RuntimeError(str(data.get("error") or "Shazam не распознал исполнителя и название."))
+    return data
+
+
+def run_shazam_tagging(files: list[str], mode: str, lookup_allowed: bool, confirmed: bool) -> dict[str, object]:
+    if not lookup_allowed:
+        raise RuntimeError("Для Shazam требуется явное подтверждение отправки аудиоотпечатка.")
+    plans: list[dict[str, object]] = []
+    for file_path in files:
+        source = resolve_audio_path(file_path)
+        if source is None or not path_exists(source):
+            raise RuntimeError(f"Аудиофайл не найден: {file_path}")
+        if not source_inside_library(source):
+            raise RuntimeError(f"Файл находится за пределами библиотеки отчёта: {source}")
+        recognized = recognize_with_shazam(source)
+        audio = MutagenFile(source, easy=True)
+        if audio is None:
+            raise RuntimeError(f"Не удалось открыть теги: {source}")
+        if audio.tags is None:
+            audio.add_tags()
+        current_artist = first_tag(audio.tags, ["artist", "albumartist"])
+        current_title = first_tag(audio.tags, ["title"])
+        old_tags: dict[str, object] = {}
+        for key in IDENTITY_TAG_FIELDS:
+            value = audio.tags.get(key)
+            old_tags[key] = list(value) if isinstance(value, list) else value
+        new_tags = {
+            "artist": str(recognized.get("artist", "")).strip(),
+            "albumartist": str(recognized.get("artist", "")).strip(),
+            "title": str(recognized.get("title", "")).strip(),
+        }
+        for key, source_key in (("album", "album"), ("date", "year"), ("genre", "genre")):
+            value = str(recognized.get(source_key, "")).strip()
+            if value:
+                new_tags[key] = value
+        mismatch = not (
+            normalize_audio_name(current_artist) == normalize_audio_name(new_tags["artist"])
+            and normalize_audio_name(current_title) == normalize_audio_name(new_tags["title"])
+        )
+        plans.append({"source": str(source), "old_tags": old_tags, "new_tags": new_tags, "recognized": recognized, "mismatch": mismatch})
+
+    if mode == "dry-run":
+        return {"ok": True, "reload": False, "message": f"Shazam dry run завершён. Распознано файлов: {len(plans)}.", "items": plans}
+    if not confirmed:
+        raise RuntimeError("Запись тегов Shazam требует явного подтверждения.")
+
+    layout_items: list[dict[str, str]] = []
+    unchanged_paths: list[str] = []
+    results: list[dict[str, object]] = []
+    for plan in plans:
+        source = Path(str(plan["source"])); final_path = source
+        audio = MutagenFile(source, easy=True)
+        if audio is None:
+            raise RuntimeError(f"Не удалось открыть теги: {source}")
+        if audio.tags is None:
+            audio.add_tags()
+        try:
+            for key, value in dict(plan["new_tags"]).items():
+                audio[key] = [str(value)]
+            audio.save()
+            layout_item = manual_layout_file(str(source))
+            final_path = Path(layout_item.get("destination") or source)
+        except Exception:
+            rollback_path = final_path if path_exists(final_path) else source
+            if path_exists(rollback_path):
+                restore_easy_tags(rollback_path, dict(plan["old_tags"]))
+            raise
+        cover_result = backup_and_remove_embedded_cover(final_path) if plan.get("mismatch") else {"removed": False, "reason": "tags_match"}
+        append_tag_action(str(source), str(final_path), dict(plan["old_tags"]), dict(plan["new_tags"]), "updated_by_shazam")
+        update_identity_cache(str(source), str(final_path))
+        if norm_path(str(source)) != norm_path(str(final_path)):
+            append_file_action("shazam_layout", str(source), str(final_path), "moved")
+            layout_items.append({"source": str(source), "destination": str(final_path), "status": "moved"})
+        else:
+            unchanged_paths.append(str(final_path))
+        results.append({**plan, "destination": str(final_path), "cover": cover_result})
+
+    refresh: dict[str, object] = {"tracks": []}
+    if layout_items:
+        refresh = update_report_after_layout(layout_items)
+    if unchanged_paths:
+        unchanged_refresh = refresh_report_tracks(unchanged_paths)
+        refresh["tracks"] = list(refresh.get("tracks", [])) + list(unchanged_refresh.get("tracks", []))
+    return {"ok": True, "reload": True, "message": f"Shazam: теги и пути обновлены. Обработано файлов: {len(results)}.", "items": results, "refresh": refresh, "track": (refresh.get("tracks") or [None])[0] if len(results) == 1 else None}
+
+
+def run_identity_correction(file_path: str, mode: str, confirmed: bool) -> dict[str, object]:
+    source = resolve_audio_path(file_path)
+    if source is None or not path_exists(source): raise RuntimeError(f"Аудиофайл не найден: {file_path}")
+    if not source_inside_library(source): raise RuntimeError(f"Файл находится за пределами библиотеки отчёта: {source}")
+    track = identity_track_for_file(str(source)); identity = track.get("identity") or {}
+    if not track.get("identity_mismatch") or not identity.get("recognized_artist") or not identity.get("recognized_title"): raise RuntimeError("В отчёте нет подтверждённого исправления для этого файла.")
+    audio = MutagenFile(source, easy=True)
+    if audio is None: raise RuntimeError(f"Не удалось открыть теги: {source}")
+    if audio.tags is None: audio.add_tags()
+    old_tags: dict[str, object] = {}; current: dict[str, str] = {}
+    for key in IDENTITY_TAG_FIELDS:
+        value = audio.tags.get(key); old_tags[key] = list(value) if isinstance(value, list) else value; current[key] = first_tag(audio.tags, [key])
+    new_tags = {key: str(identity.get(identity_key, "")).strip() for key, identity_key in IDENTITY_TAG_FIELDS.items() if str(identity.get(identity_key, "")).strip()}
+    destination = identity_destination(source, {**current, **new_tags})
+    plan = {"source": str(source), "destination": str(destination), "old_tags": old_tags, "new_tags": new_tags}
+    if mode == "dry-run": return {"ok": True, "reload": False, "message": f"Dry run: теги будут обновлены; новый путь: {destination}", "plan": plan}
+    if not confirmed: raise RuntimeError("Исправление тегов и пути требует явного подтверждения.")
+    try:
+        for key, value in new_tags.items(): audio[key] = [value]
+        audio.save(); layout_item = manual_layout_file(str(source)); final_path = Path(layout_item.get("destination") or source)
+    except Exception:
+        if path_exists(source): restore_easy_tags(source, old_tags)
+        raise
+    cover_result = backup_and_remove_embedded_cover(final_path)
+    append_tag_action(str(source), str(final_path), old_tags, new_tags, "updated")
+    update_identity_cache(str(source), str(final_path))
+    if norm_path(str(source)) != norm_path(str(final_path)):
+        append_file_action("identity_layout", str(source), str(final_path), "moved"); refresh = update_report_after_layout([{"source": str(source), "destination": str(final_path), "status": "moved"}])
+    else: refresh = refresh_report_tracks([str(final_path)])
+    cover_message = " Неверная обложка удалена, резервная копия сохранена." if cover_result.get("removed") else ""
+    return {"ok": True, "reload": True, "message": f"Теги и путь исправлены: {final_path}.{cover_message}", "plan": plan, "cover": cover_result, "refresh": refresh, "track": (refresh.get("tracks") or [None])[0]}
 
 
 def apply_path_replacements_to_csv(replacements: dict[str, str]) -> int:
@@ -1214,6 +1481,7 @@ def apply_path_replacements_to_payload(replacements: dict[str, str]) -> dict[str
     )
     library["genres"] = collect_genres_from_tracks(tracks)
     library["years"] = collect_years_from_tracks(tracks)
+    library["identity_mismatches"] = sum(bool(track.get("identity_mismatch")) for track in tracks)
 
     return {
         "payload": payload,
@@ -1277,7 +1545,7 @@ def run_music_operation(body: dict) -> dict:
     mode = str(body.get("mode", "dry-run"))
     scope = str(body.get("scope", "filtered"))
 
-    if action not in {"tag", "layout"}:
+    if action not in {"tag", "shazam-tag", "layout", "identity-correction"}:
         raise RuntimeError("Unknown music operation.")
     if mode not in {"dry-run", "real"}:
         raise RuntimeError("Choose dry-run or real processing mode.")
@@ -1291,6 +1559,20 @@ def run_music_operation(body: dict) -> dict:
 
     scope_name = "одной записи" if scope == "single" else "отфильтрованного списка"
     mode_name = "dry run" if mode == "dry-run" else "реальная обработка"
+
+    if action == "identity-correction":
+        if scope != "single" or len(files) != 1:
+            raise RuntimeError("Identity correction is available for exactly one card.")
+        return run_identity_correction(files[0], mode, body.get("confirm") == "APPLY_IDENTITY_CORRECTION")
+
+    if action == "shazam-tag":
+        token = str(body.get("confirm", ""))
+        return run_shazam_tagging(
+            files,
+            mode,
+            token in {"ALLOW_SHAZAM_LOOKUP", "APPLY_SHAZAM_TAGS"},
+            token == "APPLY_SHAZAM_TAGS",
+        )
 
     if action == "layout":
         layout_result = run_manual_layout(files, mode)

@@ -17,6 +17,7 @@ from pathlib import Path
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--html", required=True, help="Existing standalone HTML report")
+    parser.add_argument("--identity-report", default="reports/audio_identity.json")
     args = parser.parse_args()
 
     html_path = Path(args.html).expanduser().resolve()
@@ -30,6 +31,17 @@ def main() -> int:
         raise SystemExit(f"Embedded payload was not found: {html_path}")
 
     payload = json.loads(html.unescape(match.group(1)))
+    identity_path = Path(args.identity_report).expanduser().resolve()
+    if identity_path.exists():
+        identity_files = json.loads(identity_path.read_text(encoding="utf-8-sig")).get("files", {})
+        tracks = payload.get("library", {}).get("tracks", [])
+        for track in tracks:
+            identity = identity_files.get(str(track.get("path", "")), {})
+            track["identity"] = identity
+            track["identity_mismatch"] = bool(identity.get("mismatch"))
+        payload["library"]["identity_mismatches"] = sum(
+            bool(track.get("identity_mismatch")) for track in tracks
+        )
     generator_path = Path(__file__).with_name("generate_html_report.py")
     namespace: dict[str, object] = {}
     exec(compile(generator_path.read_text(encoding="utf-8"), str(generator_path), "exec"), namespace)

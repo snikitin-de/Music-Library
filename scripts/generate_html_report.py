@@ -473,7 +473,19 @@ def collect_genre_era_heatmap(tracks: list[dict], limit: int = 10) -> dict[str, 
     return {"columns": columns, "rows": rows, "max": max_value}
 
 
-def analyze_library(library: Path | None) -> dict:
+def read_audio_identity_report(path: Path | None) -> dict[str, dict]:
+    if path is None or not path.exists():
+        return {}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        print(f"WARNING: audio identity report could not be read: {path} ({exc})")
+        return {}
+    return payload.get("files", {}) if isinstance(payload, dict) else {}
+
+
+def analyze_library(library: Path | None, identity_report: Path | None = None) -> dict:
+    identity_by_path = read_audio_identity_report(identity_report)
     if library is None:
         return {
             "enabled": False,
@@ -507,6 +519,7 @@ def analyze_library(library: Path | None) -> dict:
     formats: Counter[str] = Counter()
     files_with_cover = 0
     files_with_lyrics = 0
+    identity_mismatches = 0
     tracks: list[dict] = []
 
     for scan_root in scan_roots:
@@ -522,6 +535,10 @@ def analyze_library(library: Path | None) -> dict:
                 continue
 
             total_files += 1
+            identity = identity_by_path.get(str(path), {})
+            identity_mismatch = bool(identity.get("mismatch"))
+            if identity_mismatch:
+                identity_mismatches += 1
             formats[path.suffix.lower().lstrip(".").upper()] += 1
             has_cover, cover_data_uri = embedded_cover(path)
             has_lyrics = has_embedded_lyrics(path)
@@ -552,6 +569,8 @@ def analyze_library(library: Path | None) -> dict:
                         "has_cover": has_cover,
                         "cover_data_uri": cover_data_uri,
                         "cover_url": cover_url,
+                        "identity": identity,
+                        "identity_mismatch": identity_mismatch,
                     }
                 )
                 continue
@@ -572,6 +591,8 @@ def analyze_library(library: Path | None) -> dict:
                         "has_cover": has_cover,
                         "cover_data_uri": cover_data_uri,
                         "cover_url": cover_url,
+                        "identity": identity,
+                        "identity_mismatch": identity_mismatch,
                     }
                 )
                 continue
@@ -623,6 +644,8 @@ def analyze_library(library: Path | None) -> dict:
                     "has_cover": has_cover,
                     "cover_data_uri": cover_data_uri,
                     "cover_url": cover_url,
+                    "identity": identity,
+                    "identity_mismatch": identity_mismatch,
                 }
             )
 
@@ -640,6 +663,7 @@ def analyze_library(library: Path | None) -> dict:
         "unreadable_files": unreadable_files,
         "files_with_cover": files_with_cover,
         "files_with_lyrics": files_with_lyrics,
+        "identity_mismatches": identity_mismatches,
         "tracks": sorted(tracks, key=lambda item: item["name"].lower()),
     }
 
@@ -1292,20 +1316,36 @@ def render_genre_era_heatmap(tracks: list[dict]) -> str:
     """
 
 
-def already_layouted(track_path: str, library_path: str) -> bool:
+def report_safe_path_part(value: str, fallback: str) -> str:
+    value = re.sub(r'[<>:"/\\|?*\x00-\x1f]+', " ", str(value or "").strip())
+    value = re.sub(r"\s+", " ", value).strip(" .")
+    return value or fallback
+
+
+def already_layouted(track: dict, library_path: str) -> bool:
+    track_path = str(track.get("path", ""))
     if not track_path or not library_path:
         return False
-
+    artist_values = tag_values(track, "albumartist") or tag_values(track, "artist")
+    album_values = tag_values(track, "album")
+    title_values = tag_values(track, "title")
+    if not artist_values or not album_values or not title_values:
+        return False
+    artist = report_safe_path_part(artist_values[0], "Unknown Artist")
+    album = report_safe_path_part(album_values[0], "Unknown Album")
+    title = report_safe_path_part(title_values[0], PureWindowsPath(track_path).stem)
+    source = PureWindowsPath(track_path)
+    library = PureWindowsPath(library_path)
     try:
-        relative = PureWindowsPath(track_path).relative_to(PureWindowsPath(library_path))
+        relative = source.relative_to(library)
+        base = library / MANAGED_LIBRARY_FOLDER if relative.parts and relative.parts[0].casefold() == MANAGED_LIBRARY_FOLDER.casefold() else library
     except ValueError:
-        try:
-            relative = Path(track_path).relative_to(Path(library_path))
-        except ValueError:
-            return False
-
-    # Artist / Album / file is already outside the library root and organized.
-    return len(relative.parts) >= 3
+        base = library
+    expected_parent = base / artist / album
+    expected_stem = report_safe_path_part(f"{title} - {artist}", source.stem)
+    if path_lookup_key(str(source.parent)) != path_lookup_key(str(expected_parent)):
+        return False
+    return source.stem == expected_stem or bool(re.fullmatch(re.escape(expected_stem) + r" \(\d+\)", source.stem))
 
 
 def render_music_list(tracks: list[dict], duplicate_paths: set[str] | None = None, library_path: str = "") -> str:
@@ -1351,11 +1391,15 @@ def render_music_list(tracks: list[dict], duplicate_paths: set[str] | None = Non
         sort_format = " ".join(tag_values_by_kind.get("format", [])).lower()
         status_text = " ".join(tag_values_by_kind.get("status", [])).lower()
         card_classes = ["music-card"]
+        identity_mismatch = bool(track.get("identity_mismatch"))
+        identity = track.get("identity") or {}
+        if identity_mismatch:
+            card_classes.append("music-card-identity-mismatch")
         if track.get("path", "") in duplicate_paths:
             card_classes.append("music-card-duplicate")
         if "не читается" in status_text or "не распознан" in status_text:
             card_classes.append("music-card-unreadable")
-        is_layouted = already_layouted(track.get("path", ""), library_path)
+        is_layouted = already_layouted(track, library_path)
         layout_status = "done" if is_layouted else "ready"
         layout_disabled = (
             ' disabled aria-disabled="true" title="Файл уже находится в папках исполнителя и альбома"'
@@ -1368,10 +1412,33 @@ def render_music_list(tracks: list[dict], duplicate_paths: set[str] | None = Non
         cover_search_disabled = ' disabled aria-disabled="true" title="Обложка уже есть"' if has_cover else ""
         lyrics_search_disabled = ' disabled aria-disabled="true" title="Текст уже есть"' if has_lyrics else ""
         player_html = audio_player(track.get("path", ""), f'Прослушать {track.get("name", "")}')
+        identity_warning = ""
+        if identity_mismatch:
+            recognized_parts = [
+                str(identity.get(key, "")).strip()
+                for key in ("recognized_artist", "recognized_title")
+                if str(identity.get(key, "")).strip()
+            ]
+            recognized = " — ".join(recognized_parts) or "не определено"
+            confidence = round(float(identity.get("score", 0) or 0) * 100)
+            if identity.get("source") == "user":
+                source_label = "подтверждено пользователем"
+            elif identity.get("source") == "shazamio":
+                source_label = "распознано Shazam"
+            else:
+                source_label = f"уверенность {confidence}%"
+            identity_warning = (
+                '<div class="identity-warning">⚠ По аудиоотпечатку: '
+                f'<strong>{html.escape(recognized)}</strong> ({source_label}). '
+                'Исполнитель или название не совпадают с тегами.</div>'
+            )
         cover_html = cover_preview(track)
         items.append(
             f"""
-            <article class="{html.escape(" ".join(card_classes))}" data-file-path="{html.escape(track.get("path", ""))}" data-layout-status="{layout_status}" data-music-search="{html.escape(search_text)}" data-sort-name="{html.escape(track.get("name", "").lower())}" data-sort-artist="{html.escape(sort_artist)}" data-sort-album="{html.escape(sort_album)}" data-sort-year="{html.escape(sort_year)}" data-sort-format="{html.escape(sort_format)}" {tag_attributes}>
+            <article class="{html.escape(" ".join(card_classes))}" data-file-path="{html.escape(track.get("path", ""))}" data-layout-status="{layout_status}" data-identity-mismatch="{'yes' if identity_mismatch else 'no'}" data-music-search="{html.escape(search_text)}" data-sort-name="{html.escape(track.get("name", "").lower())}" data-sort-artist="{html.escape(sort_artist)}" data-sort-album="{html.escape(sort_album)}" data-sort-year="{html.escape(sort_year)}" data-sort-format="{html.escape(sort_format)}" {tag_attributes}>
+              <button class="music-trash-icon trash-one" type="button" data-file-path="{html.escape(track.get("path", ""))}" title="В корзину" aria-label="В корзину">
+                <svg class="trash-svg" width="512" height="512" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" aria-hidden="true"><path fill="currentColor" d="M166.2-16c-13.3 0-25.3 8.3-30 20.8L120 48H24C10.7 48 0 58.7 0 72s10.7 24 24 24h400c13.3 0 24-10.7 24-24s-10.7-24-24-24h-96L311.8 4.8c-4.7-12.5-16.6-20.8-30-20.8zM32 144v304c0 35.3 28.7 64 64 64h256c35.3 0 64-28.7 64-64V144h-48v304c0 8.8-7.2 16-16 16H96c-8.8 0-16-7.2-16-16V144zm160 72c0-13.3-10.7-24-24-24s-24 10.7-24 24v176c0 13.3 10.7 24 24 24s24-10.7 24-24zm112 0c0-13.3-10.7-24-24-24s-24 10.7-24 24v176c0 13.3 10.7 24 24 24s24-10.7 24-24z"></path></svg>
+              </button>
               <div class="music-card-content">
                 {cover_html}
                 <div class="music-card-main">
@@ -1379,13 +1446,14 @@ def render_music_list(tracks: list[dict], duplicate_paths: set[str] | None = Non
                   <div class="music-path" title="{html.escape(track.get("path", ""))}">{html.escape(track.get("folder", ""))}</div>
                   {player_html}
                   <div class="music-pills">{tags}</div>
+                  {identity_warning}
                   <div class="music-actions">
-                    <button class="small music-action-single" type="button" data-action="tag" data-file-path="{html.escape(track.get("path", ""))}">Проставить теги</button>
+                    <button class="small music-action-single" type="button" data-action="tag" data-file-path="{html.escape(track.get("path", ""))}">Теги через beets</button>
+                    <button class="small music-action-single" type="button" data-action="shazam-tag" data-file-path="{html.escape(track.get("path", ""))}">Теги через Shazam</button>
                     <button class="small music-action-single" type="button" data-action="layout" data-file-path="{html.escape(track.get("path", ""))}"{layout_disabled}>Разложить по папкам</button>
-                    <button class="small lyrics-button" type="button" data-file-path="{html.escape(track.get("path", ""))}" data-track-name="{html.escape(track.get("name", ""))}"{lyrics_disabled}>Текст песни</button>
                     <button class="small enrichment-button" type="button" data-kind="cover" data-file-path="{html.escape(track.get("path", ""))}"{cover_search_disabled}>Найти обложку</button>
                     <button class="small enrichment-button" type="button" data-kind="lyrics" data-file-path="{html.escape(track.get("path", ""))}"{lyrics_search_disabled}>Найти текст</button>
-                    <button class="small danger-button trash-one" type="button" data-file-path="{html.escape(track.get("path", ""))}">В корзину</button>
+                    <button class="small lyrics-button" type="button" data-file-path="{html.escape(track.get("path", ""))}" data-track-name="{html.escape(track.get("name", ""))}"{lyrics_disabled}>Текст песни</button>
                   </div>
                   <div class="music-card-status" aria-live="polite">
                     <div class="music-card-status-text"></div>
@@ -1728,6 +1796,8 @@ def render_html(payload: dict) -> str:
       border-radius: 18px;
       background: rgba(255, 255, 255, 0.045);
     }}
+    .music-operation-groups {{ display: grid; grid-template-columns: 1fr; gap: 12px; align-items: stretch; }}
+    .music-operation-block {{ min-width: 0; padding: 12px; border: 1px solid var(--line); border-radius: 14px; background: rgba(15, 23, 42, 0.44); }}
     .music-operations-row {{
       display: flex;
       flex-wrap: wrap;
@@ -1741,6 +1811,8 @@ def render_html(payload: dict) -> str:
       justify-content: center;
     }}
     .music-operations-row > button.small {{ flex: 0 1 auto; }}
+    .music-operation-actions .music-operations-row {{ flex-wrap: nowrap; width: 100%; }}
+    .music-operation-actions .music-operations-row > button.small {{ flex: 1 1 0; min-width: 0; padding-inline: 12px; }}
     .music-operations-title {{ margin: 0 0 10px; font-weight: 750; }}
     .mode-choice {{ display: inline-flex; align-items: center; gap: 6px; min-height: 42px; padding: 0 12px; border: 1px solid var(--line); border-radius: 999px; background: rgba(15, 23, 42, 0.82); }}
     .mode-choice input {{ flex: 0 0 auto; width: auto; height: auto; margin: 0; }}
@@ -1821,7 +1893,12 @@ def render_html(payload: dict) -> str:
       display: none !important;
     }}
     .music-list {{ display: grid; gap: 10px; }}
-    .music-card {{ padding: 14px; border: 1px solid var(--line); border-radius: 18px; background: rgba(13, 18, 32, 0.68); box-shadow: 0 10px 28px rgba(0, 0, 0, 0.14); }}
+    .music-card {{ position: relative; padding: 14px 58px 14px 14px; border: 1px solid var(--line); border-radius: 18px; background: rgba(13, 18, 32, 0.68); box-shadow: 0 10px 28px rgba(0, 0, 0, 0.14); }}
+    .music-trash-icon {{ position: absolute; top: 12px; right: 12px; z-index: 3; width: 40px; height: 40px; display: grid; place-items: center; border: 1px solid rgba(248, 113, 113, 0.38); border-radius: 10px; color: #fca5a5; background: rgba(69, 10, 10, 0.28); cursor: pointer; }}
+    .music-trash-icon:hover {{ color: #fff; border-color: rgba(248, 113, 113, 0.8); background: rgba(127, 29, 29, 0.72); }}
+    .trash-svg {{ display: block; width: 22px; height: 22px; flex: 0 0 auto; }}
+    .music-card-identity-mismatch {{ border-color: rgba(250, 204, 21, 0.85); background: rgba(113, 63, 18, 0.32); box-shadow: 0 0 0 1px rgba(250, 204, 21, 0.18), 0 10px 28px rgba(0, 0, 0, 0.14); }}
+    .identity-warning {{ margin-top: 10px; padding: 10px 12px; border: 1px solid rgba(250, 204, 21, 0.5); border-radius: 12px; color: #fde68a; background: rgba(113, 63, 18, 0.36); }}
     .music-card-duplicate {{ border-color: rgba(245, 158, 11, 0.54); background: rgba(120, 53, 15, 0.2); }}
     .music-card-unreadable {{ border-color: rgba(239, 68, 68, 0.58); background: rgba(127, 29, 29, 0.22); }}
     .music-card[hidden] {{ display: none; }}
@@ -2218,6 +2295,9 @@ def render_html(payload: dict) -> str:
       .duplicate-cover {{ width: 72px; }}
       .music-actions {{ display: grid; grid-template-columns: 1fr; width: 100%; }}
       .music-actions .small {{ width: 100%; min-width: 0; }}
+      .music-operation-groups {{ grid-template-columns: 1fr; }}
+      .music-operation-actions .music-operations-row {{ overflow-x: auto; padding-bottom: 4px; }}
+      .music-operation-actions .music-operations-row > button.small {{ flex: 0 0 auto; width: auto; }}
       .music-operations-row > button.small,
       .music-operations-row > .mode-choice {{ width: 100%; }}
       .duplicates-heading {{ align-items: stretch; flex-direction: column; }}
@@ -2251,6 +2331,7 @@ def render_html(payload: dict) -> str:
           Возможных групп на проверку: <strong>{format_number(summary.get("review_groups", 0))}</strong><br>
           Файлов с обложкой: <strong>{format_number(library.get("files_with_cover"))}</strong><br>
           Файлов с текстом песни: <strong>{format_number(library.get("files_with_lyrics"))}</strong><br>
+          Не совпадает с аудиоотпечатком: <strong>{format_number(library.get("identity_mismatches", 0))}</strong><br>
           Нечитаемых аудиофайлов: <strong>{format_number(library.get("unreadable_files"))}</strong>
         </div>
         <div class="panel-body">
@@ -2295,12 +2376,24 @@ def render_html(payload: dict) -> str:
       <div class="global-progress" id="scanProgress" aria-hidden="true"><span></span></div>
     </div>
     <div class="music-operations music-toolbar">
-      <p class="music-operations-title">Обработка музыки</p>
-      <div class="music-operations-row">
-        <label class="mode-choice"><input type="radio" name="processMode" value="dry-run" checked> Dry run</label>
-        <label class="mode-choice"><input type="radio" name="processMode" value="real"> Реальная обработка</label>
-        <button class="small" id="tagVisible" type="button">Проставить теги для отфильтрованных</button>
-        <button class="small" id="layoutVisible" type="button">Разложить отфильтрованные по папкам</button>
+      <div class="music-operation-groups">
+        <section class="music-operation-block">
+          <p class="music-operations-title">Тип обработки</p>
+          <div class="music-operations-row">
+            <label class="mode-choice"><input type="radio" name="processMode" value="dry-run" checked> Dry run</label>
+            <label class="mode-choice"><input type="radio" name="processMode" value="real"> Реальная обработка</label>
+          </div>
+        </section>
+        <section class="music-operation-block music-operation-actions">
+          <p class="music-operations-title">Обработка</p>
+          <div class="music-operations-row">
+            <button class="small" id="tagVisible" type="button">Теги beets</button>
+            <button class="small" id="shazamTagVisible" type="button">Теги Shazam</button>
+            <button class="small" id="layoutVisible" type="button">Разложить по папкам</button>
+            <button class="small" id="coverVisible" type="button">Найти обложки</button>
+            <button class="small" id="lyricsVisible" type="button">Найти тексты</button>
+          </div>
+        </section>
       </div>
       <div class="operation-status" id="operationStatus">Выбран безопасный режим dry run. Глобальные кнопки работают по отфильтрованному списку, кнопки внутри карточки — только по своей записи.</div>
     </div>
@@ -2321,6 +2414,11 @@ def render_html(payload: dict) -> str:
         <option value="title">Тег: название</option>
         <option value="year">Тег: год</option>
         <option value="status">Тег: статус</option>
+      </select>
+      <select id="identityFilter">
+        <option value="all">Аудиоотпечаток: все записи</option>
+        <option value="mismatch">Аудиоотпечаток: не совпадает</option>
+        <option value="match">Аудиоотпечаток: без расхождения</option>
       </select>
       <select id="layoutFilter">
         <option value="all">Раскладка: все записи</option>
@@ -2379,6 +2477,7 @@ def render_html(payload: dict) -> str:
     const musicSearch = document.getElementById('musicSearch');
     const tagFilter = document.getElementById('tagFilter');
     const layoutFilter = document.getElementById('layoutFilter');
+    const identityFilter = document.getElementById('identityFilter');
     const musicEmpty = document.getElementById('musicEmpty');
     const quarantineButton = document.getElementById('quarantineCommand');
     const quarantinePanel = document.getElementById('quarantinePanel');
@@ -2395,7 +2494,10 @@ def render_html(payload: dict) -> str:
     const collapseMusic = document.getElementById('collapseMusic');
     const operationStatus = document.getElementById('operationStatus');
     const tagVisible = document.getElementById('tagVisible');
+    const shazamTagVisible = document.getElementById('shazamTagVisible');
     const layoutVisible = document.getElementById('layoutVisible');
+    const coverVisible = document.getElementById('coverVisible');
+    const lyricsVisible = document.getElementById('lyricsVisible');
     const lyricsModal = document.getElementById('lyricsModal');
     const lyricsTitle = document.getElementById('lyricsTitle');
     const lyricsPath = document.getElementById('lyricsPath');
@@ -2413,7 +2515,7 @@ def render_html(payload: dict) -> str:
       if (!operationStatus) return;
 
       if (mode === 'real') {{
-        operationStatus.textContent = 'Выбрана реальная обработка. «Разложить» будет перемещать файлы в папки текущей библиотеки по исполнителю и альбому. Глобальные кнопки работают по отфильтрованному списку, кнопки внутри карточки — только по своей записи.';
+        operationStatus.textContent = 'Выбрана реальная обработка. Глобальные кнопки работают по отфильтрованному списку, кнопки внутри карточки — только по своей записи.';
       }} else {{
         operationStatus.textContent = 'Выбран безопасный режим dry run. Глобальные кнопки работают по отфильтрованному списку, кнопки внутри карточки — только по своей записи.';
       }}
@@ -2524,9 +2626,35 @@ def render_html(payload: dict) -> str:
       }}
     }}
 
+    async function runVisibleEnrichment(kind) {{
+      const buttons = musicCards
+        .filter(card => !card.hidden)
+        .map(card => card.querySelector(`.enrichment-button[data-kind="${{kind}}"]`))
+        .filter(button => button && !button.disabled);
+      const label = kind === 'cover' ? '???????' : '???????';
+      if (!buttons.length) {{
+        operationStatus.textContent = `??? ?????? ${{label}} ??? ?????????? ?????? ? ??????? ???????.`;
+        return;
+      }}
+      if (!window.confirm(`????????? ???????????????? ????? ${{label}} ??? ??????????????? ??????: ${{buttons.length}}? ??? ??????? ?????????? ???????? ??????????? ?????????????.`)) return;
+      coverVisible.disabled = true;
+      lyricsVisible.disabled = true;
+      operationStatus.textContent = `??? ???????? ${{label}}. ??????: ${{buttons.length}}...`;
+      try {{
+        for (let index = 0; index < buttons.length; index += 1) {{
+          operationStatus.textContent = `????? ${{label}}: ${{index + 1}} ?? ${{buttons.length}}.`;
+          await searchAndSaveEnrichment(buttons[index]);
+        }}
+        operationStatus.textContent = `????? ${{label}} ????????. ?????????? ??????: ${{buttons.length}}.`;
+      }} finally {{
+        coverVisible.disabled = false;
+        lyricsVisible.disabled = false;
+      }}
+    }}
+
     function setMusicActionDisabled(disabled, card = null) {{
       const root = card || document;
-      const selector = card ? '.music-action-single' : '.music-action-single, #tagVisible, #layoutVisible';
+      const selector = card ? '.music-action-single' : '.music-action-single, #tagVisible, #shazamTagVisible, #layoutVisible, #coverVisible, #lyricsVisible';
       root.querySelectorAll(selector).forEach(button => {{
         button.disabled = disabled;
       }});
@@ -2763,12 +2891,20 @@ def render_html(payload: dict) -> str:
         return;
       }}
 
+      let confirmationToken = '';
+      if (action === 'shazam-tag') {{
+        const approved = window.confirm('Для распознавания будет отправлен аудиоотпечаток в неофициальный Shazam. Продолжить?');
+        if (!approved) return;
+        confirmationToken = 'ALLOW_SHAZAM_LOOKUP';
+      }}
       if (mode === 'real') {{
-        const targetText = scope === 'single'
-          ? 'одну выбранную запись'
-          : `отфильтрованные записи: ${{uniqueFiles.length}}`;
-        const confirmed = window.confirm(`Запустить реальную обработку через beets для: ${{targetText}}?`);
-        if (!confirmed) return;
+        const targetText = scope === 'single' ? 'одну выбранную запись' : `отфильтрованные записи: ${{uniqueFiles.length}}`;
+        const question = action === 'shazam-tag'
+          ? `Записать теги Shazam в: ${{targetText}}? Старые теги будут сохранены в журнале.`
+          : `Запустить реальную обработку для: ${{targetText}}?`;
+        if (!window.confirm(question)) return;
+        if (action === 'shazam-tag') confirmationToken = 'APPLY_SHAZAM_TAGS';
+        if (action === 'identity-correction') confirmationToken = 'APPLY_IDENTITY_CORRECTION';
       }}
 
       setMusicActionDisabled(true, useCardStatus ? sourceCard : null);
@@ -2783,7 +2919,7 @@ def render_html(payload: dict) -> str:
         const response = await fetch('/api/music-operation', {{
           method: 'POST',
           headers: {{ 'Content-Type': 'application/json' }},
-          body: JSON.stringify({{ action, mode, scope, files: uniqueFiles }}),
+          body: JSON.stringify({{ action, mode, scope, files: uniqueFiles, confirm: confirmationToken }}),
         }});
 
         const result = await response.json();
@@ -2797,7 +2933,7 @@ def render_html(payload: dict) -> str:
         if (!response.ok || !result.ok) throw new Error(result.error || 'Команда не выполнена');
 
         operationStatus.textContent = result.message || 'Операция завершена.';
-        if (!handleInCard && mode === 'real' && result.reload) setTimeout(() => window.location.reload(), 900);
+        if (mode === 'real' && result.reload) setTimeout(() => window.location.reload(), 900);
       }} catch (error) {{
         if (useCardStatus) setCardStatus(sourceCard, 'error', error.message || String(error));
         operationStatus.textContent = error.message || String(error);
@@ -2821,6 +2957,7 @@ def render_html(payload: dict) -> str:
       const value = musicSearch.value.trim().toLowerCase();
       const tagKind = tagFilter.value;
       const layoutKind = layoutFilter.value;
+      const identityKind = identityFilter.value;
       let visibleCount = 0;
       musicCards.forEach(card => {{
         const searchArea = tagKind === 'all'
@@ -2828,7 +2965,9 @@ def render_html(payload: dict) -> str:
           : (card.getAttribute(`data-tag-${{tagKind}}`) || '');
         const matchesText = !value || searchArea.includes(value);
         const matchesLayout = layoutKind === 'all' || card.dataset.layoutStatus === layoutKind;
-        const visible = matchesText && matchesLayout;
+        const mismatch = card.dataset.identityMismatch === 'yes';
+        const matchesIdentity = identityKind === 'all' || (identityKind === 'mismatch' ? mismatch : !mismatch);
+        const visible = matchesText && matchesLayout && matchesIdentity;
         card.hidden = !visible;
         if (visible) visibleCount += 1;
       }});
@@ -3076,7 +3215,10 @@ def render_html(payload: dict) -> str:
     }});
 
     tagVisible.addEventListener('click', () => runMusicOperation('tag', visibleMusicPaths(), 'filtered'));
+    shazamTagVisible.addEventListener('click', () => runMusicOperation('shazam-tag', visibleMusicPaths(), 'filtered'));
     layoutVisible.addEventListener('click', () => runMusicOperation('layout', visibleMusicPaths(), 'filtered'));
+    coverVisible.addEventListener('click', () => runVisibleEnrichment('cover'));
+    lyricsVisible.addEventListener('click', () => runVisibleEnrichment('lyrics'));
     if (rescanLibrary) {{
       rescanLibrary.addEventListener('click', rescanCurrentLibrary);
     }}
@@ -3090,6 +3232,7 @@ def render_html(payload: dict) -> str:
     musicSearch.addEventListener('input', applyMusicFilters);
     tagFilter.addEventListener('change', applyMusicFilters);
     layoutFilter.addEventListener('change', applyMusicFilters);
+    identityFilter.addEventListener('change', applyMusicFilters);
     sort.addEventListener('change', applySort);
     if (expandMusic) {{
       expandMusic.addEventListener('click', () => musicSection.classList.remove('collapsed'));
@@ -3111,6 +3254,7 @@ def main() -> int:
     parser.add_argument("--csv", required=True, help="Duplicate CSV report")
     parser.add_argument("--review-csv", help="CSV with possible duplicates that require review")
     parser.add_argument("--library", help="Music library folder for full analysis")
+    parser.add_argument("--identity-report", default="reports/audio_identity.json", help="Cached AcoustID comparison JSON")
     parser.add_argument("--out", default="reports/library.html", help="Output HTML file")
     args = parser.parse_args()
 
@@ -3128,7 +3272,8 @@ def main() -> int:
 
     rows = read_rows(csv_path)
     review_rows = read_review_rows(review_csv_path)
-    library_stats = analyze_library(library_path)
+    identity_report_path = Path(args.identity_report).expanduser().resolve() if args.identity_report else None
+    library_stats = analyze_library(library_path, identity_report_path)
     payload = build_payload(rows, library_stats, review_rows)
     html_doc = render_html(payload)
 
