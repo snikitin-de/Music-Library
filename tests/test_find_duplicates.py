@@ -23,6 +23,7 @@ def track(
     title: str = "Title",
     track_number: str = "1",
     metadata_source: str = "tags",
+    duration: int = 240,
 ) -> TrackInfo:
     return TrackInfo(
         path=Path(name),
@@ -37,20 +38,23 @@ def track(
         bit_depth=16,
         tag_score=5,
         has_cover=True,
+        duration=duration,
         size=100,
         metadata_source=metadata_source,
     )
 
 
 class DuplicateDetectionTests(unittest.TestCase):
-    def test_album_tracks_need_same_album_and_track_for_auto_duplicate(self) -> None:
+    def test_same_song_across_releases_is_auto_duplicate_when_duration_matches(self) -> None:
         items = [
-            track("first.flac", album="Album", title="Song", track_number="1"),
-            track("second.flac", album="Other Album", title="Song", track_number="1"),
+            track("first.flac", album="Album", title="Song", track_number="1", duration=240),
+            track("second.flac", album="Other Album", title="Song", track_number="1", duration=243),
         ]
 
-        self.assertEqual(group_duplicates(items), {})
-        self.assertEqual(len(group_review_candidates(items, {})), 1)
+        groups = group_duplicates(items)
+
+        self.assertEqual(len(groups), 1)
+        self.assertIn(("cross_release", "artist", "song"), groups)
 
     def test_same_album_track_is_auto_duplicate(self) -> None:
         items = [
@@ -99,13 +103,14 @@ class DuplicateDetectionTests(unittest.TestCase):
         self.assertEqual(len(groups), 1)
         self.assertIn(("missing_track_artist_title", "bastille + marshmello", "happier"), groups)
 
-    def test_missing_track_does_not_merge_different_albums_without_feature_credit(self) -> None:
+    def test_same_song_across_releases_needs_review_when_duration_differs(self) -> None:
         items = [
-            track("first.opus", album="Album", title="Song", track_number=""),
-            track("second.opus", album="Other Album", title="Song", track_number=""),
+            track("first.opus", album="Album", title="Song", track_number="", duration=240),
+            track("second.opus", album="Other Album", title="Song", track_number="", duration=260),
         ]
 
         self.assertEqual(group_duplicates(items), {})
+        self.assertEqual(len(group_review_candidates(items, {})), 1)
 
     def test_missing_track_does_not_merge_live_version(self) -> None:
         items = [

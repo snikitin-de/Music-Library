@@ -93,6 +93,7 @@ class TrackInfo:
     bit_depth: int
     tag_score: int
     has_cover: bool
+    duration: int
     size: int
     metadata_source: str = "tags"
 
@@ -130,6 +131,7 @@ class TrackInfo:
             f"bitrate={self.bitrate}; "
             f"bit_depth={self.bit_depth}; "
             f"sample_rate={self.sample_rate}; "
+            f"duration={self.duration}; "
             f"tag_score={self.tag_score}; "
             f"cover={self.has_cover}; "
             f"size={self.size}"
@@ -199,6 +201,49 @@ def artist_title_key(track: TrackInfo) -> tuple[str, ...]:
     return ("artist_title", artist, title)
 
 
+VERSION_MARKER_RE = re.compile(
+    r"\b("
+    r"live|remaster(?:ed)?|radio\s+edit|album\s+edit|single\s+version|"
+    r"extended|club|mix|remix|acoustic|instrumental|karaoke|clean|explicit"
+    r")\b",
+    flags=re.IGNORECASE,
+)
+
+
+def has_version_marker(value: str) -> bool:
+    return bool(VERSION_MARKER_RE.search(value or ""))
+
+
+def artist_credit_parts(value: str) -> set[str]:
+    normalized = normalize_artist_credit(value)
+    return {part.strip() for part in normalized.split("+") if part.strip()}
+
+
+def compatible_artist_credit(items: list[TrackInfo]) -> str:
+    artist_sets = []
+    for item in items:
+        parts = artist_credit_parts(item.artist or item.albumartist)
+        if not parts:
+            return ""
+        artist_sets.append(parts)
+
+    shared = set.intersection(*artist_sets)
+    if shared:
+        return " + ".join(sorted(shared))
+
+    first = artist_sets[0]
+    if all(artist_set == first for artist_set in artist_sets[1:]):
+        return " + ".join(sorted(first))
+
+    return ""
+
+
+def durations_are_compatible(items: list[TrackInfo], tolerance: int = 4) -> bool:
+    durations = [item.duration for item in items if item.duration > 0]
+    if len(durations) < 2:
+        return True
+    return max(durations) - min(durations) <= tolerance
+
 def has_feature_credit_in_title(value: str) -> bool:
     return bool(re.search(r"[\[(]\s*(?:feat(?:uring)?|ft)\.?\s+", value or "", flags=re.IGNORECASE))
 
@@ -221,6 +266,19 @@ def missing_track_artist_title_key(track: TrackInfo) -> tuple[str, ...]:
     if not artist or not title:
         return ()
     return ("missing_track_artist_title", artist, title)
+
+
+def cross_release_title_key(track: TrackInfo) -> tuple[str, ...]:
+    if track.metadata_source != "tags":
+        return ()
+    if has_version_marker(track.title):
+        return ()
+
+    title = title_without_feature_credit(track.title)
+    if not title:
+        return ()
+
+    return ("cross_release_title", title)
 
 
 def strict_tag_duplicate_key(track: TrackInfo) -> tuple[str, ...]:
@@ -296,6 +354,7 @@ def track_from_filename(path: Path, reason: str) -> TrackInfo | None:
         bit_depth=0,
         tag_score=0,
         has_cover=False,
+        duration=0,
         size=size,
         metadata_source="filename",
     )
@@ -326,6 +385,7 @@ def read_track(path: Path) -> TrackInfo | None:
     bitrate = int(getattr(info, "bitrate", 0) or 0)
     sample_rate = int(getattr(info, "sample_rate", 0) or 0)
     bit_depth = int(getattr(info, "bits_per_sample", 0) or 0)
+    duration = int(round(float(getattr(info, "length", 0) or 0)))
 
     fmt = path.suffix.lower().lstrip(".")
     size = path.stat().st_size
@@ -366,6 +426,7 @@ def read_track(path: Path) -> TrackInfo | None:
         bit_depth=bit_depth,
         tag_score=tag_score,
         has_cover=has_cover,
+        duration=duration,
         size=size,
     )
 
@@ -496,6 +557,35 @@ def group_duplicates(tracks: list[TrackInfo], stats: ScanStats | None = None) ->
         for existing_key in overlapping_keys:
             combined_items.update({item.path: item for item in groups.pop(existing_key)})
         groups[key] = list(combined_items.values())
+
+    cross_release_groups: dict[tuple[str, ...], list[TrackInfo]] = {}
+    for track in tracks:
+        key = cross_release_title_key(track)
+        if key and all(key):
+            cross_release_groups.setdefault(key, []).append(track)
+
+    for key, items in cross_release_groups.items():
+        if len(items) < 2:
+            continue
+        if not durations_are_compatible(items):
+            continue
+        artist_key = compatible_artist_credit(items)
+        if not artist_key:
+            continue
+
+        item_paths = {item.path for item in items}
+        if any({item.path for item in existing_items} == item_paths for existing_items in groups.values()):
+            continue
+
+        overlapping_keys = [
+            existing_key
+            for existing_key, existing_items in groups.items()
+            if item_paths.intersection(existing_item.path for existing_item in existing_items)
+        ]
+        combined_items = {item.path: item for item in items}
+        for existing_key in overlapping_keys:
+            combined_items.update({item.path: item for item in groups.pop(existing_key)})
+        groups[("cross_release", artist_key, key[1])] = list(combined_items.values())
 
     duplicate_groups = {key: items for key, items in groups.items() if len(items) > 1}
     if stats is not None:
