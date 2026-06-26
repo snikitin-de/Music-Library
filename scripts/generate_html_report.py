@@ -1746,7 +1746,7 @@ def render_html(payload: dict) -> str:
       background: linear-gradient(90deg, rgb(20, 43, 101), rgb(42, 55, 133), rgb(104, 55, 166), rgb(190, 61, 135), rgb(239, 91, 77), rgb(255, 174, 48));
       box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
     }}
-    .toolbar {{ display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }}
+    .toolbar {{ display: grid; grid-template-columns: minmax(220px, 1fr) minmax(190px, 0.66fr) minmax(205px, 0.74fr) minmax(190px, 0.66fr) minmax(190px, 0.6fr); gap: 10px; margin-top: 18px; align-items: center; }}
     input, select, button.small {{
       height: 44px;
       min-height: 44px;
@@ -1758,7 +1758,27 @@ def render_html(payload: dict) -> str:
       font: inherit;
       outline: none;
     }}
-    input::placeholder {{ color: rgba(156, 163, 175, 0.86); }}
+    input::placeholder {{ color: transparent; }}
+    .search-control {{ position: relative; min-width: 0; }}
+    .search-control input {{ position: relative; z-index: 1; width: 100%; padding-right: 18px; }}
+    .search-placeholder {{
+      position: absolute;
+      z-index: 2;
+      left: 16px;
+      top: 50%;
+      max-width: calc(100% - 32px);
+      overflow: hidden;
+      transform: translateY(-50%);
+      color: rgba(203, 213, 225, 0.92);
+      font: inherit;
+      line-height: 1.25;
+      padding-bottom: 1px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      pointer-events: none;
+    }}
+    .search-control input:focus + .search-placeholder {{ color: rgba(226, 232, 240, 0.72); }}
+    .search-control:not(.is-empty) .search-placeholder {{ display: none; }}
     input:focus, select:focus, button.small:focus-visible {{ border-color: rgba(147, 197, 253, 0.72); box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2); }}
     button.small {{
       display: inline-flex;
@@ -1768,9 +1788,10 @@ def render_html(payload: dict) -> str:
       transition: border-color 0.16s ease, background 0.16s ease;
     }}
     button.small:hover:not(:disabled) {{ border-color: rgba(147, 197, 253, 0.5); background: rgba(30, 41, 59, 0.92); }}
-    input {{ flex: 1 1 300px; }}
+    input {{ min-width: 0; }}
     select {{
-      flex: 0 0 250px;
+      width: 100%;
+      min-width: 0;
       padding-right: 42px;
       appearance: none;
       background-image:
@@ -1782,6 +1803,27 @@ def render_html(payload: dict) -> str:
       background-size: 6px 6px, 6px 6px;
       background-repeat: no-repeat;
     }}
+    .sort-control {{
+      position: relative;
+      min-width: 0;
+    }}
+    .sort-control::before {{
+      content: "↑";
+      position: absolute;
+      left: 16px;
+      top: 0;
+      bottom: 0;
+      z-index: 1;
+      width: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--accent);
+      font-size: 16px;
+      line-height: 44px;
+      pointer-events: none;
+    }}
+    .sort-control select {{ padding-left: 34px; }}
     button {{ cursor: pointer; }}
     button:disabled {{
       cursor: not-allowed;
@@ -2288,7 +2330,8 @@ def render_html(payload: dict) -> str:
     }}
     @media (max-width: 560px) {{
       .summary, .analysis-grid, .quality-grid {{ grid-template-columns: 1fr; }}
-      input, select, .duplicates-actions .small {{ flex-basis: 100%; width: 100%; }}
+      .toolbar {{ grid-template-columns: 1fr; }}
+      input, select, .search-control, .sort-control, .duplicates-actions .small {{ width: 100%; }}
       .music-card-content {{ grid-template-columns: 1fr; }}
       .music-cover {{ width: min(100%, 180px); }}
       .track-head {{ grid-template-columns: 72px minmax(0, 1fr); }}
@@ -2398,9 +2441,12 @@ def render_html(payload: dict) -> str:
       <div class="operation-status" id="operationStatus">Выбран безопасный режим dry run. Глобальные кнопки работают по отфильтрованному списку, кнопки внутри карточки — только по своей записи.</div>
     </div>
     <div class="toolbar music-toolbar">
-      <input id="musicSearch" type="search" placeholder="Поиск по исполнителю, альбому или названию">
-      <select id="tagFilter">
-        <option value="all">Искать во всех тегах</option>
+      <div class="search-control is-empty">
+        <input id="musicSearch" type="search" placeholder=" " aria-label="Поиск по музыке">
+        <span class="search-placeholder" aria-hidden="true">Поиск: исполнитель, альбом, трек</span>
+      </div>
+      <select id="tagFilter" aria-label="Фильтр по тегам">
+        <option value="all">Теги: все</option>
         <option value="format">Тег: формат</option>
         <option value="cover">Тег: обложка</option>
         <option value="lyrics">Тег: текст песни</option>
@@ -2415,23 +2461,25 @@ def render_html(payload: dict) -> str:
         <option value="year">Тег: год</option>
         <option value="status">Тег: статус</option>
       </select>
-      <select id="identityFilter">
-        <option value="all">Аудиоотпечаток: все записи</option>
-        <option value="mismatch">Аудиоотпечаток: не совпадает</option>
-        <option value="match">Аудиоотпечаток: без расхождения</option>
+      <select id="identityFilter" aria-label="Фильтр по аудиоотпечатку">
+        <option value="all">Отпечаток: все</option>
+        <option value="mismatch">Отпечаток: не совпадает</option>
+        <option value="match">Отпечаток: совпадает</option>
       </select>
-      <select id="layoutFilter">
-        <option value="all">Раскладка: все записи</option>
-        <option value="ready">Раскладка: неразложенные</option>
-        <option value="done">Раскладка: уже разложенные</option>
+      <select id="layoutFilter" aria-label="Фильтр по раскладке">
+        <option value="all">Раскладка: все</option>
+        <option value="ready">Раскладка: нет</option>
+        <option value="done">Раскладка: есть</option>
       </select>
-      <select id="sort">
-        <option value="name">Сортировка: по названию</option>
-        <option value="artist">Сортировка: по исполнителю</option>
-        <option value="album">Сортировка: по альбому</option>
-        <option value="year">Сортировка: по году</option>
-        <option value="format">Сортировка: по формату</option>
-      </select>
+      <div class="sort-control">
+        <select id="sort" aria-label="Сортировка музыки">
+          <option value="name">Название</option>
+          <option value="artist">Исполнитель</option>
+          <option value="album">Альбом</option>
+          <option value="year">Год</option>
+          <option value="format">Формат</option>
+        </select>
+      </div>
     </div>
     <div class="music-list" id="musicList">{music_html}</div>
     <div class="empty" id="musicEmpty">Ничего не найдено по текущему фильтру музыки.</div>
@@ -2475,6 +2523,7 @@ def render_html(payload: dict) -> str:
     let musicCards = Array.from(document.querySelectorAll('.music-card'));
     const musicList = document.getElementById('musicList');
     const musicSearch = document.getElementById('musicSearch');
+    const searchControl = musicSearch.closest('.search-control');
     const tagFilter = document.getElementById('tagFilter');
     const layoutFilter = document.getElementById('layoutFilter');
     const identityFilter = document.getElementById('identityFilter');
@@ -2953,7 +3002,13 @@ def render_html(payload: dict) -> str:
       sorted.forEach(card => musicList.appendChild(card));
     }}
 
+    function updateSearchPlaceholder() {{
+      if (!searchControl) return;
+      searchControl.classList.toggle('is-empty', musicSearch.value.length === 0);
+    }}
+
     function applyMusicFilters() {{
+      updateSearchPlaceholder();
       const value = musicSearch.value.trim().toLowerCase();
       const tagKind = tagFilter.value;
       const layoutKind = layoutFilter.value;
@@ -3229,7 +3284,10 @@ def render_html(payload: dict) -> str:
     updateOperationStatus();
     document.getElementById('expandAll').addEventListener('click', () => cards.forEach(card => {{ if (!card.hidden) card.classList.add('open'); }}));
     document.getElementById('collapseAll').addEventListener('click', () => cards.forEach(card => card.classList.remove('open')));
-    musicSearch.addEventListener('input', applyMusicFilters);
+    musicSearch.addEventListener('input', () => {{
+      updateSearchPlaceholder();
+      applyMusicFilters();
+    }});
     tagFilter.addEventListener('change', applyMusicFilters);
     layoutFilter.addEventListener('change', applyMusicFilters);
     identityFilter.addEventListener('change', applyMusicFilters);
