@@ -147,6 +147,10 @@ python scripts/find_duplicates.py --library "D:\Music\Sorted" --quarantine "D:\M
 - документация beets: https://beets.readthedocs.io/
 - MusicBrainz Picard: https://picard.musicbrainz.org/
 
+## Атрибуция
+
+- Favicon: [Music icon](https://www.flaticon.com/free-icon/music_9325026?term=music&page=1&position=94&origin=search&related_id=9325026) by Freepik - Flaticon.
+
 ## Красивый HTML-отчёт
 
 После поиска дублей можно собрать интерактивный HTML-отчёт:

@@ -41,6 +41,8 @@ MANAGED_STORAGE_FOLDERS = {"duplicates", "trash"}
 MAX_DISPLAY_TAG_LENGTH = 120
 LYRICS_FILE_EXTENSIONS = (".lrc", ".txt")
 COVER_FILE_NAMES = ("cover.jpg", "cover.jpeg", "cover.png", "folder.jpg", "folder.jpeg", "folder.png")
+FAVICON_VERSION = "f0efce183a2f"
+FAVICON_DATA_URI = "data:image/png;base64,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"
 
 DISPLAY_TAGS = [
     ("album", ["album"], "альбом", "album"),
@@ -1580,6 +1582,7 @@ def render_html(payload: dict) -> str:
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Отчёт по музыкальной библиотеке</title>
+  <link rel="icon" type="image/png" href="{FAVICON_DATA_URI}#v={FAVICON_VERSION}">
   <style>
     :root {{
       --bg: #050816;
