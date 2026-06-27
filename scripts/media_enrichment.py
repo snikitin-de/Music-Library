@@ -5,17 +5,48 @@ from __future__ import annotations
 import json
 import os
 import re
+import socket
+import ssl
 import tempfile
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 from urllib.request import Request, urlopen
 
 
 USER_AGENT = "MusicLibraryAgent/1.0 (local music metadata tool)"
 MAX_DOWNLOAD_BYTES = 12 * 1024 * 1024
 COVER_NAMES = ("cover.jpg", "cover.jpeg", "cover.png", "folder.jpg", "folder.jpeg", "folder.png")
+
+FORCE_IPV4_ENV = "MUSIC_LIBRARY_FORCE_IPV4"
+
+
+class force_ipv4:
+    def __enter__(self):
+        self.original_getaddrinfo = socket.getaddrinfo
+        if os.environ.get(FORCE_IPV4_ENV, "1").strip().lower() in {"0", "false", "no", "off"}:
+            return self
+
+        def getaddrinfo_ipv4(host, port, family=0, type=0, proto=0, flags=0):
+            return self.original_getaddrinfo(host, port, socket.AF_INET, type, proto, flags)
+
+        socket.getaddrinfo = getaddrinfo_ipv4
+        return self
+
+    def __exit__(self, exc_type, exc, traceback):
+        socket.getaddrinfo = self.original_getaddrinfo
+        return False
+
+
+def https_context() -> ssl.SSLContext:
+    try:
+        import certifi
+
+        return ssl.create_default_context(cafile=certifi.where())
+    except Exception:
+        return ssl.create_default_context()
 
 
 class EnrichmentError(RuntimeError):
@@ -33,20 +64,32 @@ class TrackMetadata:
 
 def _request_bytes(url: str, *, accept: str, max_bytes: int = MAX_DOWNLOAD_BYTES) -> tuple[bytes, str]:
     request = Request(url, headers={"User-Agent": USER_AGENT, "Accept": accept})
-    try:
-        with urlopen(request, timeout=12) as response:
-            content_type = response.headers.get_content_type()
-            declared = int(response.headers.get("Content-Length", "0") or 0)
-            if declared > max_bytes:
-                raise EnrichmentError("Ответ провайдера слишком большой.")
-            data = response.read(max_bytes + 1)
-    except HTTPError as exc:
-        raise EnrichmentError(f"Провайдер ответил HTTP {exc.code}.") from exc
-    except (URLError, TimeoutError, OSError) as exc:
-        raise EnrichmentError(f"Не удалось связаться с провайдером: {exc}") from exc
-    if len(data) > max_bytes:
-        raise EnrichmentError("Ответ провайдера слишком большой.")
-    return data, content_type
+    last_error: Exception | None = None
+
+    for attempt in range(3):
+        try:
+            with force_ipv4(), urlopen(request, timeout=25, context=https_context()) as response:
+                content_type = response.headers.get_content_type()
+                declared = int(response.headers.get("Content-Length", "0") or 0)
+                if declared > max_bytes:
+                    raise EnrichmentError("Ответ провайдера слишком большой.")
+                data = response.read(max_bytes + 1)
+                if len(data) > max_bytes:
+                    raise EnrichmentError("Ответ провайдера слишком большой.")
+                return data, content_type
+        except HTTPError as exc:
+            raise EnrichmentError(f"Провайдер ответил HTTP {exc.code}.") from exc
+        except (URLError, TimeoutError, OSError) as exc:
+            last_error = exc
+            if attempt < 2:
+                time.sleep(1 + attempt)
+                continue
+
+    raise EnrichmentError(
+        "Не удалось связаться с провайдером обложек/текстов после 3 попыток. "
+        "Проверьте интернет/DNS/SSL в контейнере TrueNAS. Последняя ошибка: "
+        f"{last_error}"
+    )
 
 
 def _request_json(url: str) -> object:
@@ -111,10 +154,7 @@ def _escape_mb_query(value: str) -> str:
     return value.replace("\\", "\\\\").replace('"', '\\"')
 
 
-def search_covers(metadata: TrackMetadata) -> list[dict[str, object]]:
-    artist = metadata.album_artist or metadata.artist
-    if not artist or not metadata.album:
-        raise EnrichmentError("Для поиска обложки нужны теги исполнителя альбома и альбома.")
+def cover_art_archive_candidates(metadata: TrackMetadata, artist: str) -> list[dict[str, object]]:
     query = f'artist:"{_escape_mb_query(artist)}" AND release:"{_escape_mb_query(metadata.album)}"'
     url = "https://musicbrainz.org/ws/2/release/?" + urlencode(
         {"query": query, "fmt": "json", "limit": 8}
@@ -143,6 +183,67 @@ def search_covers(metadata: TrackMetadata) -> list[dict[str, object]]:
             }
         )
     return candidates
+
+
+def itunes_artwork_url(value: str, size: int) -> str:
+    return re.sub(r"/\d+x\d+bb\.(jpg|png)$", f"/{size}x{size}bb.\\1", value)
+
+
+def itunes_cover_candidates(metadata: TrackMetadata, artist: str) -> list[dict[str, object]]:
+    term = " ".join(part for part in [artist, metadata.album] if part).strip()
+    if not term:
+        return []
+    url = "https://itunes.apple.com/search?" + urlencode(
+        {"term": term, "media": "music", "entity": "album", "limit": 8}
+    )
+    result = _request_json(url)
+    items = result.get("results", []) if isinstance(result, dict) else []
+    candidates: list[dict[str, object]] = []
+    seen: set[str] = set()
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        artwork = str(item.get("artworkUrl100") or "").strip()
+        if not artwork:
+            continue
+        download_url = itunes_artwork_url(artwork, 1200)
+        if download_url in seen:
+            continue
+        seen.add(download_url)
+        candidates.append(
+            {
+                "provider": "iTunes / Apple artwork",
+                "kind": "cover",
+                "artist": str(item.get("artistName") or artist),
+                "album": str(item.get("collectionName") or metadata.album),
+                "date": str(item.get("releaseDate") or "")[:10],
+                "country": str(item.get("country") or ""),
+                "score": 80,
+                "preview_url": itunes_artwork_url(artwork, 600),
+                "download_url": download_url,
+            }
+        )
+    return candidates
+
+
+def search_covers(metadata: TrackMetadata) -> list[dict[str, object]]:
+    artist = metadata.album_artist or metadata.artist
+    if not artist or not metadata.album:
+        raise EnrichmentError("Для поиска обложки нужны теги исполнителя альбома и альбома.")
+
+    candidates: list[dict[str, object]] = []
+    errors: list[str] = []
+    for provider in (itunes_cover_candidates, cover_art_archive_candidates):
+        try:
+            candidates.extend(provider(metadata, artist))
+        except EnrichmentError as exc:
+            errors.append(str(exc))
+
+    if candidates:
+        return candidates[:8]
+    if errors:
+        raise EnrichmentError("Не удалось найти обложку ни у одного провайдера. " + " | ".join(errors))
+    return []
 
 
 def sidecar_cover_path(audio_path: Path) -> Path | None:
@@ -187,7 +288,8 @@ def save_cover(audio_path: Path, candidate: dict[str, object]) -> Path:
     if existing is not None:
         raise EnrichmentError(f"Обложка рядом с альбомом уже существует: {existing.name}")
     url = str(candidate.get("download_url") or "")
-    if not url.startswith("https://coverartarchive.org/"):
+    host = urlparse(url).hostname or ""
+    if not (url.startswith("https://coverartarchive.org/") or host.endswith("mzstatic.com")):
         raise EnrichmentError("Недопустимый адрес обложки.")
     data, content_type = _request_bytes(url, accept="image/jpeg,image/png")
     if content_type not in {"image/jpeg", "image/png"}:

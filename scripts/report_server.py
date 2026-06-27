@@ -91,10 +91,58 @@ _REPORT_CACHE: dict[str, object] = {}
 _AUDIO_PATH_CACHE: dict[tuple[tuple[tuple[int, int], tuple[int, int]], str], str | None] = {}
 _ENRICHMENT_CANDIDATES: dict[str, dict[str, object]] = {}
 ENRICHMENT_CANDIDATE_TTL = 15 * 60
+LIBRARY_ENV_VARS = ("MUSIC_LIBRARY_PATH", "MUSIC_LIBRARY_ROOT", "LIBRARY_PATH")
 
 
 def norm_path(value: str) -> str:
     return str(PureWindowsPath(value)).replace("/", "\\").casefold()
+
+
+def is_windows_like_path(value: str) -> bool:
+    value = str(value or "")
+    return "\\" in value or bool(re.match(r"^[A-Za-z]:", value))
+
+
+def join_storage_path(base: str, folder: str) -> str:
+    base = str(base or "")
+    if base.startswith("/"):
+        return f"{base.rstrip('/')}/{folder}"
+    if is_windows_like_path(base):
+        return str(PureWindowsPath(base) / folder)
+    return str(Path(base) / folder)
+
+
+def split_configured_path_list(raw: str) -> list[str]:
+    raw = str(raw or "").strip()
+    if not raw:
+        return []
+    separator = ";" if ";" in raw else os.pathsep
+    if separator == ":" and re.match(r"^[A-Za-z]:[\\/]", raw):
+        return [raw]
+    return [item for item in raw.split(separator) if item.strip()]
+
+
+def configured_library_paths() -> list[Path]:
+    paths: list[Path] = []
+    seen: set[str] = set()
+    for env_name in LIBRARY_ENV_VARS:
+        raw = os.environ.get(env_name, "")
+        for item in split_configured_path_list(raw):
+            value = item.strip().strip('"')
+            if not value:
+                continue
+            key = norm_path(value)
+            if key not in seen:
+                paths.append(Path(value))
+                seen.add(key)
+    return paths
+
+
+def path_is_dir(path: Path) -> bool:
+    try:
+        return path.exists() and path.is_dir()
+    except OSError:
+        return False
 
 
 def report_cache_key() -> tuple[tuple[int, int], tuple[int, int]]:
@@ -125,6 +173,7 @@ def report_metadata() -> dict[str, object]:
     try:
         payload = read_payload()
         library = payload.get("library", {}) if isinstance(payload, dict) else {}
+        roots.extend(configured_library_paths())
         library_root = library.get("path", "")
         if library_root:
             roots.append(Path(library_root))
@@ -186,20 +235,39 @@ def read_payload() -> dict:
     return json.loads(html.unescape(match.group(1)))
 
 
+def report_library_path() -> str:
+    try:
+        payload = read_payload()
+    except Exception:
+        return ""
+    return str(payload.get("library", {}).get("path", "") or "")
+
+
 def library_path() -> str:
-    payload = read_payload()
-    library = payload.get("library", {}).get("path", "")
-    if not library:
-        raise RuntimeError("Report does not contain a library path")
-    return library
+    configured = configured_library_paths()
+    if configured:
+        existing = next((path for path in configured if path_is_dir(path)), None)
+        if existing is not None:
+            return str(existing)
+        raise RuntimeError(f"Configured library folder does not exist: {configured[0]}")
+
+    library = report_library_path()
+    if library:
+        if path_is_dir(Path(library)):
+            return library
+        raise RuntimeError(
+            "Report library folder does not exist. Set MUSIC_LIBRARY_PATH "
+            f"to the mounted library path. Stored value: {library}"
+        )
+    raise RuntimeError("Report does not contain a library path")
 
 
 def quarantine_path(library: str) -> str:
-    return str(PureWindowsPath(library) / "Duplicates")
+    return join_storage_path(library, "Duplicates")
 
 
 def trash_path(library: str) -> str:
-    return str(PureWindowsPath(library) / "Trash")
+    return join_storage_path(library, "Trash")
 
 
 def managed_music_base(source: Path, library: Path) -> Path:
@@ -231,8 +299,15 @@ def content_roots_for_library(root: Path) -> list[Path]:
 
 
 def path_inside(path: Path, root: Path) -> bool:
-    path_key = norm_path(str(path))
-    root_key = norm_path(str(root)).rstrip("\\")
+    path_text = str(path)
+    root_text = str(root)
+    if path_text.startswith("/") or root_text.startswith("/"):
+        path_key = path_text.replace("\\", "/").rstrip("/").casefold()
+        root_key = root_text.replace("\\", "/").rstrip("/").casefold()
+        return path_key == root_key or path_key.startswith(root_key + "/")
+
+    path_key = norm_path(path_text)
+    root_key = norm_path(root_text).rstrip("\\")
     return path_key == root_key or path_key.startswith(root_key + "\\")
 
 
@@ -1265,6 +1340,19 @@ def restore_easy_tags(path: Path, old_tags: dict[str, object]) -> None:
     audio.save()
 
 
+def python_has_module(candidate: Path, module: str) -> bool:
+    try:
+        result = subprocess.run(
+            [str(candidate), "-c", f"import {module}"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return result.returncode == 0
+
+
 def shazam_runtime_python() -> Path:
     candidates = []
     configured = ROOT / "reports" / "shazam-python.txt"
@@ -1276,13 +1364,30 @@ def shazam_runtime_python() -> Path:
     if os.environ.get("SHAZAM_PYTHON"):
         candidates.append(Path(os.environ["SHAZAM_PYTHON"]))
     candidates.extend([
+        Path(sys.executable),
+        Path("/usr/local/bin/python3"),
+        Path("/usr/local/bin/python"),
+        Path("/usr/bin/python3"),
         ROOT / ".venv-shazam" / "Scripts" / "python.exe",
         Path("C:/tmp/music-shazam-venv/Scripts/python.exe"),
     ])
+
+    checked: list[str] = []
+    seen: set[str] = set()
     for candidate in candidates:
-        if candidate.is_file():
+        candidate_text = str(candidate).strip()
+        if not candidate_text or candidate_text.casefold() in seen:
+            continue
+        seen.add(candidate_text.casefold())
+        checked.append(candidate_text)
+        if candidate.is_file() and python_has_module(candidate, "shazamio"):
             return candidate
-    raise RuntimeError("Не найден Python 3.12 с shazamio. Укажите путь в reports/shazam-python.txt.")
+
+    raise RuntimeError(
+        "Не найден Python с установленным shazamio. "
+        "В контейнере пересоберите image, чтобы установился requirements-shazam.txt, "
+        "или укажите путь в reports/shazam-python.txt. Проверено: " + "; ".join(checked)
+    )
 
 
 def recognize_with_shazam(source: Path) -> dict[str, object]:
@@ -1371,7 +1476,7 @@ def run_shazam_tagging(files: list[str], mode: str, lookup_allowed: bool, confir
             if path_exists(rollback_path):
                 restore_easy_tags(rollback_path, dict(plan["old_tags"]))
             raise
-        cover_result = backup_and_remove_embedded_cover(final_path) if plan.get("mismatch") else {"removed": False, "reason": "tags_match"}
+        cover_result = {"removed": False, "reason": "preserved_by_shazam"}
         append_tag_action(str(source), str(final_path), dict(plan["old_tags"]), dict(plan["new_tags"]), "updated_by_shazam")
         update_identity_cache(str(source), str(final_path))
         if norm_path(str(source)) != norm_path(str(final_path)):
@@ -1663,7 +1768,76 @@ def report_audio_paths() -> list[str]:
 
 def library_roots_from_report() -> list[Path]:
     metadata = report_metadata()
-    return list(metadata["roots"])  # type: ignore[arg-type]
+    roots = list(metadata["roots"])  # type: ignore[arg-type]
+    configured = configured_library_paths()
+    for root in configured:
+        if all(norm_path(str(root)) != norm_path(str(existing)) for existing in roots):
+            roots.insert(0, root)
+    return roots
+
+
+def path_parts_for_mapping(value: str) -> list[str]:
+    raw = (value or "").strip().strip('"')
+    if not raw:
+        return []
+    parts = list(PureWindowsPath(raw.replace("/", "\\")).parts)
+    cleaned: list[str] = []
+    for part in parts:
+        if not part or part in {"\\", "/"} or part.endswith("\\") or re.match(r"^[A-Za-z]:\\?$", part):
+            continue
+        cleaned.append(part)
+    return cleaned
+
+
+def relative_tail_candidates(value: str) -> list[Path]:
+    parts = path_parts_for_mapping(value)
+    tails: list[Path] = []
+
+    for index, part in enumerate(parts):
+        if part.casefold() == MANAGED_LIBRARY_FOLDER.casefold() and index + 1 < len(parts):
+            tails.append(Path(*parts[index + 1 :]))
+            tails.append(Path(*parts[index:]))
+
+    for index in range(max(0, len(parts) - 4), len(parts)):
+        tail = parts[index:]
+        if tail:
+            tails.append(Path(*tail))
+
+    unique: list[Path] = []
+    seen: set[str] = set()
+    for tail in tails:
+        key = norm_path(str(tail))
+        if key and key not in seen:
+            unique.append(tail)
+            seen.add(key)
+    return unique
+
+
+def remapped_audio_candidates(requested: str) -> list[Path]:
+    roots = [root for root in configured_library_paths() if path_is_dir(root)]
+    if not roots:
+        return []
+
+    candidates: list[Path] = []
+    for tail in relative_tail_candidates(requested):
+        for root in roots:
+            candidates.append(root / tail)
+            if tail.parts and tail.parts[0].casefold() == MANAGED_LIBRARY_FOLDER.casefold():
+                candidates.append(root / Path(*tail.parts[1:]))
+            managed = root / MANAGED_LIBRARY_FOLDER
+            if path_is_dir(managed):
+                candidates.append(managed / tail)
+                if tail.parts and tail.parts[0].casefold() == MANAGED_LIBRARY_FOLDER.casefold():
+                    candidates.append(managed / Path(*tail.parts[1:]))
+
+    unique: list[Path] = []
+    seen: set[str] = set()
+    for path in candidates:
+        key = norm_path(str(path))
+        if key not in seen:
+            unique.append(path)
+            seen.add(key)
+    return unique
 
 
 def candidates_for_audio_path(requested: str) -> list[Path]:
@@ -1696,6 +1870,10 @@ def candidates_for_audio_path(requested: str) -> list[Path]:
 
     for value in by_stem.get(requested_stem_norm, []):
         candidates.append(Path(value))
+
+    candidates.extend(remapped_audio_candidates(requested))
+    for value in by_name.get(requested_name.casefold(), []):
+        candidates.extend(remapped_audio_candidates(value))
 
     unique: list[Path] = []
     seen: set[str] = set()

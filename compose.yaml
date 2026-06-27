@@ -7,6 +7,7 @@
       - "8765:8765"
     environment:
       TZ: Europe/Moscow
+      MUSIC_LIBRARY_PATH: /music
     volumes:
       - /mnt/vault/music/Library:/music
       - /mnt/vault/apps/music-library/reports:/app/reports
