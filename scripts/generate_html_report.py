@@ -1939,9 +1939,9 @@ def render_html(payload: dict) -> str:
     }}
     .music-list {{ display: grid; gap: 10px; }}
     .music-card {{ position: relative; padding: 14px 58px 14px 14px; border: 1px solid var(--line); border-radius: 18px; background: rgba(13, 18, 32, 0.68); box-shadow: 0 10px 28px rgba(0, 0, 0, 0.14); }}
-    .music-trash-icon {{ position: absolute; top: 12px; right: 12px; z-index: 3; width: 40px; height: 40px; display: grid; place-items: center; border: 1px solid rgba(248, 113, 113, 0.38); border-radius: 10px; color: #fca5a5; background: rgba(69, 10, 10, 0.28); cursor: pointer; }}
+    .music-trash-icon {{ position: absolute; top: 12px; right: 12px; z-index: 3; width: 32px; min-width: 32px; height: 32px; padding: 0; display: grid; place-items: center; border: 1px solid rgba(248, 113, 113, 0.38); border-radius: 7px; color: #fca5a5; background: rgba(69, 10, 10, 0.28); cursor: pointer; }}
     .music-trash-icon:hover {{ color: #fff; border-color: rgba(248, 113, 113, 0.8); background: rgba(127, 29, 29, 0.72); }}
-    .trash-svg {{ display: block; width: 22px; height: 22px; flex: 0 0 auto; }}
+    .trash-svg {{ display: block; width: 18px; height: 18px; flex: 0 0 auto; }}
     .music-card-identity-mismatch {{ border-color: rgba(250, 204, 21, 0.85); background: rgba(113, 63, 18, 0.32); box-shadow: 0 0 0 1px rgba(250, 204, 21, 0.18), 0 10px 28px rgba(0, 0, 0, 0.14); }}
     .identity-warning {{ margin-top: 10px; padding: 10px 12px; border: 1px solid rgba(250, 204, 21, 0.5); border-radius: 12px; color: #fde68a; background: rgba(113, 63, 18, 0.36); }}
     .music-card-duplicate {{ border-color: rgba(245, 158, 11, 0.54); background: rgba(120, 53, 15, 0.2); }}
