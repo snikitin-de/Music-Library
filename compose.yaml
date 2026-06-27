@@ -1,0 +1,14 @@
+﻿services:
+  music-library:
+    image: music-library:truenas
+    pull_policy: never
+    restart: unless-stopped
+    ports:
+      - "8765:8765"
+    environment:
+      TZ: Europe/Moscow
+    volumes:
+      - /mnt/vault/music/Library:/music
+      - /mnt/vault/apps/music-library/reports:/app/reports
+      - /mnt/vault/apps/music-library/beets:/config/beets
+      - /mnt/vault/apps/music-library/beets-config.truenas.yaml:/app/beets-config.yaml:ro
