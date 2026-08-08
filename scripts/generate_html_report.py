@@ -41,8 +41,47 @@ MANAGED_STORAGE_FOLDERS = {"duplicates", "trash"}
 MAX_DISPLAY_TAG_LENGTH = 120
 LYRICS_FILE_EXTENSIONS = (".lrc", ".txt")
 COVER_FILE_NAMES = ("cover.jpg", "cover.jpeg", "cover.png", "folder.jpg", "folder.jpeg", "folder.png")
-FAVICON_VERSION = "f0efce183a2f"
-FAVICON_DATA_URI = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAACXBIWXMAAADsAAAA7AF5KHG9AAAAGXRFWHRTb2Z0d2FyZQB3d3cuaW5rc2NhcGUub3Jnm+48GgAABZRJREFUWIW9lm+MXFUVwH/nvvfmzZ83053Z2T+2y4Jgy/aPtnYLDaGh20oJfiBBtC3RECOJjagNgoka44caQ0IgqRpCTCTESEhaFmOREBYjlSKEorhNhXZdTS1t7Ypsd3dmd3Zm37w3710/tLPd2d3ZmSXB8+m+e84993fOO+feK/yf5K1bHoolfLc7CFSXKLpCjaPF/5X5cW04uPmbDylkp4ZuYBVlrzVAgYDWIADaYtkAn+q7p8sMI90onUG0L1pGtOF9MHz0yHjV5q+9+z4hWg7qBr5E4zQDIGv6dt9qaPlaCLtEcw0SggY0aDRULHq27xkCfmeI7tdFY4qguYBkKeVNX3zw61HHOVi49F/HLRaa8wi6OzB+/2gpc+fVGSYQRjRyQdAXge1AD5ofLJqB3rv2xaMr0m/ZjrMRhFR7J+VzBXSjnF4JylXMbh6Kn9hy4peluQYnNn+rH+gBUPNXb73ne13xdHbEdpIbqwkyozGiqXRTu8+X+5z8E+vX747U09cA9N6+b0UkZb5nxeMt8w2TbR2ILPnHFhUN94dZ+UVTAHZH+m0runBzANOKEE9nlg1QhVjbt/c7ACc+u/92YM2s3+rg5j0P/jCaTPYs5SjZ2kEpn0eH9Uvc1sLGysKMa60fe7H3gRQ6/PHceROgr++AGSQqP2oUiTJNEpks02MfLqo3gAMzLVwbLFrbFqL3M6eQRUmgAC4Z//ySO5WPhUHYiAEn04YyjEV11wdWzebzm2bY9LJzv4Vw0AQIff/ewtgoxdw4yWwH8XQGkQUNAoAyFKm2TkyvCAjjuTz6Sn9OSEgFjXmley4YlZq1h+wiK0NjcJ0fcbXIM5sGn3xNum7ZHXMiMgFEq4aGZZFsbSeWziDzzqpNN3Sxbd0NOIkYAOO5SY4MHOXdf5wB4Gbf5m4vzrQK+bVdZETVQgCnhl/v//RsFm7su3eL6PCdxaK1bBsn20kslQKE3jXd7Nq8DoAwDCuglFIorTVPHzoyC9FIouKlTx57IQ+glA7W1jP0y2VyI+cZO3cW7bnctmH15flK5ee2FJNGQMbz/d+KCHffubPpc8ITY1V1rLSwouGCmSIpPOyIhef5uXc+t/XhHTt2uLt2bZm0se7XEGYzLbSmG7oCIAzMqwCixWpmkWFcLkoN/gGR2XYJQ6uir3zpJi8LFJGrQ/RYM2vOXfwPQRBiR6z2V14b/DZAf3+/4Zvu40qhCtMlPMOu2z1zRWB2TxUI7zcDUCq5vPrm25cXiX7ipT8cH01kunMRw3gA4I3TZ0i2ddKxei1Oth1RS4AE/vnq0Fi1pnc8CILvQuPX0b/O/RsR4ZNdK7EsM2EoZZfLHkdP/p2/nR25HJ1S2AmHREsGlOC7M9Te43J2+E+/eWRONqBn+54/AjuayQRALBblms4ONJqpwMBIJOsHW/EpjI0yk5+o1shTw6/375vNAEDbtRs0wheaBahUKoznJ5nIT1J2XeItrdTrQKUMok6K+Io0Ogyh4u0fff/UxVk9gJ+Yeg74oFmAGpiyizuVa2hnWBESLa1T7x09dLwGEODMwEBZ0N//KAAAhbFRGr3XtIaZ0vTDC8Cqg7HzQ++2XbduK8jq5QKEQYAZsbGisbo2bnHyxF8OH/zG/PnaF5H4XwaGlgsAULj0Yd0seDOlCcqVbYvpagBOHnshbwT686BPLxeg4nuUJhfWgjdTyklQ2nD8+Z/ONAQAOP3m8xei4m/T8PJyIQpjozXHsTs9dSpXyne/8ezP6hb4ktfXjbft/YqIfgxY2SxES+cq7IRTdkvFR/58+OBPGtk3vD/Xr98dCbPsDTVfFZFtgF3HtAT6FRWJHWn3rz987NiBBS+RjwQwVz5zx32Jsl/eRCDXIbpV0K7WqmggQ15icujMwEB5Of4A/gf7HRWeeZDR8QAAAABJRU5ErkJggg=="
+FAVICON_VERSION = "lucide-1.28.0-audio-lines"
+
+# Ready-made SVG paths from Lucide 1.28.0 (ISC):
+# https://cdn.jsdelivr.net/npm/lucide-static@1.28.0/icons/
+LUCIDE_ICON_NODES = {
+    "audio-lines": '<path d="M2 10v3"/><path d="M6 6v11"/><path d="M10 3v18"/><path d="M14 8v7"/><path d="M18 5v13"/><path d="M22 10v3"/>',
+    "house": '<path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+    "chart": '<path d="M5 21v-6"/><path d="M12 21V9"/><path d="M19 21V3"/>',
+    "music": '<circle cx="8" cy="18" r="4"/><path d="M12 18V2l7 4"/>',
+    "copy": '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
+    "files": '<path d="M15 2h-4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V8"/><path d="M16.706 2.706A2.4 2.4 0 0 0 15 2v5a1 1 0 0 0 1 1h5a2.4 2.4 0 0 0-.706-1.706z"/><path d="M5 7a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h8a2 2 0 0 0 1.732-1"/>',
+    "disc": '<circle cx="12" cy="12" r="10"/><path d="M6 12c0-1.7.7-3.2 1.8-4.2"/><circle cx="12" cy="12" r="2"/><path d="M18 12c0 1.7-.7 3.2-1.8 4.2"/>',
+    "users": '<path d="M18 21a8 8 0 0 0-16 0"/><circle cx="10" cy="8" r="5"/><path d="M22 20c0-3.37-2-6.5-4-8a5 5 0 0 0-.45-8.3"/>',
+    "image": '<rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>',
+    "image-off": '<line x1="2" x2="22" y1="2" y2="22"/><path d="M10.41 10.41a2 2 0 1 1-2.83-2.83"/><line x1="13.5" x2="6" y1="13.5" y2="21"/><line x1="18" x2="21" y1="12" y2="15"/><path d="M3.59 3.59A1.99 1.99 0 0 0 3 5v14a2 2 0 0 0 2 2h14c.55 0 1.052-.22 1.41-.59"/><path d="M21 15V5a2 2 0 0 0-2-2H9"/>',
+    "file-text": '<path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/>',
+    "copy-check": '<path d="m12 15 2 2 4-4"/><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
+    "circle-alert": '<circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/>',
+    "triangle-alert": '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+    "trash": '<path d="M10 11v6"/><path d="M14 11v6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+    "play": '<path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/>',
+    "volume": '<path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z"/><path d="M16 9a5 5 0 0 1 0 6"/>',
+    "volume-x": '<path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z"/><line x1="22" x2="16" y1="9" y2="15"/><line x1="16" x2="22" y1="9" y2="15"/>',
+}
+
+
+def lucide_icon(name: str, class_name: str = "app-icon") -> str:
+    return (
+        f'<svg class="{html.escape(class_name)}" viewBox="0 0 24 24" fill="none" '
+        'stroke="currentColor" stroke-width="2" stroke-linecap="round" '
+        f'stroke-linejoin="round" aria-hidden="true">{LUCIDE_ICON_NODES[name]}</svg>'
+    )
+
+
+FAVICON_SVG = (
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" '
+    'stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+    '<rect width="24" height="24" rx="7" fill="#8f73e2" stroke="none"/>'
+    f'{LUCIDE_ICON_NODES["audio-lines"]}</svg>'
+)
+FAVICON_DATA_URI = "data:image/svg+xml," + quote(FAVICON_SVG, safe="")
 
 DISPLAY_TAGS = [
     ("album", ["album"], "альбом", "album"),
@@ -891,7 +930,7 @@ def audio_player(file_path: str, label: str) -> str:
         f"{escaped_label}"
         "</audio>"
         f'<button class="audio-play" type="button" aria-label="{escaped_label}">'
-        '<span class="audio-play-icon" aria-hidden="true"></span>'
+        f'{lucide_icon("play", "audio-play-icon")}'
         "</button>"
         '<div class="audio-time audio-current">0:00</div>'
         '<div class="audio-seek-wrap">'
@@ -899,14 +938,8 @@ def audio_player(file_path: str, label: str) -> str:
         '<input class="audio-seek" type="range" min="0" max="1000" value="0" step="1" aria-label="Позиция воспроизведения">'
         "</div>"
         '<button class="audio-mute" type="button" aria-label="Выключить звук">'
-        '<svg class="audio-volume-icon audio-volume-on" viewBox="0 0 24 24" aria-hidden="true">'
-        '<path class="audio-speaker" d="M4 9v6h4l5 4V5L8 9H4z"></path>'
-        '<path class="audio-volume-mark" d="M16 9.5c1.2 1.2 1.2 3.8 0 5"></path>'
-        "</svg>"
-        '<svg class="audio-volume-icon audio-volume-off" viewBox="0 0 24 24" aria-hidden="true">'
-        '<path class="audio-speaker" d="M3.5 9v6h4l5 4V5l-5 4h-4z"></path>'
-        '<path class="audio-volume-mark" d="M15.5 9l5 6m0-6l-5 6"></path>'
-        "</svg>"
+        f'{lucide_icon("volume", "audio-volume-icon audio-volume-on")}'
+        f'{lucide_icon("volume-x", "audio-volume-icon audio-volume-off")}'
         "</button>"
         "</div>"
         "</div>"
@@ -927,7 +960,7 @@ def cover_preview(track: dict) -> str:
         )
     return (
         '<div class="music-cover music-cover-empty" title="Обложка: нет" aria-label="Обложка: нет">'
-        '<span aria-hidden="true">♪</span>'
+        f'{lucide_icon("image-off", "empty-cover-icon")}'
         f'<strong>{cover_state}</strong>'
         "</div>"
     )
@@ -951,7 +984,7 @@ def duplicate_cover_preview(
         )
     return (
         '<div class="music-cover duplicate-cover music-cover-empty" title="Обложка: нет" aria-label="Обложка: нет">'
-        '<span aria-hidden="true">♪</span>'
+        f'{lucide_icon("image-off", "empty-cover-icon")}'
         "<strong>нет</strong>"
         "</div>"
     )
@@ -1171,32 +1204,18 @@ def render_year_bars(years: dict) -> str:
         era_items.append((label, count, title))
 
     max_count = max(count for _, count, _ in era_items)
-    left = 16
-    right = 16
-    top = 16
-    chart_height = 116
-    label_y = top + chart_height + 20
-    width = 300
-    height = 188
-    inner_width = width - left - right
-    bar_width = 28
-    gap = (inner_width - len(era_items) * bar_width) / max(1, len(era_items) - 1)
-
     bars = []
-    for index, (label, count, title) in enumerate(era_items):
-        bar_height = max(3, round(count / max_count * chart_height))
-        x = left + index * (bar_width + gap)
-        y = top + chart_height - bar_height
-        hit_width = max(36, bar_width + gap)
-        hit_x = max(0, x + bar_width / 2 - hit_width / 2)
+    for label, count, title in era_items:
+        ratio = max(4.0, count / max_count * 100)
         bars.append(
             f"""
-            <g>
-              <title>{html.escape(title)}</title>
-              <rect class="year-chart-hit" x="{hit_x:.2f}" y="{top}" width="{hit_width:.2f}" height="{chart_height}" rx="3"></rect>
-              <rect class="year-chart-bar" x="{x:.2f}" y="{y}" width="{bar_width:.2f}" height="{bar_height}" rx="{min(3, bar_width / 2):.2f}"></rect>
-              <text class="year-chart-label" x="{x + bar_width / 2:.2f}" y="{label_y}" text-anchor="middle">{html.escape(label)}</text>
-            </g>
+            <div class="year-chart-item" title="{html.escape(title)}">
+              <div class="year-chart-column">
+                <span class="year-chart-value">{format_number(count)}</span>
+                <span class="year-chart-bar" style="--bar-height:{ratio:.2f}%"></span>
+              </div>
+              <span class="year-chart-label">{html.escape(label)}</span>
+            </div>
             """
         )
 
@@ -1206,36 +1225,23 @@ def render_year_bars(years: dict) -> str:
       Самый музыкальный год: <strong>{html.escape(str(peak_year))}</strong>,
       <strong>{format_number(peak_count)}</strong> файлов.
     </p>
-    <div class="year-chart-scroll" aria-label="Эпохи по количеству файлов">
-      <svg class="year-chart" viewBox="0 0 {width} {height}" role="img">
-        <defs>
-          <linearGradient id="yearBarGradient" x1="0" y1="1" x2="1" y2="0">
-            <stop offset="0%" stop-color="rgba(147, 197, 253, 0.62)"></stop>
-            <stop offset="100%" stop-color="rgba(45, 212, 191, 0.78)"></stop>
-          </linearGradient>
-          <linearGradient id="yearBarGradientHover" x1="0" y1="1" x2="1" y2="0">
-            <stop offset="0%" stop-color="rgba(147, 197, 253, 0.82)"></stop>
-            <stop offset="100%" stop-color="rgba(45, 212, 191, 0.94)"></stop>
-          </linearGradient>
-        </defs>
-        <line class="year-chart-axis" x1="{left - 8}" y1="{top + chart_height}" x2="{width - 8}" y2="{top + chart_height}"></line>
-        {"".join(bars)}
-      </svg>
+    <div class="year-chart" role="img" aria-label="Эпохи по количеству файлов">
+      {"".join(bars)}
     </div>
     """
 
 
 def heatmap_color(value: int, max_value: int) -> str:
     if value <= 0 or max_value <= 0:
-        return "rgba(13, 28, 70, 0.72)"
+        return "rgb(247, 245, 251)"
 
     stops = [
-        (0.0, (20, 43, 101)),
-        (0.24, (42, 55, 133)),
-        (0.46, (104, 55, 166)),
-        (0.68, (190, 61, 135)),
-        (0.84, (239, 91, 77)),
-        (1.0, (255, 174, 48)),
+        (0.0, (244, 241, 251)),
+        (0.24, (234, 228, 249)),
+        (0.46, (220, 211, 246)),
+        (0.68, (202, 189, 240)),
+        (0.84, (184, 167, 234)),
+        (1.0, (163, 141, 225)),
     ]
     ratio = min(1.0, max(0.0, math.log1p(value) / math.log1p(max_value)))
     for index in range(len(stops) - 1):
@@ -1249,7 +1255,7 @@ def heatmap_color(value: int, max_value: int) -> str:
                 for left, right in zip(left_rgb, right_rgb)
             )
             return f"rgb({rgb[0]}, {rgb[1]}, {rgb[2]})"
-    return "rgb(255, 174, 48)"
+    return "rgb(163, 141, 225)"
 
 
 def render_genre_era_heatmap(tracks: list[dict]) -> str:
@@ -1430,7 +1436,7 @@ def render_music_list(tracks: list[dict], duplicate_paths: set[str] | None = Non
             else:
                 source_label = f"уверенность {confidence}%"
             identity_warning = (
-                '<div class="identity-warning">⚠ По аудиоотпечатку: '
+                f'<div class="identity-warning">{lucide_icon("triangle-alert", "identity-warning-icon")} По аудиоотпечатку: '
                 f'<strong>{html.escape(recognized)}</strong> ({source_label}). '
                 'Исполнитель или название не совпадают с тегами.</div>'
             )
@@ -1439,7 +1445,7 @@ def render_music_list(tracks: list[dict], duplicate_paths: set[str] | None = Non
             f"""
             <article class="{html.escape(" ".join(card_classes))}" data-file-path="{html.escape(track.get("path", ""))}" data-layout-status="{layout_status}" data-identity-mismatch="{'yes' if identity_mismatch else 'no'}" data-music-search="{html.escape(search_text)}" data-sort-name="{html.escape(track.get("name", "").lower())}" data-sort-artist="{html.escape(sort_artist)}" data-sort-album="{html.escape(sort_album)}" data-sort-year="{html.escape(sort_year)}" data-sort-format="{html.escape(sort_format)}" {tag_attributes}>
               <button class="music-trash-icon trash-one" type="button" data-file-path="{html.escape(track.get("path", ""))}" title="В корзину" aria-label="В корзину">
-                <svg class="trash-svg" width="512" height="512" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" aria-hidden="true"><path fill="currentColor" d="M166.2-16c-13.3 0-25.3 8.3-30 20.8L120 48H24C10.7 48 0 58.7 0 72s10.7 24 24 24h400c13.3 0 24-10.7 24-24s-10.7-24-24-24h-96L311.8 4.8c-4.7-12.5-16.6-20.8-30-20.8zM32 144v304c0 35.3 28.7 64 64 64h256c35.3 0 64-28.7 64-64V144h-48v304c0 8.8-7.2 16-16 16H96c-8.8 0-16-7.2-16-16V144zm160 72c0-13.3-10.7-24-24-24s-24 10.7-24 24v176c0 13.3 10.7 24 24 24s24-10.7 24-24zm112 0c0-13.3-10.7-24-24-24s-24 10.7-24 24v176c0 13.3 10.7 24 24 24s24-10.7 24-24z"></path></svg>
+                {lucide_icon("trash", "trash-svg")}
               </button>
               <div class="music-card-content">
                 {cover_html}
@@ -1582,7 +1588,7 @@ def render_html(payload: dict) -> str:
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Отчёт по музыкальной библиотеке</title>
-  <link rel="icon" type="image/png" href="{FAVICON_DATA_URI}#v={FAVICON_VERSION}">
+  <link rel="icon" type="image/svg+xml" href="{FAVICON_DATA_URI}#v={FAVICON_VERSION}">
   <style>
     :root {{
       --bg: #050816;
@@ -1659,15 +1665,13 @@ def render_html(payload: dict) -> str:
     .chart-legend-row span:last-child {{ color: var(--muted); text-align: right; }}
     .chart-note {{ width: 100%; margin: 0 0 12px; color: var(--muted); font-size: 14px; line-height: 1.5; }}
     .chart-note strong {{ color: var(--text); white-space: nowrap; }}
-    .year-chart-scroll {{ max-width: 100%; overflow: hidden; padding-bottom: 2px; }}
-    .year-chart {{ display: block; width: 100%; height: 188px; }}
-    .year-chart-axis {{ stroke: rgba(148, 163, 184, 0.42); stroke-width: 1; }}
-    .year-chart-hit {{ fill: transparent; pointer-events: all; }}
-    .year-chart-bar {{ fill: url(#yearBarGradient); }}
-    .year-chart-hit:hover + .year-chart-bar,
-    .year-chart-bar:hover {{ fill: url(#yearBarGradientHover); }}
-    .year-chart-label {{ fill: var(--muted); font-size: 14px; font-weight: 650; }}
-    .year-chart-value {{ fill: var(--text); font-size: 11px; font-weight: 700; }}
+    .year-chart {{ display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; width: 100%; height: 196px; margin-top: 18px; }}
+    .year-chart-item {{ display: grid; grid-template-rows: minmax(0, 1fr) 28px; min-width: 0; }}
+    .year-chart-column {{ display: flex; flex-direction: column; align-items: center; justify-content: flex-end; min-height: 0; border-bottom: 1px solid var(--line); }}
+    .year-chart-bar {{ display: block; width: min(32px, 68%); height: max(8px, var(--bar-height)); border-radius: 6px 6px 2px 2px; background: #8064dc; transition: background .16s ease, transform .16s ease; transform-origin: bottom; }}
+    .year-chart-item:hover .year-chart-bar {{ background: #6749cb; transform: scaleX(1.06); }}
+    .year-chart-label {{ display: block; padding-top: 9px; color: var(--muted); font-size: 10px; font-weight: 650; line-height: 1.1; text-align: center; white-space: nowrap; }}
+    .year-chart-value {{ display: block; margin-bottom: 6px; color: var(--text); font-size: 11px; font-weight: 750; line-height: 1; text-align: center; font-variant-numeric: tabular-nums; }}
     .heatmap-panel {{
       margin-top: 14px;
       padding: 22px;
@@ -1868,6 +1872,7 @@ def render_html(payload: dict) -> str:
     .duplicates-actions .small {{ height: 42px; min-height: 42px; }}
     #rescanLibrary,
     #quarantineCommand {{ width: 236px; }}
+    #findDuplicates {{ width: 150px; }}
     .danger-button {{
       border-color: rgba(248, 113, 113, 0.32) !important;
       color: #fecaca !important;
@@ -1962,7 +1967,7 @@ def render_html(payload: dict) -> str:
     }}
     .music-cover img {{ width: 100%; height: 100%; object-fit: cover; }}
     .music-cover-empty {{ gap: 3px; text-align: center; }}
-    .music-cover-empty span {{ color: rgba(147, 197, 253, 0.78); font-size: 30px; line-height: 1; }}
+    .empty-cover-icon {{ width: 28px; height: 28px; color: rgba(147, 197, 253, 0.78); }}
     .music-cover-empty strong {{ color: var(--muted); font-size: 11px; font-weight: 700; text-transform: uppercase; }}
     .music-title {{ font-weight: 750; overflow-wrap: anywhere; }}
     .music-path {{ margin-top: 5px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }}
@@ -2192,27 +2197,52 @@ def render_html(payload: dict) -> str:
     .comparison {{ display: grid; grid-template-columns: minmax(0, 1fr) 92px minmax(0, 1fr); align-items: stretch; gap: 14px; padding: 16px; border: 1px solid var(--line); border-radius: 20px; background: rgba(255, 255, 255, 0.045); }}
     .comparison + .comparison {{ margin-top: 12px; }}
     .track {{ display: flex; flex-direction: column; min-width: 0; padding: 16px; border: 1px solid var(--line); border-radius: 18px; }}
-    .track-head {{ display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 12px; align-items: start; }}
-    .track-meta {{ min-width: 0; }}
-    .duplicate-cover {{ width: 88px; border-radius: 10px; }}
-    .duplicate-cover.music-cover-empty span {{ font-size: 26px; }}
+    .track-head {{
+      display: grid;
+      grid-template-columns: 100px minmax(0, 1fr);
+      align-items: start;
+      min-width: 0;
+      min-height: 116px;
+      gap: 16px;
+    }}
+    .track-meta {{ min-width: 0; overflow: hidden; }}
+    .music-cover.duplicate-cover {{ width: 100px; border-radius: 10px; }}
+    .duplicate-cover .empty-cover-icon {{ width: 25px; height: 25px; }}
     .keep {{ border-color: rgba(134, 239, 172, 0.28); background: rgba(34, 197, 94, 0.08); }}
     .move {{ border-color: rgba(252, 165, 165, 0.28); background: rgba(239, 68, 68, 0.08); }}
     .track-label {{ display: inline-flex; align-items: center; width: fit-content; min-height: 26px; padding: 0 10px; border-radius: 999px; margin-bottom: 10px; font-size: 12px; font-weight: 800; }}
     .keep .track-label {{ color: #bbf7d0; background: rgba(34, 197, 94, 0.16); }}
     .move .track-label {{ color: #fecaca; background: rgba(239, 68, 68, 0.16); }}
-    .track-title {{ font-weight: 700; overflow-wrap: anywhere; }}
-    .track-path {{ margin-top: 6px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }}
-    .audio-player-wrap {{ margin-top: 10px; }}
+    .track-title {{
+      display: -webkit-box;
+      overflow: hidden;
+      font-weight: 700;
+      line-height: 1.35;
+      overflow-wrap: anywhere;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+    }}
+    .track-path {{
+      display: block;
+      max-width: 100%;
+      margin-top: 6px;
+      overflow: hidden;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }}
+    .audio-player-wrap {{ margin-top: 12px; }}
     .audio-player {{ display: none; }}
     .custom-audio-player {{
       display: grid;
-      grid-template-columns: 30px auto minmax(80px, 1fr) 30px;
+      grid-template-columns: 28px 42px minmax(80px, 1fr) 32px;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
       width: 100%;
       min-height: 36px;
-      padding: 0 10px;
+      padding: 0 6px 0 8px;
       border-radius: 999px;
       background: rgba(15, 23, 42, 0.74);
       color: var(--text);
@@ -2224,30 +2254,25 @@ def render_html(payload: dict) -> str:
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 24px;
-      height: 24px;
+      width: 28px;
+      height: 28px;
+      min-width: 28px;
       padding: 0;
       border: 0;
       border-radius: 999px;
       background: transparent;
       color: var(--text);
       cursor: pointer;
+      justify-self: center;
     }}
     .audio-play:hover,
     .audio-mute:hover {{ background: rgba(148, 163, 184, 0.18); }}
-    .audio-play-icon {{
-      width: 0;
-      height: 0;
-      margin-left: 2px;
-      border-top: 6px solid transparent;
-      border-bottom: 6px solid transparent;
-      border-left: 9px solid currentColor;
-    }}
-    .audio-play.playing .audio-play-icon {{
+    .audio-play-icon {{ width: 15px; height: 15px; margin-left: 1px; }}
+    .audio-play.playing .audio-play-icon {{ display: none; }}
+    .audio-play.playing::before {{
+      content: "";
       width: 10px;
       height: 12px;
-      margin-left: 0;
-      border: 0;
       background:
         linear-gradient(currentColor, currentColor) left center / 3px 12px no-repeat,
         linear-gradient(currentColor, currentColor) right center / 3px 12px no-repeat;
@@ -2297,8 +2322,9 @@ def render_html(payload: dict) -> str:
     }}
     .audio-volume-icon {{
       display: block;
-      width: 21px;
-      height: 21px;
+      width: 17px;
+      height: 17px;
+      flex: 0 0 17px;
       color: #cbd5e1;
     }}
     .audio-speaker {{
@@ -2311,7 +2337,7 @@ def render_html(payload: dict) -> str:
       stroke-linecap: round;
       stroke-linejoin: round;
     }}
-    .audio-volume-off {{ display: none; }}
+    .audio-mute .audio-volume-off {{ display: none; }}
     .audio-mute.muted .audio-volume-on {{ display: none; }}
     .audio-mute.muted .audio-volume-off {{ display: block; }}
     .quality-grid {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }}
@@ -2337,8 +2363,8 @@ def render_html(payload: dict) -> str:
       input, select, .search-control, .sort-control, .duplicates-actions .small {{ width: 100%; }}
       .music-card-content {{ grid-template-columns: 1fr; }}
       .music-cover {{ width: min(100%, 180px); }}
-      .track-head {{ grid-template-columns: 72px minmax(0, 1fr); }}
-      .duplicate-cover {{ width: 72px; }}
+      .track-head {{ grid-template-columns: 72px minmax(0, 1fr); gap: 12px; }}
+      .music-cover.duplicate-cover {{ width: 72px; }}
       .music-actions {{ display: grid; grid-template-columns: 1fr; width: 100%; }}
       .music-actions .small {{ width: 100%; min-width: 0; }}
       .music-operation-groups {{ grid-template-columns: 1fr; }}
@@ -2350,24 +2376,228 @@ def render_html(payload: dict) -> str:
       .group-header {{ grid-template-columns: 1fr; }}
       .badges {{ justify-content: flex-start; }}
     }}
+    /* Music application theme */
+    :root {{
+      --bg:#eeecf3;--panel:#fbfaff;--panel-solid:#fff;--soft:#f2f0f6;--text:#2c2837;--muted:#817b8f;
+      --line:rgba(59,50,78,.12);--good:#27845f;--bad:#bd4a5a;--accent:#7359d5;--accent-strong:#6247c7;
+      --warning:#a96f1b;--shadow:0 18px 55px rgba(48,39,69,.09);--radius:24px;
+    }}
+    html {{scroll-behavior:smooth;scroll-padding-top:24px}}
+    body {{color:var(--text);background:var(--bg);font-family:"Segoe UI Variable Text","Segoe UI Variable","Segoe UI",Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility}}
+    body::before {{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background:radial-gradient(circle at 76% 4%,rgba(153,131,225,.14),transparent 28rem),radial-gradient(circle at 42% 100%,rgba(255,255,255,.72),transparent 36rem)}}
+    ::selection {{color:#fff;background:var(--accent)}}
+    .app-shell {{display:grid;grid-template-columns:224px minmax(0,1fr);min-height:100vh}}
+    .app-sidebar {{position:sticky;top:0;z-index:10;display:flex;flex-direction:column;height:100vh;padding:28px 18px 22px;color:#f7f4ff;background:#2d2936;box-shadow:18px 0 45px rgba(45,41,54,.08)}}
+    .app-brand {{display:flex;align-items:center;gap:12px;min-width:0;padding:0 10px 28px;color:inherit;text-decoration:none}}
+    .app-brand>span:last-child {{display:grid;min-width:0;gap:3px}}
+    .app-brand strong {{overflow:hidden;font-size:15px;letter-spacing:.01em;text-overflow:ellipsis;white-space:nowrap}}
+    .app-brand small {{color:#aaa3b7;font-size:11px;letter-spacing:.12em;text-transform:uppercase}}
+    .brand-mark {{display:flex;align-items:center;justify-content:center;width:36px;height:36px;flex:0 0 auto;border-radius:11px;color:#2d2936;background:#a58fee;box-shadow:0 9px 24px rgba(165,143,238,.24)}}
+    .brand-icon {{width:20px;height:20px}}
+    .brand-icon,.nav-icon,.metric-icon svg,.trash-svg,.audio-play-icon,.audio-volume-icon,.empty-cover-icon,.identity-warning-icon {{display:block;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;shape-rendering:geometricPrecision}}
+    .side-nav {{display:grid;gap:7px}}
+    .side-nav a {{display:flex;align-items:center;gap:12px;min-height:44px;padding:0 13px;border-radius:12px;color:#aaa4b4;font-size:13px;font-weight:650;text-decoration:none;transition:.16s ease}}
+    .side-nav a span {{display:grid;place-items:center;width:22px;height:22px;color:#c6bed5;font-size:18px}}
+    .side-nav a:hover {{color:#fff;background:rgba(255,255,255,.075);transform:translateX(2px)}}
+    .side-nav a.active {{color:#fff;background:#413b4d;box-shadow:inset 3px 0 #a58fee}}
+    .side-nav a.active span {{color:#b6a1f5}}
+    .sidebar-note {{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;align-items:start;margin-top:auto;padding:14px;border:1px solid rgba(255,255,255,.08);border-radius:14px;background:rgba(255,255,255,.045)}}
+    .status-dot {{width:8px;height:8px;margin-top:4px;border-radius:50%;background:#71d3a7;box-shadow:0 0 0 4px rgba(113,211,167,.12)}}
+    .sidebar-note div {{display:grid;gap:4px}}.sidebar-note strong {{font-size:12px}}.sidebar-note small {{color:#aaa3b7;font-size:10px;line-height:1.35}}
+    .app-workspace {{min-width:0}}
+    .topbar {{display:flex;align-items:center;justify-content:space-between;gap:20px;min-height:76px;padding:18px 36px;border-bottom:1px solid var(--line);background:rgba(238,236,243,.88)}}
+    .topbar-context {{display:flex;align-items:baseline;gap:10px}}.topbar-context span {{color:var(--muted);font-size:12px}}.topbar-context strong {{font-size:14px}}
+    .topbar-status {{display:inline-flex;align-items:center;gap:8px;min-height:34px;padding:0 13px;border:1px solid var(--line);border-radius:999px;color:#625c6f;background:rgba(255,255,255,.66);font-size:12px;font-weight:650}}
+    .topbar-status span {{width:7px;height:7px;border-radius:50%;background:#6fc49e}}
+    .page {{width:min(1480px,calc(100% - 72px));margin:0 auto;padding:28px 0 70px}}
+    .header {{position:relative;isolation:isolate;overflow:hidden;padding:34px;border:1px solid rgba(107,86,172,.11);border-radius:28px;background:linear-gradient(118deg,#d6cff0 0%,#e4e0f4 55%,#d9d3ec 100%);box-shadow:0 22px 60px rgba(71,58,104,.12)}}
+    .header::after {{content:"";position:absolute;z-index:-1;top:-110px;right:-70px;width:390px;height:390px;border:1px solid rgba(255,255,255,.4);border-radius:50%;box-shadow:0 0 0 38px rgba(255,255,255,.06),0 0 0 78px rgba(255,255,255,.04)}}
+    .hero-layout {{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(280px,.72fr);gap:34px;align-items:center;min-height:250px}}
+    .hero-copy {{max-width:720px}}.hero-kicker {{margin-bottom:14px;color:#67579b;font-size:11px;font-weight:800;letter-spacing:.16em;text-transform:uppercase}}
+    h1 {{max-width:720px;color:#302a3c;font-family:"Segoe UI Variable Display","Segoe UI Variable Text","Segoe UI",sans-serif;font-size:clamp(36px,5vw,64px);font-weight:650;line-height:1.04;letter-spacing:-.032em}}
+    .hero-lead {{max-width:640px;margin:18px 0 0;color:#655e72;font-size:15px;line-height:1.62}}
+    .library-path {{display:inline-flex;flex-direction:column;gap:3px;max-width:100%;margin-top:22px;padding:10px 14px;border:1px solid rgba(69,56,99,.1);border-radius:12px;color:#554e61;background:rgba(255,255,255,.42);font-size:11px}}
+    .library-path span {{color:#7d748b;font-size:9px;font-weight:800;letter-spacing:.11em;text-transform:uppercase}}
+    .hero-visual {{position:relative;min-height:220px}}
+    .hero-disc {{position:absolute;top:0;right:26px;display:grid;place-items:center;width:188px;aspect-ratio:1;border-radius:50%;background:repeating-radial-gradient(circle,#34303c 0 2px,#25222d 3px 7px);box-shadow:-18px 24px 40px rgba(54,46,72,.24)}}
+    .hero-disc::before {{content:"";width:62px;aspect-ratio:1;border-radius:50%;background:#a58fee;box-shadow:0 0 0 7px #ded8ef}}
+    .hero-disc span {{position:absolute;width:14px;aspect-ratio:1;border-radius:50%;background:#2d2936}}
+    .hero-track {{position:absolute;right:104px;bottom:0;display:grid;gap:4px;min-width:180px;padding:15px 18px;border:1px solid rgba(255,255,255,.58);border-radius:16px;color:#fff;background:rgba(67,58,84,.88);box-shadow:0 14px 35px rgba(53,45,69,.2);backdrop-filter:blur(12px)}}
+    .hero-track small {{color:#cfc8dc;font-size:10px}}.hero-track strong {{font-size:15px}}
+    .hero-wave {{position:absolute;right:5px;bottom:18px;display:flex;align-items:center;gap:3px;height:38px}}
+    .hero-wave i {{width:3px;border-radius:4px;background:#7359d5}}.hero-wave i:nth-child(1),.hero-wave i:nth-child(7) {{height:10px}}
+    .hero-wave i:nth-child(2),.hero-wave i:nth-child(6) {{height:19px}}.hero-wave i:nth-child(3),.hero-wave i:nth-child(5) {{height:29px}}.hero-wave i:nth-child(4) {{height:38px}}
+    .summary {{grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:28px}}
+    .metric {{position:relative;min-height:104px;padding:18px;border:1px solid rgba(70,57,100,.1);border-radius:18px;color:#322d3c;background:rgba(255,255,255,.72);box-shadow:none}}
+    .metric .metric-icon {{position:absolute;top:15px;right:15px;display:grid;place-items:center;width:34px;height:34px;border-radius:10px;color:#7158c4;background:#eeeafb}}
+    .metric-icon svg {{width:20px;height:20px}}.metric-label {{max-width:calc(100% - 44px);color:#797284;font-size:11px;font-weight:650}}.metric strong {{margin-top:14px;color:#312c3a;font-size:28px;line-height:1}}
+    .metric-primary {{grid-column:span 2;color:#322d3c;background:rgba(255,255,255,.82)}}.metric-primary .metric-icon {{color:#6749cb;background:#e8e0fb}}
+    .metric-primary .metric-label {{color:#706879}}.metric-primary strong {{color:#312c3a;font-size:34px}}.metric-alert .metric-icon {{color:#a85f6d;background:#f6dfe4}}
+    .section-heading {{display:flex;align-items:end;justify-content:space-between;gap:24px;margin:38px 0 15px;scroll-margin-top:24px}}
+    .section-heading span {{display:block;margin-bottom:6px;color:var(--accent);font-size:10px;font-weight:800;letter-spacing:.14em;text-transform:uppercase}}
+    .section-heading h2 {{margin:0;font-size:clamp(24px,3vw,34px);letter-spacing:-.03em}}.section-heading p {{margin:0 0 3px;color:var(--muted);font-size:12px}}
+    .analysis-grid {{grid-template-columns:repeat(12,minmax(0,1fr));gap:12px;margin-top:0}}
+    .panel {{grid-column:span 2;padding:20px;border:1px solid var(--line);border-radius:20px;color:var(--text);background:rgba(255,255,255,.82);box-shadow:0 12px 38px rgba(46,38,64,.055);backdrop-filter:none}}
+    .panel.summary-panel {{grid-column:span 4}}.artist-panel {{grid-column:span 3}}.genre-panel {{grid-column:span 2}}.years-panel {{grid-column:span 3}}.panel h2,.section-title {{color:var(--text);font-size:18px;font-weight:650;letter-spacing:-.012em}}
+    .panel-body {{margin-top:17px}}.note,.chart-note,.operation-status {{color:var(--muted)}}.summary-main {{border-color:var(--line);line-height:1.7}}
+    .summary-subtitle {{color:var(--text);font-size:13px}}.format-row,.artist-row,.genre-row,.year-row {{color:#5f5869;font-size:12px}}
+    .format-bar {{height:7px;background:#ebe8f0}}.format-bar span {{background:linear-gradient(90deg,#7e65d9,#b5a4ee)}}
+    .donut-chart {{box-shadow:none}}.donut-hole {{color:var(--text);background:#fff;box-shadow:0 0 0 1px var(--line)}}
+    .chart-legend {{scrollbar-color:#c9c3d2 transparent}}.years-panel .panel-body {{margin-top:14px}}.years-panel .chart-note {{margin-bottom:0}}
+    .heatmap-panel {{margin-top:12px;padding:24px;border-color:var(--line);background:#34303d;box-shadow:0 18px 48px rgba(44,39,53,.12)}}
+    .heatmap-heading h2 {{color:#fff}}.heatmap-heading p {{color:#aaa3b4}}
+    .music-section {{margin-top:34px;padding:24px;border:1px solid var(--line);border-radius:24px;background:rgba(255,255,255,.66);box-shadow:var(--shadow);scroll-margin-top:24px}}
+    .duplicates-heading {{margin-top:34px}}.music-section .duplicates-heading {{margin-top:0}}.section-title {{margin-top:0;font-size:25px}}
+    input,select,button.small {{min-height:42px;height:42px;border-color:var(--line);border-radius:12px;color:#443e4e;background-color:#fff;box-shadow:none}}
+    .search-placeholder {{color:#8d8696}}.search-control input:focus+.search-placeholder {{color:#9b94a5}}
+    input:focus,select:focus,button.small:focus-visible {{border-color:rgba(115,89,213,.55);box-shadow:0 0 0 3px rgba(115,89,213,.12)}}
+    select {{background-image:linear-gradient(45deg,transparent 50%,#746d7e 50%),linear-gradient(135deg,#746d7e 50%,transparent 50%)}}
+    .sort-control::before {{color:var(--accent)}}button.small {{font-size:12px;font-weight:700}}
+    button.small:hover:not(:disabled) {{border-color:rgba(115,89,213,.32);color:var(--accent-strong);background:#f3f0fb}}
+    .music-operations {{padding:12px;border-color:var(--line);border-radius:18px;background:#f1eff5}}
+    .music-operation-groups {{grid-template-columns:minmax(250px,.65fr) minmax(0,2fr)}}.music-operation-block {{border-color:transparent;border-radius:14px;background:rgba(255,255,255,.72)}}
+    .music-operations-title {{color:#5d5667;font-size:12px}}.mode-choice {{border-color:var(--line);color:#5b5464;background:#fff;font-size:12px}}
+    .mode-choice:has(input:checked) {{border-color:rgba(115,89,213,.32);color:#5e47b8;background:#eee9fb}}.operation-status {{padding:3px 4px 0;font-size:11px}}
+    .music-operation-actions .music-operations-row {{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));overflow:visible}}.music-operation-actions .music-operations-row>button.small {{width:100%;height:auto;min-height:42px;white-space:normal;line-height:1.2}}
+    .toolbar {{grid-template-columns:minmax(190px,1.25fr) repeat(4,minmax(120px,1fr));gap:8px}}.music-list {{gap:10px}}
+    .music-card {{padding:15px 52px 15px 15px;border-color:var(--line);border-radius:17px;color:var(--text);background:#fff;box-shadow:0 8px 26px rgba(53,44,72,.045);transition:.16s ease}}
+    .music-card:hover {{transform:translateY(-1px);border-color:rgba(115,89,213,.22);box-shadow:0 13px 34px rgba(53,44,72,.075)}}
+    .music-card-content {{grid-template-columns:100px minmax(0,1fr);gap:16px}}.music-cover {{width:100px;border-color:var(--line);border-radius:13px;color:var(--muted);background:#efedf3}}
+    .empty-cover-icon {{color:var(--accent)}}.music-title {{color:#332e3b;font-size:15px}}.music-path,.track-path {{color:#8b8494}}
+    .music-actions {{gap:7px}}.music-actions .small {{color:#625a70;background:#f2f0f6}}.music-trash-icon {{border-color:#ecd2d8;border-radius:9px;color:#b75464;background:#fbf1f3}}
+    .music-trash-icon:hover {{border-color:#dca9b3;color:#994455;background:#f6dfe4}}.music-card-identity-mismatch {{border-color:#e6c97e;background:#fffaf0;box-shadow:none}}
+    .identity-warning {{border-color:#ead496;color:#815b1c;background:#fff4d8}}.identity-warning-icon {{display:inline-block;width:16px;height:16px;margin-right:5px;vertical-align:-3px}}.music-card-duplicate {{border-color:#e6bd79;background:#fffaf2}}.music-card-unreadable {{border-color:#e5aeb8;background:#fff5f6}}
+    .music-pill {{color:#625b70!important;background:#efedf4!important}}.music-pill-format,.music-pill-bitrate,.music-pill-bit_depth,.music-pill-sample_rate {{color:#5c47ad!important;background:#eee9fb!important}}
+    .music-pill-cover {{color:#267454!important;background:#e2f4ec!important}}.music-pill-lyrics {{color:#7a4d98!important;background:#f1e5f7!important}}.music-pill-status {{color:#a34b5b!important;background:#fae7ea!important}}
+    .quarantine-panel {{border-color:#e8c4cb;color:#8f4654;background:#fff5f6}}.quarantine-panel p,.copy-status {{color:#954c59}}.global-progress {{background:#f3dde1}}
+    .global-progress span {{background:linear-gradient(90deg,#c45b6d,#df8f75)}}.danger-button {{border-color:#e9c2c9!important;color:#a74455!important;background:#fff6f7!important}}
+    .danger-button:hover {{border-color:#daaab3!important;color:#8e3547!important;background:#fbe9ec!important}}.quarantine-one {{border-color:#bfe3d3!important;color:#267255!important;background:#f0faf6!important}}
+    .quarantine-one:hover {{border-color:#9dd4bc!important;color:#1f6048!important;background:#e5f6ee!important}}
+    .group-card {{margin-top:10px;border-color:var(--line);border-radius:18px;color:var(--text);background:#fff;box-shadow:0 10px 32px rgba(51,43,67,.055);backdrop-filter:none}}
+    .group-header {{color:var(--text)}}.group-header:hover {{background:#f7f5fa}}.group-subtitle {{color:var(--muted)}}.badge {{border-color:#d9d0f2;color:#5c48aa;background:#f0ecfb}}
+    .group-body {{border-color:var(--line);background:#f4f2f7}}.comparison {{border-color:var(--line);background:#fff}}.track {{border-color:var(--line)}}
+    .keep {{border-color:#c4e2d5;background:#f3faf7}}.move {{border-color:#ebcbd1;background:#fff7f8}}.keep .track-label {{color:#267255;background:#dff3ea}}.move .track-label {{color:#a04555;background:#f8e2e6}}
+    .custom-audio-player {{border-color:var(--line);color:var(--text);background:#eeeaf4}}.audio-play:hover,.audio-mute:hover {{background:#ddd7e6}}.audio-volume-icon {{color:#6d6577}}
+    .audio-seek-track {{background:#d3ccdc}}.audio-seek-fill {{background:linear-gradient(90deg,#7359d5,#a58fee)}}.quality-grid div {{border-color:var(--line);background:rgba(255,255,255,.72)}}
+    .divider {{color:var(--muted)}}.arrow {{border-color:#e7d5b4;color:#9e6b1f;background:#fff6e5}}.empty {{border-color:#cfc9d7;color:var(--muted);background:rgba(255,255,255,.6)}}
+    .lyrics-modal {{background:rgba(39,34,48,.62);backdrop-filter:blur(8px)}}.lyrics-dialog {{border-color:var(--line);color:var(--text);background:#fbfaff;box-shadow:0 28px 80px rgba(27,22,35,.28)}}
+    .lyrics-dialog-head {{border-color:var(--line)}}.lyrics-dialog-title {{color:var(--text)}}.lyrics-dialog-path,.lyrics-source {{color:var(--muted)}}.lyrics-close {{color:#5e5769;background:#efedf3}}.lyrics-text {{color:#453f4f;background:#fff}}
+    @media (max-width:1180px) {{
+      .app-shell {{grid-template-columns:82px minmax(0,1fr)}}.app-sidebar {{padding-inline:13px}}.app-brand {{justify-content:center;padding-inline:0}}.app-brand>span:last-child,.sidebar-note div {{display:none}}
+      .side-nav a {{justify-content:center;padding:0;font-size:0}}.side-nav a span {{font-size:19px}}.sidebar-note {{grid-template-columns:1fr;place-items:center;padding:14px 8px}}
+      .panel,.panel.summary-panel {{grid-column:span 6}}.hero-layout {{grid-template-columns:minmax(0,1fr) 280px}}.toolbar {{grid-template-columns:repeat(2,minmax(0,1fr))}}.search-control {{grid-column:span 2}}
+    }}
+    @media (max-width:820px) {{
+      .app-shell {{display:block}}.app-sidebar {{position:relative;width:100%;height:auto;padding:14px 18px;flex-direction:row;align-items:center;gap:18px}}.app-brand {{padding:0}}.app-brand>span:last-child {{display:grid}}
+      .side-nav {{display:flex;margin-left:auto}}.side-nav a {{width:40px;min-height:40px}}.sidebar-note {{display:none}}.topbar {{padding:15px 20px}}.page {{width:min(100% - 32px,760px);padding-top:18px}}
+      .header {{padding:25px}}.hero-layout {{grid-template-columns:1fr;min-height:0}}.hero-visual {{display:none}}.summary {{grid-template-columns:repeat(2,minmax(0,1fr))}}.metric-primary {{grid-column:span 2}}
+      .section-heading {{align-items:flex-start;flex-direction:column;gap:6px}}.analysis-grid {{grid-template-columns:1fr}}.panel,.panel.summary-panel {{grid-column:auto}}.music-section {{padding:18px}}
+      .music-operation-groups {{grid-template-columns:1fr}}.music-operation-actions .music-operations-row {{grid-template-columns:repeat(2,minmax(0,1fr))}}.comparison {{grid-template-columns:1fr}}.divider {{min-height:46px}}.arrow {{transform:rotate(90deg)}}
+    }}
+    @media (max-width:560px) {{
+      .app-sidebar {{overflow-x:auto}}.app-brand>span:last-child {{display:none}}.side-nav {{min-width:max-content}}.topbar-status {{display:none}}.page {{width:min(100% - 20px,540px)}}
+      .header {{padding:20px;border-radius:22px}}h1 {{font-size:37px}}.hero-lead {{font-size:13px}}.summary {{grid-template-columns:1fr}}.metric-primary {{grid-column:auto}}.metric {{min-height:92px}}
+      .toolbar,.search-control {{grid-template-columns:1fr;grid-column:auto}}.music-operation-actions .music-operations-row {{grid-template-columns:1fr}}.music-card {{padding-right:48px}}.music-card-content {{grid-template-columns:1fr}}.music-cover {{width:min(100%,160px)}}.music-section {{padding:14px}}
+    }}
+    /* Visual consistency corrections */
+    .app-sidebar {{color:#383241;background:#fbfaff;border-right:1px solid var(--line);box-shadow:8px 0 30px rgba(50,42,66,.035)}}
+    .app-brand {{color:#302a3a}}.app-brand small {{color:#91899d}}
+    .brand-mark {{color:#fff;background:#8f73e2;box-shadow:0 9px 24px rgba(143,115,226,.22)}}
+    .side-nav a {{color:#7c7488}}.side-nav a:hover {{color:#5c48ad;background:#f1edf9;transform:none}}
+    .side-nav a.active {{color:#5943ae;background:#ebe5fa;box-shadow:none}}
+    .side-nav a span {{display:block;width:auto;height:auto;color:inherit;font-size:13px}}
+    .nav-icon {{width:20px;height:20px;flex:0 0 auto}}
+    .sidebar-note {{border-color:var(--line);color:#4d4657;background:#f2eff7}}.sidebar-note small {{color:#8d8598}}
+    .sidebar-note.mode-real {{border-color:#ead3a6;color:#76531d;background:#fff8ea}}
+    .sidebar-note.mode-real .status-dot {{background:#d39a3c;box-shadow:0 0 0 4px rgba(211,154,60,.14)}}
+    .sidebar-note.mode-real small {{color:#98713a}}
+    .page {{padding-top:30px}}.panel {{min-width:0;border-radius:22px;background:#fff}}
+    .analysis-grid {{align-items:stretch}}.artist-row {{grid-template-columns:minmax(0,1fr) minmax(42px,.62fr) 30px;gap:6px}}
+    .format-count {{min-width:0;color:#817a8d;font-variant-numeric:tabular-nums;text-align:right}}
+    .chart-legend {{padding-right:7px;scrollbar-gutter:auto}}.chart-legend-row {{grid-template-columns:9px minmax(0,1fr) 32px 38px;gap:6px;font-size:12px}}
+    .chart-legend-row strong,.chart-legend-row span:last-child {{font-variant-numeric:tabular-nums;text-align:right}}
+    .donut-hole strong,.metric strong,.note strong,.heatmap-cell {{font-variant-numeric:tabular-nums}}
+    .year-chart {{height:196px}}.year-chart-label {{color:#6d6579;font-size:10px;font-weight:650}}
+    .year-chart-value {{color:#312a3c;font-size:11px;font-weight:800;font-variant-numeric:tabular-nums}}
+    .heatmap-panel {{color:var(--text);background:#fff;box-shadow:0 12px 38px rgba(46,38,64,.055)}}
+    .heatmap-heading h2 {{color:var(--text)}}.heatmap-heading p {{color:var(--muted)}}
+    .heatmap-grid {{grid-template-columns:minmax(150px,1.15fr) repeat(var(--heatmap-columns),minmax(82px,1fr));gap:1px;padding:1px;border:1px solid #ece8f2;border-radius:16px;background:#ece8f2}}
+    .heatmap-corner,.heatmap-column,.heatmap-genre,.heatmap-cell {{border:0;text-shadow:none}}
+    .heatmap-corner,.heatmap-column {{color:#5c5567;background:#f7f5fa}}
+    .heatmap-genre {{padding-left:12px;color:#4b4555;background:#fbfaff}}
+    .heatmap-cell {{color:#40394c;font-weight:700}}
+    .heatmap-scale {{color:#8b8495}}.heatmap-scale-bar {{background:linear-gradient(90deg,#f4f1fb,#e5def8,#d1c5f2,#bdaaea,#a38de1);box-shadow:inset 0 0 0 1px rgba(83,65,125,.08)}}
+    @media (max-width:1400px) {{
+      .analysis-grid {{grid-template-columns:repeat(6,minmax(0,1fr))}}.panel {{grid-column:span 2}}.panel.summary-panel {{grid-column:span 6}}
+    }}
+    @media (max-width:1180px) {{
+      .side-nav a span {{display:none}}.nav-icon {{width:20px;height:20px}}
+      .analysis-grid {{grid-template-columns:repeat(2,minmax(0,1fr))}}.panel {{grid-column:auto}}.panel.summary-panel {{grid-column:span 2}}
+    }}
+    @media (max-width:820px) {{
+      .analysis-grid {{grid-template-columns:1fr}}.panel,.panel.summary-panel {{grid-column:auto}}
+      .app-sidebar {{border-right:0;border-bottom:1px solid var(--line)}}
+    }}
   </style>
 </head>
 <body>
+  <div class="app-shell">
+    <aside class="app-sidebar" aria-label="Навигация по отчёту">
+      <a class="app-brand" href="#overview" aria-label="Моя медиатека — к обзору">
+        <span class="brand-mark">{lucide_icon("audio-lines", "brand-icon")}</span>
+        <span><strong>Моя медиатека</strong><small>Music Library</small></span>
+      </a>
+      <nav class="side-nav">
+        <a href="#overview" class="active">
+          {lucide_icon("house", "nav-icon")}
+          <span>Обзор</span>
+        </a>
+        <a href="#insights">
+          {lucide_icon("chart", "nav-icon")}
+          <span>Аналитика</span>
+        </a>
+        <a href="#musicSection">
+          {lucide_icon("music", "nav-icon")}
+          <span>Моя музыка</span>
+        </a>
+        <a href="#duplicates">
+          {lucide_icon("copy", "nav-icon")}
+          <span>Дубли</span>
+        </a>
+      </nav>
+      <div class="sidebar-note" id="processingModeNote" aria-live="polite">
+        <span class="status-dot" aria-hidden="true"></span>
+        <div><strong id="processingModeTitle">Режим проверки</strong><small id="processingModeDetail">Изменения и удаление отключены</small></div>
+      </div>
+    </aside>
+    <div class="app-workspace">
   <main class="page">
-    <section class="header">
-      <h1>Отчёт по музыкальной библиотеке</h1>
-      <div class="library-path">{library_path}</div>
+    <section class="header" id="overview">
+      <div class="hero-layout">
+        <div class="hero-copy">
+          <div class="hero-kicker">Ваша коллекция · в одном ритме</div>
+          <h1>Музыкальная библиотека</h1>
+          <p class="hero-lead">Слушайте, приводите коллекцию в порядок и находите лучшие версии треков в едином пространстве.</p>
+          <div class="library-path"><span>Текущая папка</span>{library_path}</div>
+        </div>
+        <div class="hero-visual" aria-hidden="true">
+          <div class="hero-disc"><span></span></div>
+          <div class="hero-wave"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+          <div class="hero-track"><small>Сейчас в коллекции</small><strong>{format_number(library.get("total_files"))} треков</strong></div>
+        </div>
+      </div>
       <div class="summary">
-        <div class="metric"><span>Всего файлов</span><strong>{format_number(library.get("total_files"))}</strong></div>
-        <div class="metric"><span>Альбомов</span><strong>{format_number(library.get("albums"))}</strong></div>
-        <div class="metric"><span>Исполнителей</span><strong>{format_number(library.get("artists"))}</strong></div>
-        <div class="metric"><span>С обложкой</span><strong>{format_number(library.get("files_with_cover"))}</strong></div>
-        <div class="metric"><span>С текстом</span><strong>{format_number(library.get("files_with_lyrics"))}</strong></div>
-        <div class="metric"><span>Дублей</span><strong id="duplicateMetric">{format_number(summary["duplicates"])}</strong></div>
-        <div class="metric"><span>На проверку</span><strong>{format_number(summary.get("review_groups", 0))}</strong></div>
+        <div class="metric metric-primary"><span class="metric-icon">{lucide_icon("files")}</span><span class="metric-label">Всего файлов</span><strong>{format_number(library.get("total_files"))}</strong></div>
+        <div class="metric"><span class="metric-icon">{lucide_icon("disc")}</span><span class="metric-label">Альбомов</span><strong>{format_number(library.get("albums"))}</strong></div>
+        <div class="metric"><span class="metric-icon">{lucide_icon("users")}</span><span class="metric-label">Исполнителей</span><strong>{format_number(library.get("artists"))}</strong></div>
+        <div class="metric"><span class="metric-icon">{lucide_icon("image")}</span><span class="metric-label">С обложкой</span><strong>{format_number(library.get("files_with_cover"))}</strong></div>
+        <div class="metric"><span class="metric-icon">{lucide_icon("file-text")}</span><span class="metric-label">С текстом</span><strong>{format_number(library.get("files_with_lyrics"))}</strong></div>
+        <div class="metric metric-alert"><span class="metric-icon">{lucide_icon("copy-check")}</span><span class="metric-label">Дублей</span><strong id="duplicateMetric">{format_number(summary["duplicates"])}</strong></div>
+        <div class="metric"><span class="metric-icon">{lucide_icon("circle-alert")}</span><span class="metric-label">На проверку</span><strong>{format_number(summary.get("review_groups", 0))}</strong></div>
       </div>
     </section>
 
+    <div class="section-heading" id="insights"><div><span>Статистика коллекции</span><h2>Всё важное — с первого взгляда</h2></div><p>Сводка по качеству, исполнителям и метаданным</p></div>
     <div class="analysis-grid">
       <section class="panel summary-panel">
         <h2>Сводка</h2>
@@ -2385,19 +2615,19 @@ def render_html(payload: dict) -> str:
           {render_format_bars(library.get("formats", {}))}
         </div>
       </section>
-      <section class="panel">
+      <section class="panel artist-panel">
         <h2>ТОП 10 исполнителей</h2>
         <div class="panel-body">
           {render_artist_bars(top_artists)}
         </div>
       </section>
-      <section class="panel">
+      <section class="panel genre-panel">
         <h2>Жанры</h2>
         <div class="panel-body">
           {render_genre_bars(genres, library.get("tracks", []))}
         </div>
       </section>
-      <section class="panel">
+      <section class="panel years-panel">
         <h2>Годы</h2>
         <div class="panel-body">
           {render_year_bars(years)}
@@ -2426,8 +2656,8 @@ def render_html(payload: dict) -> str:
         <section class="music-operation-block">
           <p class="music-operations-title">Тип обработки</p>
           <div class="music-operations-row">
-            <label class="mode-choice"><input type="radio" name="processMode" value="dry-run" checked> Dry run</label>
-            <label class="mode-choice"><input type="radio" name="processMode" value="real"> Реальная обработка</label>
+            <label class="mode-choice"><input type="radio" name="processMode" value="dry-run" checked> Проверка</label>
+            <label class="mode-choice"><input type="radio" name="processMode" value="real"> Применить изменения</label>
           </div>
         </section>
         <section class="music-operation-block music-operation-actions">
@@ -2441,7 +2671,7 @@ def render_html(payload: dict) -> str:
           </div>
         </section>
       </div>
-      <div class="operation-status" id="operationStatus">Выбран безопасный режим dry run. Глобальные кнопки работают по отфильтрованному списку, кнопки внутри карточки — только по своей записи.</div>
+      <div class="operation-status" id="operationStatus">Режим проверки: будет показан план без изменения файлов. Глобальные кнопки работают по отфильтрованному списку, кнопки внутри карточки — только по своей записи.</div>
     </div>
     <div class="toolbar music-toolbar">
       <div class="search-control is-empty">
@@ -2488,13 +2718,20 @@ def render_html(payload: dict) -> str:
     <div class="empty" id="musicEmpty">Ничего не найдено по текущему фильтру музыки.</div>
     </section>
 
+    <section class="music-section duplicates-section" id="duplicates">
     <div class="duplicates-heading">
       <h2 class="section-title">Дубли и возможные совпадения</h2>
       <div class="duplicates-actions">
+        <button class="small" id="findDuplicates" type="button">Найти дубли</button>
         <button class="small danger-button" id="quarantineCommand" type="button">Переместить всё в карантин</button>
         <button class="small" id="expandAll" type="button">Раскрыть всё</button>
         <button class="small" id="collapseAll" type="button">Свернуть всё</button>
       </div>
+    </div>
+    <div class="quarantine-panel scan-panel" id="duplicateScanPanel">
+      <p id="duplicateScanStatus">Готово к новому поиску дублей. Файлы не перемещаются.</p>
+      <span class="copy-status" id="duplicateScanCopyStatus"></span>
+      <div class="global-progress" id="duplicateScanProgress" aria-hidden="true"><span></span></div>
     </div>
     <div class="quarantine-panel" id="quarantinePanel">
       <p id="quarantineStatus">Готово к безопасному переносу дублей в карантин. Файлы не удаляются.</p>
@@ -2503,7 +2740,10 @@ def render_html(payload: dict) -> str:
     </div>
     <div id="cards">{''.join(groups_html)}</div>
     <div class="empty" id="empty">Ничего не найдено по текущему фильтру.</div>
+    </section>
   </main>
+    </div>
+  </div>
 
   <div class="lyrics-modal" id="lyricsModal" aria-hidden="true">
     <div class="lyrics-dialog" role="dialog" aria-modal="true" aria-labelledby="lyricsTitle">
@@ -2537,14 +2777,22 @@ def render_html(payload: dict) -> str:
     const quarantineStatus = document.getElementById('quarantineStatus');
     const globalProgress = document.getElementById('globalProgress');
     const rescanLibrary = document.getElementById('rescanLibrary');
+    const findDuplicates = document.getElementById('findDuplicates');
     const scanPanel = document.getElementById('scanPanel');
     const scanStatus = document.getElementById('scanStatus');
     const scanCopyStatus = document.getElementById('scanCopyStatus');
     const scanProgress = document.getElementById('scanProgress');
+    const duplicateScanPanel = document.getElementById('duplicateScanPanel');
+    const duplicateScanStatus = document.getElementById('duplicateScanStatus');
+    const duplicateScanCopyStatus = document.getElementById('duplicateScanCopyStatus');
+    const duplicateScanProgress = document.getElementById('duplicateScanProgress');
     const musicSection = document.getElementById('musicSection');
     const expandMusic = document.getElementById('expandMusic');
     const collapseMusic = document.getElementById('collapseMusic');
     const operationStatus = document.getElementById('operationStatus');
+    const processingModeNote = document.getElementById('processingModeNote');
+    const processingModeTitle = document.getElementById('processingModeTitle');
+    const processingModeDetail = document.getElementById('processingModeDetail');
     const tagVisible = document.getElementById('tagVisible');
     const shazamTagVisible = document.getElementById('shazamTagVisible');
     const layoutVisible = document.getElementById('layoutVisible');
@@ -2557,6 +2805,22 @@ def render_html(payload: dict) -> str:
     const lyricsText = document.getElementById('lyricsText');
     const lyricsClose = document.getElementById('lyricsClose');
 
+    const sideNavLinks = Array.from(document.querySelectorAll('.side-nav a[href^="#"]'));
+
+    function activateSideNav(id) {{
+      sideNavLinks.forEach(link => {{
+        const isActive = link.getAttribute('href') === '#' + id;
+        link.classList.toggle('active', isActive);
+        if (isActive) link.setAttribute('aria-current', 'page');
+        else link.removeAttribute('aria-current');
+      }});
+    }}
+
+    sideNavLinks.forEach(link => {{
+      link.addEventListener('click', () => activateSideNav(link.getAttribute('href').slice(1)));
+    }});
+    window.addEventListener('hashchange', () => activateSideNav(window.location.hash.slice(1) || 'overview'));
+    activateSideNav(window.location.hash.slice(1) || 'overview');
     function selectedMode() {{
       const selected = document.querySelector('input[name="processMode"]:checked');
       return selected ? selected.value : 'dry-run';
@@ -2564,12 +2828,16 @@ def render_html(payload: dict) -> str:
 
     function updateOperationStatus() {{
       const mode = selectedMode();
-      if (!operationStatus) return;
-
       if (mode === 'real') {{
-        operationStatus.textContent = 'Выбрана реальная обработка. Глобальные кнопки работают по отфильтрованному списку, кнопки внутри карточки — только по своей записи.';
+        if (operationStatus) operationStatus.textContent = 'Изменения включены: каждое действие потребует отдельного подтверждения. Удаление файлов запрещено. Глобальные кнопки работают по отфильтрованному списку, кнопки внутри карточки — только по своей записи.';
+        if (processingModeTitle) processingModeTitle.textContent = 'Изменения включены';
+        if (processingModeDetail) processingModeDetail.textContent = 'Удаление файлов запрещено';
+        if (processingModeNote) processingModeNote.classList.add('mode-real');
       }} else {{
-        operationStatus.textContent = 'Выбран безопасный режим dry run. Глобальные кнопки работают по отфильтрованному списку, кнопки внутри карточки — только по своей записи.';
+        if (operationStatus) operationStatus.textContent = 'Режим проверки: будет показан план без изменения файлов. Глобальные кнопки работают по отфильтрованному списку, кнопки внутри карточки — только по своей записи.';
+        if (processingModeTitle) processingModeTitle.textContent = 'Режим проверки';
+        if (processingModeDetail) processingModeDetail.textContent = 'Изменения и удаление отключены';
+        if (processingModeNote) processingModeNote.classList.remove('mode-real');
       }}
     }}
 
@@ -2742,7 +3010,7 @@ def render_html(payload: dict) -> str:
     }}
 
     function setDuplicateActionsDisabled(disabled) {{
-      document.querySelectorAll('.quarantine-one, .trash-one, #quarantineCommand, #rescanLibrary').forEach(button => {{
+      document.querySelectorAll('.quarantine-one, .trash-one, #quarantineCommand, #rescanLibrary, #findDuplicates').forEach(button => {{
         button.disabled = disabled;
       }});
     }}
@@ -3139,14 +3407,19 @@ def render_html(payload: dict) -> str:
       }}
     }}
 
-    async function rescanCurrentLibrary() {{
+    async function rescanCurrentLibrary(source = 'library') {{
       const confirmed = window.confirm('Пересканировать библиотеку и заново собрать отчёт по дублям? Файлы не будут перемещаться.');
       if (!confirmed) return;
 
-      scanPanel.classList.add('visible');
-      scanStatus.textContent = 'Сканирование библиотеки';
-      scanCopyStatus.textContent = '';
-      scanProgress.classList.add('visible');
+      const fromDuplicates = source === 'duplicates';
+      const statusPanel = fromDuplicates ? duplicateScanPanel : scanPanel;
+      const statusText = fromDuplicates ? duplicateScanStatus : scanStatus;
+      const copyText = fromDuplicates ? duplicateScanCopyStatus : scanCopyStatus;
+      const progress = fromDuplicates ? duplicateScanProgress : scanProgress;
+      statusPanel.classList.add('visible');
+      statusText.textContent = fromDuplicates ? 'Идёт поиск дублей по всей библиотеке…' : 'Сканирование библиотеки…';
+      copyText.textContent = '';
+      progress.classList.add('visible');
       setDuplicateActionsDisabled(true);
       try {{
         const response = await fetch('/api/rescan-library', {{
@@ -3156,13 +3429,13 @@ def render_html(payload: dict) -> str:
         }});
         const result = await response.json();
         if (!response.ok || !result.ok) throw new Error(result.error || 'Команда не выполнена');
-        scanStatus.textContent = 'Готово. Отчёт пересобран, страница обновляется.';
+        statusText.textContent = 'Готово. CSV дублей и отчёт обновлены, страница перезагружается.';
         setTimeout(() => window.location.reload(), 500);
       }} catch (error) {{
-        scanStatus.textContent = 'Не удалось пересканировать библиотеку.';
-        scanCopyStatus.textContent = error.message || String(error);
+        statusText.textContent = 'Не удалось пересканировать библиотеку.';
+        copyText.textContent = error.message || String(error);
       }} finally {{
-        scanProgress.classList.remove('visible');
+        progress.classList.remove('visible');
         setDuplicateActionsDisabled(false);
       }}
     }}
@@ -3278,7 +3551,10 @@ def render_html(payload: dict) -> str:
     coverVisible.addEventListener('click', () => runVisibleEnrichment('cover'));
     lyricsVisible.addEventListener('click', () => runVisibleEnrichment('lyrics'));
     if (rescanLibrary) {{
-      rescanLibrary.addEventListener('click', rescanCurrentLibrary);
+      rescanLibrary.addEventListener('click', () => rescanCurrentLibrary('library'));
+    }}
+    if (findDuplicates) {{
+      findDuplicates.addEventListener('click', () => rescanCurrentLibrary('duplicates'));
     }}
 
     document.querySelectorAll('input[name="processMode"]').forEach(input => {{
