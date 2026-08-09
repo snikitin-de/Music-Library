@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import re
+import sys
 import unittest
 from pathlib import Path, PureWindowsPath
 
 ROOT = Path(__file__).resolve().parents[1]
 REPORT_SERVER = ROOT / "scripts" / "report_server.py"
+sys.path.insert(0, str(ROOT / "scripts"))
+
+from report_server import quarantine_path, trash_path
 
 
 def norm_path(value: str) -> str:
@@ -63,8 +67,23 @@ class ReportServerPathSourceTests(unittest.TestCase):
         self.assertIn('return str(existing)', source)
 
     def test_posix_storage_paths_are_expected_by_report_server(self) -> None:
-        self.assertEqual("/music".rstrip("/") + "/Duplicates", "/music/Duplicates")
-        self.assertEqual("/music".rstrip("/") + "/Trash", "/music/Trash")
+        self.assertEqual(quarantine_path("/music/Library"), "/music/Duplicates")
+        self.assertEqual(trash_path("/music/Library"), "/music/Trash")
+
+    def test_unc_storage_folders_are_siblings_of_library(self) -> None:
+        library = r"\\TRUENAS\vault_storage\music\Library"
+        self.assertEqual(
+            quarantine_path(library),
+            r"\\TRUENAS\vault_storage\music\Duplicates",
+        )
+        self.assertEqual(
+            trash_path(library),
+            r"\\TRUENAS\vault_storage\music\Trash",
+        )
+
+    def test_storage_root_remains_compatible_with_parent_report_path(self) -> None:
+        self.assertEqual(quarantine_path("/music"), "/music/Duplicates")
+        self.assertEqual(trash_path("/music"), "/music/Trash")
 
     def test_posix_path_inside_uses_posix_boundaries(self) -> None:
         self.assertTrue(posix_path_inside("/music/Aiko/Pedestal.flac", "/music"))

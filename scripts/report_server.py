@@ -23,7 +23,7 @@ import time
 import uuid
 from datetime import datetime
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
-from pathlib import Path, PureWindowsPath
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from urllib.parse import parse_qs, urlparse
 
 import yaml
@@ -110,6 +110,21 @@ def join_storage_path(base: str, folder: str) -> str:
     if is_windows_like_path(base):
         return str(PureWindowsPath(base) / folder)
     return str(Path(base) / folder)
+
+
+def storage_root_path(library: str) -> str:
+    """Return the parent storage root when the report points at its Library folder."""
+    library = str(library or "")
+    if library.startswith("/"):
+        path = PurePosixPath(library.rstrip("/") or "/")
+    elif is_windows_like_path(library):
+        path = PureWindowsPath(library)
+    else:
+        path = Path(library)
+
+    if path.name.casefold() == MANAGED_LIBRARY_FOLDER.casefold():
+        return str(path.parent)
+    return library
 
 
 def split_configured_path_list(raw: str) -> list[str]:
@@ -263,11 +278,11 @@ def library_path() -> str:
 
 
 def quarantine_path(library: str) -> str:
-    return join_storage_path(library, "Duplicates")
+    return join_storage_path(storage_root_path(library), "Duplicates")
 
 
 def trash_path(library: str) -> str:
-    return join_storage_path(library, "Trash")
+    return join_storage_path(storage_root_path(library), "Trash")
 
 
 def managed_music_base(source: Path, library: Path) -> Path:
