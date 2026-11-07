@@ -22,7 +22,7 @@ from mutagen.flac import Picture
 from mutagen.mp4 import MP4Cover
 
 from report_styles import REPORT_CSS
-from report_assets import CATALOG_MARK_NODES, ICON_LICENSE_NOTICE
+from report_assets import ICON_LICENSE_NOTICE
 
 
 AUDIO_EXTENSIONS = {
@@ -44,7 +44,7 @@ MANAGED_STORAGE_FOLDERS = {"duplicates", "trash"}
 MAX_DISPLAY_TAG_LENGTH = 120
 LYRICS_FILE_EXTENSIONS = (".lrc", ".txt")
 COVER_FILE_NAMES = ("cover.jpg", "cover.jpeg", "cover.png", "folder.jpg", "folder.jpeg", "folder.png")
-FAVICON_VERSION = "library-catalog-2"
+FAVICON_VERSION = "library-green-3"
 
 # Ready-made SVG paths from Lucide 1.28.0 (ISC):
 # https://cdn.jsdelivr.net/npm/lucide-static@1.28.0/icons/
@@ -78,19 +78,11 @@ def lucide_icon(name: str, class_name: str = "app-icon") -> str:
     )
 
 
-def catalog_mark(class_name: str = "brand-icon") -> str:
-    return (
-        f'<svg class="{html.escape(class_name)}" viewBox="0 0 24 24" fill="none" '
-        'stroke="currentColor" stroke-width="1.7" stroke-linecap="round" '
-        f'stroke-linejoin="round" aria-hidden="true">{CATALOG_MARK_NODES}</svg>'
-    )
-
-
 FAVICON_SVG = (
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" '
-    'stroke="#72c4df" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">'
-    '<rect width="24" height="24" rx="4" fill="#18303b" stroke="none"/>'
-    f'{CATALOG_MARK_NODES}</svg>'
+    'stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+    '<rect width="24" height="24" rx="12" fill="#28b969" stroke="none"/>'
+    f'{LUCIDE_ICON_NODES["audio-lines"]}</svg>'
 )
 FAVICON_DATA_URI = "data:image/svg+xml," + quote(FAVICON_SVG, safe="")
 
@@ -1115,7 +1107,7 @@ def render_genre_bars(genres: dict, tracks: list[dict] | None = None) -> str:
             "Z"
         )
 
-    colors = ["#72c4df", "#829db7", "#e0b56b", "#7ba1c4", "#b599c6", "#b4cb7e", "#cb8f88", "#71b8bd", "#aeaeae"]
+    colors = ["#2bcf70", "#82b7a5", "#e0b56b", "#7ba1c4", "#b599c6", "#b4cb7e", "#cb8f88", "#71b8bd", "#aeaeae"]
     total = sum(genres.values())
     legend_items = list(genres.items())
     top_items = legend_items[:9]
@@ -1244,15 +1236,15 @@ def render_year_bars(years: dict) -> str:
 
 def heatmap_color(value: int, max_value: int) -> str:
     if value <= 0 or max_value <= 0:
-        return "rgb(32, 41, 53)"
+        return "rgb(36, 36, 36)"
 
     stops = [
-        (0.0, (29, 43, 56)),
-        (0.24, (32, 55, 72)),
-        (0.46, (35, 68, 88)),
-        (0.68, (39, 80, 101)),
-        (0.84, (43, 91, 113)),
-        (1.0, (47, 103, 126)),
+        (0.0, (30, 43, 35)),
+        (0.24, (32, 58, 42)),
+        (0.46, (34, 77, 52)),
+        (0.68, (37, 96, 60)),
+        (0.84, (41, 116, 66)),
+        (1.0, (43, 124, 72)),
     ]
     ratio = min(1.0, max(0.0, math.log1p(value) / math.log1p(max_value)))
     for index in range(len(stops) - 1):
@@ -1266,7 +1258,7 @@ def heatmap_color(value: int, max_value: int) -> str:
                 for left, right in zip(left_rgb, right_rgb)
             )
             return f"rgb({rgb[0]}, {rgb[1]}, {rgb[2]})"
-    return "rgb(47, 103, 126)"
+    return "rgb(43, 124, 72)"
 
 
 def render_genre_era_heatmap(tracks: list[dict]) -> str:
@@ -1609,7 +1601,7 @@ def render_html(payload: dict) -> str:
   <div class="app-shell">
     <aside class="app-sidebar" aria-label="Навигация по отчёту">
       <a class="app-brand" href="#overview" aria-label="Моя медиатека — к обзору">
-        <span class="brand-mark">{catalog_mark()}</span>
+        <span class="brand-mark">{lucide_icon("audio-lines", "brand-icon")}</span>
         <span><strong>Моя медиатека</strong><small>Локальная коллекция</small></span>
       </a>
       <p class="nav-caption">Библиотека</p>
@@ -1650,7 +1642,7 @@ def render_html(payload: dict) -> str:
   <main class="page">
     <section class="header" id="overview">
       <div class="hero-layout">
-        <div class="collection-art" aria-hidden="true">{catalog_mark("collection-mark")}</div>
+        <div class="collection-art" aria-hidden="true">{lucide_icon("audio-lines")}</div>
         <div class="hero-copy">
           <div class="hero-kicker">Ваша музыкальная коллекция</div>
           <h1>Моя медиатека</h1>

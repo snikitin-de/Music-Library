@@ -157,7 +157,7 @@ python scripts/find_duplicates.py --library "D:\Music\Sorted" --quarantine "D:\M
 ## Атрибуция
 
 - Иконки действий основаны на [Lucide Icons 1.28.0](https://lucide.dev/); применяются лицензия ISC и лицензия MIT для иконок, происходящих из Feather. Полные уведомления находятся в [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) и встраиваются в каждый автономный HTML-отчёт.
-- Знак каталога в шапке и SVG-favicon созданы для этого проекта. Используются системные шрифты; фирменные материалы Spotify в оформление не включены.
+- Знак с вертикальными звуковыми линиями в шапке и SVG-favicon также основаны на Lucide. Используются системные шрифты.
 - Сохранённый в репозитории прежний PNG-favicon: [Music icon](https://www.flaticon.com/free-icon/music_9325026?term=music&page=1&position=94&origin=search&related_id=9325026) by Freepik — Flaticon.
 
 ## Красивый HTML-отчёт

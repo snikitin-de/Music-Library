@@ -1,6 +1,6 @@
 # Third-party notices
 
-The catalog symbol is original to this project. Interface icons use the following third-party licenses, also embedded in generated HTML.
+Interface icons and the SVG favicon use the following third-party licenses, also embedded in generated HTML.
 
 Lucide Icons 1.28.0
 Source: https://github.com/lucide-icons/lucide/tree/1.28.0

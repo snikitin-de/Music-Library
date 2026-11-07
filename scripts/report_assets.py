@@ -1,11 +1,4 @@
-"""Original catalog symbol and redistribution notices for embedded icons."""
-
-# Original geometric catalog symbol: two overlapping record sleeves.
-CATALOG_MARK_NODES = (
-    '<path d="M4 3h12v15H4z"/>'
-    '<path d="M9 21h11V7"/>'
-    '<path d="M8 7h4M8 11h4"/>'
-)
+"""Redistribution notices for the report's embedded icons."""
 
 # Preserved from the license of the exact icon version used by the report:
 # https://raw.githubusercontent.com/lucide-icons/lucide/1.28.0/LICENSE
