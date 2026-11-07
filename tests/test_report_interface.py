@@ -9,7 +9,7 @@ from html.parser import HTMLParser
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from generate_html_report import ReportRow, build_payload, render_html
+from generate_html_report import ReportRow, build_payload, render_html, render_genre_bars
 
 
 class Elements(HTMLParser):
@@ -85,6 +85,32 @@ class ReportInterfaceTests(unittest.TestCase):
         document = self.render().encode("utf-8")
         declaration = b'<meta charset="utf-8">'
         self.assertLessEqual(document.index(declaration) + len(declaration), 1024)
+
+    def test_library_location_is_kept_in_payload_without_redundant_chrome(self):
+        document = self.render()
+        visible_markup = document.split('<script id="payload"')[0]
+        self.assertNotIn("D:/Музыка/Library", visible_markup)
+        self.assertNotIn("Текущая папка", visible_markup)
+        self.assertNotIn("Локальная", visible_markup)
+        payload = re.search(r'<script id="payload" type="application/json">(.*?)</script>', document, re.S)
+        self.assertEqual(json.loads(html.unescape(payload[1]))["library"]["path"], "D:/Музыка/Library")
+
+    def test_single_genre_draws_a_complete_ring(self):
+        elements = Elements(render_genre_bars({"Рок": 10})).elements
+        rings = [attrs for tag, attrs in elements if tag == "circle" and attrs.get("class") == "donut-segment"]
+        self.assertEqual(len(rings), 1)
+        self.assertEqual(float(rings[0]["pathlength"]), 100)
+        self.assertEqual([float(x) for x in rings[0]["stroke-dasharray"].split()], [100, 0])
+        self.assertEqual(rings[0]["fill"], "none")
+
+    def test_genre_ring_segments_cover_whole_circle_including_other_genres(self):
+        genres = {f"Жанр {i}": 20 - i for i in range(12)}
+        elements = Elements(render_genre_bars(genres)).elements
+        rings = [attrs for tag, attrs in elements if tag == "circle" and attrs.get("class") == "donut-segment"]
+        self.assertEqual(len(rings), 10)
+        lengths = [float(r["stroke-dasharray"].split()[0]) for r in rings]
+        self.assertAlmostEqual(sum(lengths), 100, places=4)
+        self.assertTrue(all(length > 0 for length in lengths))
 
 
 if __name__ == "__main__":

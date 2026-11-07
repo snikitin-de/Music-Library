@@ -65,6 +65,7 @@ LUCIDE_ICON_NODES = {
     "triangle-alert": '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
     "trash": '<path d="M10 11v6"/><path d="M14 11v6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
     "play": '<path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/>',
+    "x": '<path d="m18 6-12 12M6 6l12 12"/>',
     "volume": '<path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z"/><path d="M16 9a5 5 0 0 1 0 6"/>',
     "volume-x": '<path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z"/><line x1="22" x2="16" y1="9" y2="15"/><line x1="16" x2="22" y1="9" y2="15"/>',
 }
@@ -1085,28 +1086,6 @@ def render_genre_bars(genres: dict, tracks: list[dict] | None = None) -> str:
     if not genres:
         return '<div class="format-empty">Жанры не определены.</div>'
 
-    def polar_point(radius: float, angle: float) -> tuple[float, float]:
-        radians = math.radians(angle)
-        return (50 + radius * math.cos(radians), 50 + radius * math.sin(radians))
-
-    def donut_slice_path(start_percent: float, end_percent: float) -> str:
-        outer_radius = 46
-        inner_radius = 25
-        start_angle = -90 + start_percent * 3.6
-        end_angle = -90 + end_percent * 3.6
-        large_arc = 1 if end_percent - start_percent > 50 else 0
-        outer_start = polar_point(outer_radius, start_angle)
-        outer_end = polar_point(outer_radius, end_angle)
-        inner_end = polar_point(inner_radius, end_angle)
-        inner_start = polar_point(inner_radius, start_angle)
-        return (
-            f"M {outer_start[0]:.3f} {outer_start[1]:.3f} "
-            f"A {outer_radius} {outer_radius} 0 {large_arc} 1 {outer_end[0]:.3f} {outer_end[1]:.3f} "
-            f"L {inner_end[0]:.3f} {inner_end[1]:.3f} "
-            f"A {inner_radius} {inner_radius} 0 {large_arc} 0 {inner_start[0]:.3f} {inner_start[1]:.3f} "
-            "Z"
-        )
-
     colors = ["#2bcf70", "#82b7a5", "#e0b56b", "#7ba1c4", "#b599c6", "#b4cb7e", "#cb8f88", "#71b8bd", "#aeaeae"]
     total = sum(genres.values())
     legend_items = list(genres.items())
@@ -1120,9 +1099,11 @@ def render_genre_bars(genres: dict, tracks: list[dict] | None = None) -> str:
         color = "#9ca3af" if genre == "Прочие" else colors[index % len(colors)]
         percent = count / total * 100
         if percent > 0:
-            end = start + percent
             svg_segments.append(
-                f'<path class="donut-segment" d="{donut_slice_path(start, end)}" fill="{color}" />'
+                '<circle class="donut-segment" cx="50" cy="50" r="35.5" '
+                f'fill="none" stroke="{color}" stroke-width="21" pathLength="100" '
+                f'stroke-dasharray="{percent:.6f} {100 - percent:.6f}" '
+                f'stroke-dashoffset="{-start:.6f}" transform="rotate(-90 50 50)" />'
             )
         start += percent
 
@@ -1488,7 +1469,6 @@ def render_html(payload: dict) -> str:
     years = library.get("years") or collect_years_from_tracks(library.get("tracks", []))
     library["years"] = years
     library_raw_path = library.get("path", "")
-    library_path = html.escape(library_raw_path)
     duplicate_paths = {
         path
         for group in payload.get("groups", [])
@@ -1602,7 +1582,7 @@ def render_html(payload: dict) -> str:
     <aside class="app-sidebar" aria-label="Навигация по отчёту">
       <a class="app-brand" href="#overview" aria-label="Моя медиатека — к обзору">
         <span class="brand-mark">{lucide_icon("audio-lines", "brand-icon")}</span>
-        <span><strong>Моя медиатека</strong><small>Локальная коллекция</small></span>
+        <span><strong>Моя медиатека</strong></span>
       </a>
       <p class="nav-caption">Библиотека</p>
       <nav class="side-nav" aria-label="Разделы медиатеки">
@@ -1623,22 +1603,12 @@ def render_html(payload: dict) -> str:
           <span>Дубли</span>
         </a>
       </nav>
-      <div class="sidebar-library">
-        <span>Источник музыки</span>
-        <p>{lucide_icon("disc")} Ваша коллекция</p>
-        <small>{library_path}</small>
-      </div>
       <div class="sidebar-note" id="processingModeNote" aria-live="polite">
         <span class="status-dot" aria-hidden="true"></span>
         <div><strong id="processingModeTitle">Режим проверки</strong><small id="processingModeDetail">Изменения и удаление отключены</small></div>
       </div>
     </aside>
     <div class="app-workspace">
-      <div class="workspace-bar">
-        <a href="#overview" aria-label="К обзору медиатеки">{lucide_icon("house")}</a>
-        <span>Медиатека</span><span aria-hidden="true">/</span><strong>Обзор коллекции</strong>
-        <span class="workspace-label">Локальная библиотека</span>
-      </div>
   <main class="page">
     <section class="header" id="overview">
       <div class="hero-layout">
@@ -1647,7 +1617,6 @@ def render_html(payload: dict) -> str:
           <div class="hero-kicker">Ваша музыкальная коллекция</div>
           <h1>Моя медиатека</h1>
           <p class="hero-lead">Треки, качество и метаданные вашей библиотеки.</p>
-          <div class="library-path"><span>Текущая папка</span>{library_path}</div>
         </div>
       </div>
       <div class="summary">
@@ -1817,7 +1786,7 @@ def render_html(payload: dict) -> str:
           <div class="lyrics-dialog-path" id="lyricsPath"></div>
           <div class="lyrics-source" id="lyricsSource">Источник: не выбран</div>
         </div>
-        <button class="lyrics-close" id="lyricsClose" type="button" aria-label="Закрыть">×</button>
+        <button class="lyrics-close" id="lyricsClose" type="button" aria-label="Закрыть">{lucide_icon("x", "lyrics-close-icon")}</button>
       </div>
       <pre class="lyrics-text" id="lyricsText"></pre>
     </div>
