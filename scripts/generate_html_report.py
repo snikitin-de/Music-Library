@@ -21,6 +21,9 @@ from mutagen import File as MutagenFile
 from mutagen.flac import Picture
 from mutagen.mp4 import MP4Cover
 
+from report_styles import REPORT_CSS
+from report_assets import CATALOG_MARK_NODES, ICON_LICENSE_NOTICE
+
 
 AUDIO_EXTENSIONS = {
     ".flac",
@@ -41,7 +44,7 @@ MANAGED_STORAGE_FOLDERS = {"duplicates", "trash"}
 MAX_DISPLAY_TAG_LENGTH = 120
 LYRICS_FILE_EXTENSIONS = (".lrc", ".txt")
 COVER_FILE_NAMES = ("cover.jpg", "cover.jpeg", "cover.png", "folder.jpg", "folder.jpeg", "folder.png")
-FAVICON_VERSION = "lucide-1.28.0-audio-lines"
+FAVICON_VERSION = "library-catalog-2"
 
 # Ready-made SVG paths from Lucide 1.28.0 (ISC):
 # https://cdn.jsdelivr.net/npm/lucide-static@1.28.0/icons/
@@ -75,11 +78,19 @@ def lucide_icon(name: str, class_name: str = "app-icon") -> str:
     )
 
 
+def catalog_mark(class_name: str = "brand-icon") -> str:
+    return (
+        f'<svg class="{html.escape(class_name)}" viewBox="0 0 24 24" fill="none" '
+        'stroke="currentColor" stroke-width="1.7" stroke-linecap="round" '
+        f'stroke-linejoin="round" aria-hidden="true">{CATALOG_MARK_NODES}</svg>'
+    )
+
+
 FAVICON_SVG = (
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" '
-    'stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
-    '<rect width="24" height="24" rx="7" fill="#8f73e2" stroke="none"/>'
-    f'{LUCIDE_ICON_NODES["audio-lines"]}</svg>'
+    'stroke="#72c4df" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">'
+    '<rect width="24" height="24" rx="4" fill="#18303b" stroke="none"/>'
+    f'{CATALOG_MARK_NODES}</svg>'
 )
 FAVICON_DATA_URI = "data:image/svg+xml," + quote(FAVICON_SVG, safe="")
 
@@ -1104,7 +1115,7 @@ def render_genre_bars(genres: dict, tracks: list[dict] | None = None) -> str:
             "Z"
         )
 
-    colors = ["#2563eb", "#dc2626", "#f59e0b", "#16a34a", "#9333ea", "#0891b2", "#db2777", "#65a30d", "#b91c1c"]
+    colors = ["#72c4df", "#829db7", "#e0b56b", "#7ba1c4", "#b599c6", "#b4cb7e", "#cb8f88", "#71b8bd", "#aeaeae"]
     total = sum(genres.values())
     legend_items = list(genres.items())
     top_items = legend_items[:9]
@@ -1233,15 +1244,15 @@ def render_year_bars(years: dict) -> str:
 
 def heatmap_color(value: int, max_value: int) -> str:
     if value <= 0 or max_value <= 0:
-        return "rgb(247, 245, 251)"
+        return "rgb(32, 41, 53)"
 
     stops = [
-        (0.0, (244, 241, 251)),
-        (0.24, (234, 228, 249)),
-        (0.46, (220, 211, 246)),
-        (0.68, (202, 189, 240)),
-        (0.84, (184, 167, 234)),
-        (1.0, (163, 141, 225)),
+        (0.0, (29, 43, 56)),
+        (0.24, (32, 55, 72)),
+        (0.46, (35, 68, 88)),
+        (0.68, (39, 80, 101)),
+        (0.84, (43, 91, 113)),
+        (1.0, (47, 103, 126)),
     ]
     ratio = min(1.0, max(0.0, math.log1p(value) / math.log1p(max_value)))
     for index in range(len(stops) - 1):
@@ -1255,7 +1266,7 @@ def heatmap_color(value: int, max_value: int) -> str:
                 for left, right in zip(left_rgb, right_rgb)
             )
             return f"rgb({rgb[0]}, {rgb[1]}, {rgb[2]})"
-    return "rgb(163, 141, 225)"
+    return "rgb(47, 103, 126)"
 
 
 def render_genre_era_heatmap(tracks: list[dict]) -> str:
@@ -1586,968 +1597,23 @@ def render_html(payload: dict) -> str:
 <html lang="ru">
 <head>
   <meta charset="utf-8">
+  <!--
+{ICON_LICENSE_NOTICE}
+  -->
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Отчёт по музыкальной библиотеке</title>
   <link rel="icon" type="image/svg+xml" href="{FAVICON_DATA_URI}#v={FAVICON_VERSION}">
-  <style>
-    :root {{
-      --bg: #050816;
-      --panel: rgba(13, 18, 32, 0.78);
-      --panel-solid: #111827;
-      --soft: rgba(255, 255, 255, 0.055);
-      --text: #e5e7eb;
-      --muted: #9ca3af;
-      --line: rgba(148, 163, 184, 0.24);
-      --good: #86efac;
-      --bad: #fca5a5;
-      --accent: #93c5fd;
-      --accent-strong: #60a5fa;
-      --warning: #fde68a;
-      --shadow: 0 24px 80px rgba(0, 0, 0, 0.34);
-      --radius: 22px;
-    }}
-    * {{ box-sizing: border-box; }}
-    body {{
-      margin: 0;
-      min-height: 100vh;
-      color: var(--text);
-      background:
-        radial-gradient(circle at 0 0, rgba(59, 130, 246, 0.32), transparent 34rem),
-        radial-gradient(circle at 100% 0, rgba(20, 184, 166, 0.18), transparent 30rem),
-        radial-gradient(circle at 50% 100%, rgba(244, 114, 182, 0.1), transparent 34rem),
-        linear-gradient(135deg, #020617, #0f172a 52%, #111827);
-      font-family: Inter, Segoe UI, system-ui, -apple-system, BlinkMacSystemFont, Arial, sans-serif;
-    }}
-    .page {{ width: min(1240px, calc(100% - 32px)); margin: 0 auto; padding: 40px 0 64px; }}
-    .header {{ padding: 28px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); box-shadow: var(--shadow); backdrop-filter: blur(18px); }}
-    h1 {{ margin: 0; font-size: clamp(28px, 4vw, 44px); line-height: 1.06; letter-spacing: 0; }}
-    .library-path {{ margin-top: 14px; overflow-wrap: anywhere; color: var(--muted); font-size: 13px; line-height: 1.45; }}
-    .summary {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-top: 24px; }}
-    .metric {{ padding: 18px; border: 1px solid var(--line); border-radius: 18px; background: var(--soft); }}
-    .metric span {{ display: block; color: var(--muted); font-size: 13px; }}
-    .metric strong {{ display: block; margin-top: 6px; font-size: 30px; letter-spacing: 0; }}
-    .analysis-grid {{ display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-top: 16px; }}
-    .panel {{ padding: 20px; border: 1px solid var(--line); border-radius: 20px; background: rgba(13, 18, 32, 0.68); box-shadow: 0 16px 48px rgba(0, 0, 0, 0.18); backdrop-filter: blur(12px); }}
-    .panel h2, .section-title {{ margin: 0; font-size: 22px; }}
-    .panel-body {{ margin-top: 14px; }}
-    .note {{ color: var(--muted); font-size: 14px; line-height: 1.5; }}
-    .note strong {{ color: var(--text); white-space: nowrap; }}
-    .summary-panel {{ display: grid; grid-template-rows: auto 1fr; gap: 18px; }}
-    .summary-panel .panel-body {{ margin-top: 0; }}
-    .summary-main {{ padding-bottom: 18px; border-bottom: 1px solid var(--line); }}
-    .summary-subtitle {{ margin: 0 0 14px; color: var(--text); font-size: 16px; font-weight: 800; }}
-    .format-row {{ display: grid; grid-template-columns: 60px 1fr 60px; gap: 10px; align-items: center; margin-top: 10px; }}
-    .panel-body > .format-row:first-child {{ margin-top: 0; }}
-    .artist-row {{ display: grid; grid-template-columns: minmax(88px, 1fr) minmax(72px, 0.75fr) 46px; gap: 10px; align-items: center; margin-top: 10px; }}
-    .panel-body > .artist-row:first-child {{ margin-top: 0; }}
-    .artist-name {{ min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
-    .genre-row {{ display: grid; grid-template-columns: minmax(90px, 150px) 1fr 44px; gap: 10px; align-items: center; margin-top: 10px; }}
-    .genre-name {{ min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
-    .year-row {{ display: grid; grid-template-columns: 54px 1fr 44px; gap: 10px; align-items: center; margin-top: 10px; }}
-    .format-bar {{ height: 10px; border-radius: 999px; background: rgba(148, 163, 184, 0.16); overflow: hidden; }}
-    .format-bar span {{ display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, rgba(147, 197, 253, 0.62), rgba(45, 212, 191, 0.78)); }}
-    .format-count {{ text-align: right; color: var(--muted); }}
-    .donut-layout {{ display: grid; grid-template-columns: 1fr; gap: 14px; justify-items: center; }}
-    .donut-chart {{ position: relative; isolation: isolate; overflow: hidden; width: 146px; aspect-ratio: 1; border-radius: 50%; display: grid; place-items: center; background: transparent; box-shadow: 0 18px 42px rgba(0, 0, 0, 0.18); }}
-    .donut-svg {{ position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; shape-rendering: geometricPrecision; }}
-    .donut-segment {{ vector-effect: non-scaling-stroke; }}
-    .donut-hole {{ position: relative; z-index: 2; width: 82px; aspect-ratio: 1; border-radius: 50%; display: grid; place-items: center; align-content: center; padding: 8px; background: #0f172a; text-align: center; box-shadow: 0 0 0 1px var(--line); }}
-    .donut-hole strong {{ font-size: 24px; line-height: 1; }}
-    .donut-hole span {{ display: block; max-width: 68px; margin-top: 5px; overflow: hidden; color: var(--muted); font-size: 11px; line-height: 1.15; text-overflow: ellipsis; white-space: nowrap; }}
-    .chart-legend {{ display: grid; gap: 7px; width: 100%; min-width: 0; max-height: 209px; overflow-y: auto; padding-right: 4px; scrollbar-gutter: stable; scrollbar-width: thin; scrollbar-color: rgba(148, 163, 184, 0.34) transparent; }}
-    .chart-legend::-webkit-scrollbar {{ width: 6px; }}
-    .chart-legend::-webkit-scrollbar-track {{ background: transparent; }}
-    .chart-legend::-webkit-scrollbar-thumb {{ border-radius: 999px; background: rgba(148, 163, 184, 0.28); }}
-    .chart-legend-row {{ display: grid; grid-template-columns: 10px minmax(0, 1fr) 42px 44px; gap: 8px; align-items: center; min-width: 0; font-size: 13px; }}
-    .chart-dot {{ width: 10px; height: 10px; border-radius: 50%; }}
-    .chart-label {{ overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
-    .chart-legend-row strong {{ text-align: right; }}
-    .chart-legend-row span:last-child {{ color: var(--muted); text-align: right; }}
-    .chart-note {{ width: 100%; margin: 0 0 12px; color: var(--muted); font-size: 14px; line-height: 1.5; }}
-    .chart-note strong {{ color: var(--text); white-space: nowrap; }}
-    .year-chart {{ display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; width: 100%; height: 196px; margin-top: 18px; }}
-    .year-chart-item {{ display: grid; grid-template-rows: minmax(0, 1fr) 28px; min-width: 0; }}
-    .year-chart-column {{ display: flex; flex-direction: column; align-items: center; justify-content: flex-end; min-height: 0; border-bottom: 1px solid var(--line); }}
-    .year-chart-bar {{ display: block; width: min(32px, 68%); height: max(8px, var(--bar-height)); border-radius: 6px 6px 2px 2px; background: #8064dc; transition: background .16s ease, transform .16s ease; transform-origin: bottom; }}
-    .year-chart-item:hover .year-chart-bar {{ background: #6749cb; transform: scaleX(1.06); }}
-    .year-chart-label {{ display: block; padding-top: 9px; color: var(--muted); font-size: 10px; font-weight: 650; line-height: 1.1; text-align: center; white-space: nowrap; }}
-    .year-chart-value {{ display: block; margin-bottom: 6px; color: var(--text); font-size: 11px; font-weight: 750; line-height: 1; text-align: center; font-variant-numeric: tabular-nums; }}
-    .heatmap-panel {{
-      margin-top: 14px;
-      padding: 22px;
-      overflow: hidden;
-      background:
-        linear-gradient(135deg, rgba(12, 21, 38, 0.92), rgba(10, 18, 34, 0.82));
-    }}
-    .heatmap-heading {{
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 14px;
-      margin-bottom: 18px;
-    }}
-    .heatmap-heading h2 {{ margin: 0; font-size: 24px; line-height: 1.15; }}
-    .heatmap-heading p {{ margin: 5px 0 0; color: var(--muted); font-size: 14px; }}
-    .heatmap-scroll {{ max-width: 100%; overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin; scrollbar-color: rgba(148, 163, 184, 0.34) transparent; }}
-    .heatmap-scroll::-webkit-scrollbar {{ height: 8px; }}
-    .heatmap-scroll::-webkit-scrollbar-track {{ background: transparent; }}
-    .heatmap-scroll::-webkit-scrollbar-thumb {{ border-radius: 999px; background: rgba(148, 163, 184, 0.28); }}
-    .heatmap-grid {{
-      display: grid;
-      grid-template-columns: minmax(116px, 0.88fr) repeat(var(--heatmap-columns), minmax(92px, 1fr));
-      min-width: 720px;
-      overflow: hidden;
-      border-radius: 8px;
-    }}
-    .heatmap-row {{ display: contents; }}
-    .heatmap-corner, .heatmap-column, .heatmap-genre, .heatmap-cell {{
-      min-height: 40px;
-      border: 1px solid rgba(2, 6, 23, 0.72);
-    }}
-    .heatmap-corner, .heatmap-column {{
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border-color: transparent;
-      color: #dbe4f0;
-      background: transparent;
-      font-weight: 750;
-    }}
-    .heatmap-genre {{
-      display: flex;
-      align-items: center;
-      min-width: 0;
-      padding: 0 12px 0 0;
-      overflow: hidden;
-      border-color: transparent rgba(2, 6, 23, 0.72) transparent transparent;
-      color: #eef2f7;
-      background: transparent;
-      font-weight: 760;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }}
-    .heatmap-cell {{
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 0 8px;
-      color: #f8fafc;
-      font-size: 15px;
-      font-variant-numeric: tabular-nums;
-      text-align: center;
-      text-shadow: 0 1px 10px rgba(0, 0, 0, 0.42);
-    }}
-    .heatmap-scale {{
-      display: grid;
-      grid-template-columns: auto minmax(180px, 420px) auto;
-      justify-content: center;
-      align-items: center;
-      gap: 10px;
-      margin-top: 18px;
-      color: var(--muted);
-      font-size: 14px;
-    }}
-    .heatmap-scale-bar {{
-      height: 16px;
-      border-radius: 999px;
-      background: linear-gradient(90deg, rgb(20, 43, 101), rgb(42, 55, 133), rgb(104, 55, 166), rgb(190, 61, 135), rgb(239, 91, 77), rgb(255, 174, 48));
-      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
-    }}
-    .toolbar {{ display: grid; grid-template-columns: minmax(220px, 1fr) minmax(190px, 0.66fr) minmax(205px, 0.74fr) minmax(190px, 0.66fr) minmax(190px, 0.6fr); gap: 10px; margin-top: 18px; align-items: center; }}
-    input, select, button.small {{
-      height: 44px;
-      min-height: 44px;
-      border: 1px solid var(--line);
-      border-radius: 999px;
-      background: rgba(15, 23, 42, 0.82);
-      color: var(--text);
-      padding: 0 16px;
-      font: inherit;
-      outline: none;
-    }}
-    input::placeholder {{ color: transparent; }}
-    .search-control {{ position: relative; min-width: 0; }}
-    .search-control input {{ position: relative; z-index: 1; width: 100%; padding-right: 18px; }}
-    .search-placeholder {{
-      position: absolute;
-      z-index: 2;
-      left: 16px;
-      top: 50%;
-      max-width: calc(100% - 32px);
-      overflow: hidden;
-      transform: translateY(-50%);
-      color: rgba(203, 213, 225, 0.92);
-      font: inherit;
-      line-height: 1.25;
-      padding-bottom: 1px;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      pointer-events: none;
-    }}
-    .search-control input:focus + .search-placeholder {{ color: rgba(226, 232, 240, 0.72); }}
-    .search-control:not(.is-empty) .search-placeholder {{ display: none; }}
-    input:focus, select:focus, button.small:focus-visible {{ border-color: rgba(147, 197, 253, 0.72); box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2); }}
-    button.small {{
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      white-space: nowrap;
-      transition: border-color 0.16s ease, background 0.16s ease;
-    }}
-    button.small:hover:not(:disabled) {{ border-color: rgba(147, 197, 253, 0.5); background: rgba(30, 41, 59, 0.92); }}
-    input {{ min-width: 0; }}
-    select {{
-      width: 100%;
-      min-width: 0;
-      padding-right: 42px;
-      appearance: none;
-      background-image:
-        linear-gradient(45deg, transparent 50%, #e5e7eb 50%),
-        linear-gradient(135deg, #e5e7eb 50%, transparent 50%);
-      background-position:
-        calc(100% - 21px) 18px,
-        calc(100% - 15px) 18px;
-      background-size: 6px 6px, 6px 6px;
-      background-repeat: no-repeat;
-    }}
-    .sort-control {{
-      position: relative;
-      min-width: 0;
-    }}
-    .sort-control::before {{
-      content: "↑";
-      position: absolute;
-      left: 16px;
-      top: 0;
-      bottom: 0;
-      z-index: 1;
-      width: 16px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: var(--accent);
-      font-size: 16px;
-      line-height: 44px;
-      pointer-events: none;
-    }}
-    .sort-control select {{ padding-left: 34px; }}
-    button {{ cursor: pointer; }}
-    button:disabled {{
-      cursor: not-allowed;
-      opacity: 0.55;
-    }}
-    .section-title {{ margin-top: 28px; letter-spacing: 0; }}
-    .music-toolbar {{ margin: 24px 0 12px; }}
-    .music-operations {{
-      margin-top: 14px;
-      padding: 14px;
-      border: 1px solid var(--line);
-      border-radius: 18px;
-      background: rgba(255, 255, 255, 0.045);
-    }}
-    .music-operation-groups {{ display: grid; grid-template-columns: 1fr; gap: 12px; align-items: stretch; }}
-    .music-operation-block {{ min-width: 0; padding: 12px; border: 1px solid var(--line); border-radius: 14px; background: rgba(15, 23, 42, 0.44); }}
-    .music-operations-row {{
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      align-items: center;
-    }}
-    .music-operations-row > button.small,
-    .music-operations-row > .mode-choice {{
-      min-width: 0;
-      height: 42px;
-      justify-content: center;
-    }}
-    .music-operations-row > button.small {{ flex: 0 1 auto; }}
-    .music-operation-actions .music-operations-row {{ flex-wrap: nowrap; width: 100%; }}
-    .music-operation-actions .music-operations-row > button.small {{ flex: 1 1 0; min-width: 0; padding-inline: 12px; }}
-    .music-operations-title {{ margin: 0 0 10px; font-weight: 750; }}
-    .mode-choice {{ display: inline-flex; align-items: center; gap: 6px; min-height: 42px; padding: 0 12px; border: 1px solid var(--line); border-radius: 999px; background: rgba(15, 23, 42, 0.82); }}
-    .mode-choice input {{ flex: 0 0 auto; width: auto; height: auto; margin: 0; }}
-    .operation-status {{ margin-top: 10px; color: var(--muted); font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; }}
-    .duplicates-heading {{ display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 24px; }}
-    .duplicates-heading .section-title {{ margin: 0; }}
-    .duplicates-actions {{ display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }}
-    .duplicates-actions .small {{ height: 42px; min-height: 42px; }}
-    #rescanLibrary,
-    #quarantineCommand {{ width: 236px; }}
-    #findDuplicates {{ width: 150px; }}
-    .danger-button {{
-      border-color: rgba(248, 113, 113, 0.32) !important;
-      color: #fecaca !important;
-      background: rgba(127, 29, 29, 0.16) !important;
-    }}
-    .danger-button:hover {{
-      border-color: rgba(248, 113, 113, 0.48) !important;
-      color: #fee2e2 !important;
-      background: rgba(127, 29, 29, 0.26) !important;
-    }}
-    .quarantine-one {{
-      border-color: rgba(134, 239, 172, 0.3) !important;
-      color: #bbf7d0 !important;
-      background: rgba(20, 83, 45, 0.14) !important;
-    }}
-    .quarantine-one:hover {{
-      border-color: rgba(134, 239, 172, 0.44) !important;
-      color: #dcfce7 !important;
-      background: rgba(20, 83, 45, 0.24) !important;
-    }}
-    .track-actions {{
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 8px;
-      margin-top: auto;
-      padding-top: 12px;
-    }}
-    .track-actions .small {{
-      width: 100%;
-      min-width: 0;
-      justify-content: center;
-      text-align: center;
-    }}
-    .quarantine-panel {{
-      display: none;
-      margin: 12px 0;
-      padding: 14px;
-      border: 1px solid rgba(252, 165, 165, 0.34);
-      border-radius: 18px;
-      background: rgba(127, 29, 29, 0.18);
-    }}
-    .quarantine-panel.visible {{ display: block; }}
-    .quarantine-panel p {{ margin: 0 0 10px; color: #fecaca; line-height: 1.45; }}
-    .quarantine-panel p:last-child {{ margin-bottom: 0; }}
-    .copy-status {{ margin-left: 10px; color: #fecaca; font-size: 13px; }}
-    .global-progress {{
-      display: none;
-      height: 8px;
-      margin-top: 10px;
-      overflow: hidden;
-      border-radius: 999px;
-      background: rgba(252, 165, 165, 0.16);
-    }}
-    .global-progress.visible {{ display: block; }}
-    .global-progress span {{
-      display: block;
-      width: 40%;
-      height: 100%;
-      border-radius: inherit;
-      background: linear-gradient(90deg, #ef4444, #f97316);
-      animation: card-progress 1.1s ease-in-out infinite;
-    }}
-    .music-section.collapsed .music-toolbar,
-    .music-section.collapsed .music-list {{
-      display: none;
-    }}
-    .music-section.collapsed #musicEmpty {{
-      display: none !important;
-    }}
-    .music-list {{ display: grid; gap: 10px; }}
-    .music-card {{ position: relative; padding: 14px 58px 14px 14px; border: 1px solid var(--line); border-radius: 18px; background: rgba(13, 18, 32, 0.68); box-shadow: 0 10px 28px rgba(0, 0, 0, 0.14); }}
-    .music-trash-icon {{ position: absolute; top: 12px; right: 12px; z-index: 3; width: 32px; min-width: 32px; height: 32px; padding: 0; display: grid; place-items: center; border: 1px solid rgba(248, 113, 113, 0.38); border-radius: 7px; color: #fca5a5; background: rgba(69, 10, 10, 0.28); cursor: pointer; }}
-    .music-trash-icon:hover {{ color: #fff; border-color: rgba(248, 113, 113, 0.8); background: rgba(127, 29, 29, 0.72); }}
-    .trash-svg {{ display: block; width: 18px; height: 18px; flex: 0 0 auto; }}
-    .music-card-identity-mismatch {{ border-color: rgba(250, 204, 21, 0.85); background: rgba(113, 63, 18, 0.32); box-shadow: 0 0 0 1px rgba(250, 204, 21, 0.18), 0 10px 28px rgba(0, 0, 0, 0.14); }}
-    .identity-warning {{ margin-top: 10px; padding: 10px 12px; border: 1px solid rgba(250, 204, 21, 0.5); border-radius: 12px; color: #fde68a; background: rgba(113, 63, 18, 0.36); }}
-    .music-card-duplicate {{ border-color: rgba(245, 158, 11, 0.54); background: rgba(120, 53, 15, 0.2); }}
-    .music-card-unreadable {{ border-color: rgba(239, 68, 68, 0.58); background: rgba(127, 29, 29, 0.22); }}
-    .music-card[hidden] {{ display: none; }}
-    .music-card-content {{ display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 14px; align-items: start; }}
-    .music-card-main {{ min-width: 0; }}
-    .music-cover {{
-      display: grid;
-      place-items: center;
-      width: 112px;
-      aspect-ratio: 1 / 1;
-      overflow: hidden;
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 12px;
-      background: rgba(15, 23, 42, 0.88);
-      color: var(--muted);
-    }}
-    .music-cover img {{ width: 100%; height: 100%; object-fit: cover; }}
-    .music-cover-empty {{ gap: 3px; text-align: center; }}
-    .empty-cover-icon {{ width: 28px; height: 28px; color: rgba(147, 197, 253, 0.78); }}
-    .music-cover-empty strong {{ color: var(--muted); font-size: 11px; font-weight: 700; text-transform: uppercase; }}
-    .music-title {{ font-weight: 750; overflow-wrap: anywhere; }}
-    .music-path {{ margin-top: 5px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }}
-    .music-actions {{
-      display: flex;
-      flex-wrap: nowrap;
-      gap: 8px;
-      width: 100%;
-      margin-top: 12px;
-    }}
-    .music-actions .small {{
-      flex: 1 1 0;
-      width: auto;
-      min-width: 112px;
-      padding-inline: 12px;
-      text-align: center;
-    }}
-    .music-actions .music-action-single[data-action="layout"] {{
-      padding-inline: 24px;
-    }}
-    .lyrics-button:not(:disabled) {{
-      border-color: rgba(192, 132, 252, 0.34);
-      color: #e9d5ff;
-      background: rgba(88, 28, 135, 0.16);
-    }}
-    .lyrics-modal {{
-      position: fixed;
-      inset: 0;
-      z-index: 50;
-      display: none;
-      align-items: center;
-      justify-content: center;
-      padding: 22px;
-      background: rgba(2, 6, 23, 0.72);
-    }}
-    .lyrics-modal.visible {{ display: flex; }}
-    .lyrics-dialog {{
-      width: min(760px, 100%);
-      max-height: min(78vh, 760px);
-      display: grid;
-      grid-template-rows: auto minmax(0, 1fr);
-      overflow: hidden;
-      border: 1px solid rgba(226, 232, 240, 0.22);
-      border-radius: 18px;
-      background: rgba(15, 23, 42, 0.98);
-      box-shadow: 0 26px 80px rgba(0, 0, 0, 0.42);
-    }}
-    .lyrics-dialog-head {{
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
-      gap: 14px;
-      align-items: start;
-      padding: 18px 20px 14px;
-      border-bottom: 1px solid var(--line);
-    }}
-    .lyrics-dialog-title {{
-      margin: 0;
-      font-size: 18px;
-      line-height: 1.3;
-      overflow-wrap: anywhere;
-    }}
-    .lyrics-dialog-path {{
-      margin-top: 5px;
-      color: var(--muted);
-      font-size: 12px;
-      overflow-wrap: anywhere;
-    }}
-    .lyrics-source {{
-      display: inline-flex;
-      align-items: center;
-      width: fit-content;
-      max-width: 100%;
-      min-height: 28px;
-      margin-top: 10px;
-      padding: 5px 9px;
-      border: 1px solid rgba(125, 211, 252, 0.34);
-      border-radius: 8px;
-      color: #bae6fd;
-      background: rgba(14, 116, 144, 0.18);
-      font-size: 12px;
-      font-weight: 750;
-      line-height: 1.35;
-      overflow-wrap: anywhere;
-    }}
-    .lyrics-close {{
-      display: inline-grid;
-      place-items: center;
-      width: 32px;
-      min-width: 32px;
-      height: 32px;
-      padding: 0;
-      border: 1px solid rgba(248, 113, 113, 0.3);
-      border-radius: 7px;
-      color: #fecaca;
-      background: rgba(127, 29, 29, 0.28);
-      font-size: 20px;
-      font-weight: 400;
-      line-height: 1;
-    }}
-    .lyrics-close:focus-visible {{
-      outline: none;
-      box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.18);
-    }}
-    .lyrics-close:hover {{
-      border-color: rgba(248, 113, 113, 0.5);
-      color: #fee2e2;
-      background: rgba(127, 29, 29, 0.42);
-    }}
-    .lyrics-text {{
-      min-height: 220px;
-      margin: 0;
-      padding: 18px 20px 22px;
-      overflow: auto;
-      white-space: pre-wrap;
-      color: #e5e7eb;
-      font-family: inherit;
-      font-size: 15px;
-      line-height: 1.65;
-    }}
-    .lyrics-text.loading,
-    .lyrics-text.error {{
-      color: var(--muted);
-    }}
-    .music-card-status {{ display: none; margin-top: 12px; color: var(--muted); font-size: 13px; }}
-    .music-card-status.visible {{ display: block; }}
-    .music-card-status.done {{ color: var(--good); }}
-    .music-card-status.error {{ color: var(--bad); }}
-    .music-card-progress {{
-      position: relative;
-      height: 8px;
-      margin-top: 7px;
-      overflow: hidden;
-      border-radius: 999px;
-      background: rgba(148, 163, 184, 0.18);
-    }}
-    .music-card-progress span {{
-      position: absolute;
-      inset: 0 auto 0 0;
-      width: 42%;
-      border-radius: inherit;
-      background: linear-gradient(90deg, var(--accent), #2dd4bf);
-      transform: translateX(-100%);
-    }}
-    .music-card-status.running .music-card-progress span {{
-      animation: card-progress 1.1s ease-in-out infinite;
-    }}
-    .music-card-status.done .music-card-progress span {{
-      width: 100%;
-      transform: none;
-      animation: none;
-      background: var(--good);
-    }}
-    .music-card-status.error .music-card-progress span {{
-      width: 100%;
-      transform: none;
-      animation: none;
-      background: var(--bad);
-    }}
-    .duplicate-card-status {{
-      display: none;
-      grid-column: 1 / -1;
-      color: var(--muted);
-      font-size: 13px;
-    }}
-    .duplicate-card-status.visible {{ display: block; }}
-    .duplicate-card-status.done {{ color: var(--good); }}
-    .duplicate-card-status.error {{ color: var(--bad); }}
-    .duplicate-card-status.running .music-card-progress span {{
-      animation: card-progress 1.1s ease-in-out infinite;
-    }}
-    .duplicate-card-status.done .music-card-progress span {{
-      width: 100%;
-      transform: none;
-      animation: none;
-      background: var(--good);
-    }}
-    .duplicate-card-status.error .music-card-progress span {{
-      width: 100%;
-      transform: none;
-      animation: none;
-      background: var(--bad);
-    }}
-    @keyframes card-progress {{
-      0% {{ transform: translateX(-100%); }}
-      55% {{ transform: translateX(70%); }}
-      100% {{ transform: translateX(240%); }}
-    }}
-    .music-pills {{ display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }}
-    .music-pill {{
-      display: inline-flex;
-      align-items: center;
-      max-width: 100%;
-      min-height: 24px;
-      padding: 3px 8px;
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 999px;
-      color: #dbeafe;
-      background: rgba(59, 130, 246, 0.16);
-      font-size: 12px;
-      font-weight: 600;
-      line-height: 1.25;
-      overflow-wrap: anywhere;
-    }}
-    .music-pill-format {{ background: rgba(248, 113, 113, 0.16); color: #fecaca; }}
-    .music-pill-bitrate {{ background: rgba(96, 165, 250, 0.16); color: #bfdbfe; }}
-    .music-pill-bit_depth {{ background: rgba(167, 139, 250, 0.16); color: #ddd6fe; }}
-    .music-pill-sample_rate {{ background: rgba(45, 212, 191, 0.16); color: #ccfbf1; }}
-    .music-pill-album {{ background: rgba(251, 191, 36, 0.16); color: #fde68a; }}
-    .music-pill-albumartist {{ background: rgba(134, 239, 172, 0.14); color: #bbf7d0; }}
-    .music-pill-artist {{ background: rgba(251, 146, 60, 0.14); color: #fed7aa; }}
-    .music-pill-genre {{ background: rgba(244, 114, 182, 0.14); color: #fbcfe8; }}
-    .music-pill-title {{ background: rgba(125, 211, 252, 0.14); color: #bae6fd; }}
-    .music-pill-year {{ background: rgba(203, 213, 225, 0.12); color: #e2e8f0; }}
-    .music-pill-cover {{ background: rgba(52, 211, 153, 0.14); color: #a7f3d0; }}
-    .music-pill-lyrics {{ background: rgba(192, 132, 252, 0.14); color: #e9d5ff; }}
-    .music-pill-status {{ background: rgba(248, 113, 113, 0.16); color: #fecaca; }}
-    .group-card {{ margin-top: 14px; border: 1px solid var(--line); border-radius: var(--radius); background: rgba(13, 18, 32, 0.68); overflow: hidden; box-shadow: 0 16px 48px rgba(0, 0, 0, 0.2); backdrop-filter: blur(12px); }}
-    .group-card[hidden] {{ display: none; }}
-    .group-header {{ width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 16px; padding: 20px 22px; border: 0; background: transparent; color: var(--text); text-align: left; }}
-    .group-header:hover {{ background: rgba(255, 255, 255, 0.035); }}
-    .group-title {{ font-weight: 700; line-height: 1.35; overflow-wrap: anywhere; }}
-    .group-subtitle {{ margin-top: 4px; color: var(--muted); font-size: 13px; }}
-    .badges {{ display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; align-items: center; min-width: 0; }}
-    .badge {{ display: inline-flex; align-items: center; justify-content: center; min-height: 28px; padding: 5px 10px; border: 1px solid rgba(147, 197, 253, 0.28); border-radius: 999px; color: #dbeafe; background: rgba(59, 130, 246, 0.18); font-size: 12px; font-weight: 700; white-space: nowrap; }}
-    .group-body {{ display: none; padding: 18px; border-top: 1px solid var(--line); background: rgba(255, 255, 255, 0.035); }}
-    .group-card.open .group-body {{ display: block; }}
-    .comparison {{ display: grid; grid-template-columns: minmax(0, 1fr) 92px minmax(0, 1fr); align-items: stretch; gap: 14px; padding: 16px; border: 1px solid var(--line); border-radius: 20px; background: rgba(255, 255, 255, 0.045); }}
-    .comparison + .comparison {{ margin-top: 12px; }}
-    .track {{ display: flex; flex-direction: column; min-width: 0; padding: 16px; border: 1px solid var(--line); border-radius: 18px; }}
-    .track-head {{
-      display: grid;
-      grid-template-columns: 100px minmax(0, 1fr);
-      align-items: start;
-      min-width: 0;
-      min-height: 116px;
-      gap: 16px;
-    }}
-    .track-meta {{ min-width: 0; overflow: hidden; }}
-    .music-cover.duplicate-cover {{ width: 100px; border-radius: 10px; }}
-    .duplicate-cover .empty-cover-icon {{ width: 25px; height: 25px; }}
-    .keep {{ border-color: rgba(134, 239, 172, 0.28); background: rgba(34, 197, 94, 0.08); }}
-    .move {{ border-color: rgba(252, 165, 165, 0.28); background: rgba(239, 68, 68, 0.08); }}
-    .track-label {{ display: inline-flex; align-items: center; width: fit-content; min-height: 26px; padding: 0 10px; border-radius: 999px; margin-bottom: 10px; font-size: 12px; font-weight: 800; }}
-    .keep .track-label {{ color: #bbf7d0; background: rgba(34, 197, 94, 0.16); }}
-    .move .track-label {{ color: #fecaca; background: rgba(239, 68, 68, 0.16); }}
-    .track-title {{
-      display: -webkit-box;
-      overflow: hidden;
-      font-weight: 700;
-      line-height: 1.35;
-      overflow-wrap: anywhere;
-      -webkit-box-orient: vertical;
-      -webkit-line-clamp: 2;
-    }}
-    .track-path {{
-      display: block;
-      max-width: 100%;
-      margin-top: 6px;
-      overflow: hidden;
-      color: var(--muted);
-      font-size: 12px;
-      line-height: 1.35;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }}
-    .audio-player-wrap {{ margin-top: 12px; }}
-    .audio-player {{ display: none; }}
-    .custom-audio-player {{
-      display: grid;
-      grid-template-columns: 28px 42px minmax(80px, 1fr) 32px;
-      align-items: center;
-      gap: 6px;
-      width: 100%;
-      min-height: 36px;
-      padding: 0 6px 0 8px;
-      border-radius: 999px;
-      background: rgba(15, 23, 42, 0.74);
-      color: var(--text);
-      border: 1px solid rgba(148, 163, 184, 0.18);
-      box-sizing: border-box;
-    }}
-    .audio-play,
-    .audio-mute {{
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 28px;
-      height: 28px;
-      min-width: 28px;
-      padding: 0;
-      border: 0;
-      border-radius: 999px;
-      background: transparent;
-      color: var(--text);
-      cursor: pointer;
-      justify-self: center;
-    }}
-    .audio-play:hover,
-    .audio-mute:hover {{ background: rgba(148, 163, 184, 0.18); }}
-    .audio-play-icon {{ width: 15px; height: 15px; margin-left: 1px; }}
-    .audio-play.playing .audio-play-icon {{ display: none; }}
-    .audio-play.playing::before {{
-      content: "";
-      width: 10px;
-      height: 12px;
-      background:
-        linear-gradient(currentColor, currentColor) left center / 3px 12px no-repeat,
-        linear-gradient(currentColor, currentColor) right center / 3px 12px no-repeat;
-    }}
-    .audio-time {{
-      min-width: 36px;
-      font-size: 14px;
-      line-height: 1;
-      white-space: nowrap;
-    }}
-    .audio-seek-wrap {{
-      position: relative;
-      width: 100%;
-      min-width: 0;
-      height: 16px;
-      display: flex;
-      align-items: center;
-    }}
-    .audio-seek-track {{
-      position: relative;
-      width: 100%;
-      height: 4px;
-      overflow: hidden;
-      border-radius: 999px;
-      background: rgba(148, 163, 184, 0.3);
-      pointer-events: none;
-    }}
-    .audio-seek-fill {{
-      display: block;
-      width: var(--audio-progress, 0%);
-      height: 100%;
-      border-radius: inherit;
-      background: linear-gradient(90deg, var(--accent), #2dd4bf);
-    }}
-    .audio-seek {{
-      position: absolute;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      margin: 0;
-      padding: 0;
-      opacity: 0;
-      cursor: pointer;
-      appearance: none;
-      -webkit-appearance: none;
-      border: 0;
-    }}
-    .audio-volume-icon {{
-      display: block;
-      width: 17px;
-      height: 17px;
-      flex: 0 0 17px;
-      color: #cbd5e1;
-    }}
-    .audio-speaker {{
-      fill: currentColor;
-    }}
-    .audio-volume-mark {{
-      fill: none;
-      stroke: currentColor;
-      stroke-width: 2.4;
-      stroke-linecap: round;
-      stroke-linejoin: round;
-    }}
-    .audio-mute .audio-volume-off {{ display: none; }}
-    .audio-mute.muted .audio-volume-on {{ display: none; }}
-    .audio-mute.muted .audio-volume-off {{ display: block; }}
-    .quality-grid {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }}
-    .quality-grid div {{ padding: 9px; border: 1px solid var(--line); border-radius: 14px; background: rgba(255, 255, 255, 0.045); }}
-    .quality-grid span {{ display: block; color: var(--muted); font-size: 11px; }}
-    .quality-grid strong {{ display: block; margin-top: 3px; font-size: 13px; overflow-wrap: anywhere; }}
-    .divider {{ display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: var(--muted); font-size: 12px; }}
-    .arrow {{ display: grid; place-items: center; width: 42px; height: 42px; margin-bottom: 8px; border-radius: 999px; border: 1px solid rgba(253, 230, 138, 0.2); color: var(--warning); background: rgba(253, 230, 138, 0.12); }}
-    .arrow span {{ position: relative; display: block; width: 16px; height: 2px; border-radius: 999px; background: currentColor; }}
-    .arrow span::after {{ content: ""; position: absolute; top: 50%; right: 0; width: 7px; height: 7px; border-top: 2px solid currentColor; border-right: 2px solid currentColor; transform: translateY(-50%) rotate(45deg); transform-origin: center; }}
-    .empty {{ display: none; margin-top: 12px; padding: 28px; border: 1px dashed var(--line); border-radius: var(--radius); text-align: center; color: var(--muted); background: rgba(255, 255, 255, 0.045); }}
-    .empty.visible {{ display: block; }}
-    @media (max-width: 900px) {{
-      .summary, .analysis-grid {{ grid-template-columns: 1fr 1fr; }}
-      .donut-chart {{ width: 132px; }}
-      .comparison {{ grid-template-columns: 1fr; }}
-      .divider {{ min-height: 48px; }}
-      .arrow {{ transform: rotate(90deg); }}
-    }}
-    @media (max-width: 560px) {{
-      .summary, .analysis-grid, .quality-grid {{ grid-template-columns: 1fr; }}
-      .toolbar {{ grid-template-columns: 1fr; }}
-      input, select, .search-control, .sort-control, .duplicates-actions .small {{ width: 100%; }}
-      .music-card-content {{ grid-template-columns: 1fr; }}
-      .music-cover {{ width: min(100%, 180px); }}
-      .track-head {{ grid-template-columns: 72px minmax(0, 1fr); gap: 12px; }}
-      .music-cover.duplicate-cover {{ width: 72px; }}
-      .music-actions {{ display: grid; grid-template-columns: 1fr; width: 100%; }}
-      .music-actions .small {{ width: 100%; min-width: 0; }}
-      .music-operation-groups {{ grid-template-columns: 1fr; }}
-      .music-operation-actions .music-operations-row {{ overflow-x: auto; padding-bottom: 4px; }}
-      .music-operation-actions .music-operations-row > button.small {{ flex: 0 0 auto; width: auto; }}
-      .music-operations-row > button.small,
-      .music-operations-row > .mode-choice {{ width: 100%; }}
-      .duplicates-heading {{ align-items: stretch; flex-direction: column; }}
-      .group-header {{ grid-template-columns: 1fr; }}
-      .badges {{ justify-content: flex-start; }}
-    }}
-    /* Music application theme */
-    :root {{
-      --bg:#eeecf3;--panel:#fbfaff;--panel-solid:#fff;--soft:#f2f0f6;--text:#2c2837;--muted:#817b8f;
-      --line:rgba(59,50,78,.12);--good:#27845f;--bad:#bd4a5a;--accent:#7359d5;--accent-strong:#6247c7;
-      --warning:#a96f1b;--shadow:0 18px 55px rgba(48,39,69,.09);--radius:24px;
-    }}
-    html {{scroll-behavior:smooth;scroll-padding-top:24px}}
-    body {{color:var(--text);background:var(--bg);font-family:"Segoe UI Variable Text","Segoe UI Variable","Segoe UI",Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility}}
-    body::before {{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background:radial-gradient(circle at 76% 4%,rgba(153,131,225,.14),transparent 28rem),radial-gradient(circle at 42% 100%,rgba(255,255,255,.72),transparent 36rem)}}
-    ::selection {{color:#fff;background:var(--accent)}}
-    .app-shell {{display:grid;grid-template-columns:224px minmax(0,1fr);min-height:100vh}}
-    .app-sidebar {{position:sticky;top:0;z-index:10;display:flex;flex-direction:column;height:100vh;padding:28px 18px 22px;color:#f7f4ff;background:#2d2936;box-shadow:18px 0 45px rgba(45,41,54,.08)}}
-    .app-brand {{display:flex;align-items:center;gap:12px;min-width:0;padding:0 10px 28px;color:inherit;text-decoration:none}}
-    .app-brand>span:last-child {{display:grid;min-width:0;gap:3px}}
-    .app-brand strong {{overflow:hidden;font-size:15px;letter-spacing:.01em;text-overflow:ellipsis;white-space:nowrap}}
-    .app-brand small {{color:#aaa3b7;font-size:11px;letter-spacing:.12em;text-transform:uppercase}}
-    .brand-mark {{display:flex;align-items:center;justify-content:center;width:36px;height:36px;flex:0 0 auto;border-radius:11px;color:#2d2936;background:#a58fee;box-shadow:0 9px 24px rgba(165,143,238,.24)}}
-    .brand-icon {{width:20px;height:20px}}
-    .brand-icon,.nav-icon,.metric-icon svg,.trash-svg,.audio-play-icon,.audio-volume-icon,.empty-cover-icon,.identity-warning-icon {{display:block;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;shape-rendering:geometricPrecision}}
-    .side-nav {{display:grid;gap:7px}}
-    .side-nav a {{display:flex;align-items:center;gap:12px;min-height:44px;padding:0 13px;border-radius:12px;color:#aaa4b4;font-size:13px;font-weight:650;text-decoration:none;transition:.16s ease}}
-    .side-nav a span {{display:grid;place-items:center;width:22px;height:22px;color:#c6bed5;font-size:18px}}
-    .side-nav a:hover {{color:#fff;background:rgba(255,255,255,.075);transform:translateX(2px)}}
-    .side-nav a.active {{color:#fff;background:#413b4d;box-shadow:inset 3px 0 #a58fee}}
-    .side-nav a.active span {{color:#b6a1f5}}
-    .sidebar-note {{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;align-items:start;margin-top:auto;padding:14px;border:1px solid rgba(255,255,255,.08);border-radius:14px;background:rgba(255,255,255,.045)}}
-    .status-dot {{width:8px;height:8px;margin-top:4px;border-radius:50%;background:#71d3a7;box-shadow:0 0 0 4px rgba(113,211,167,.12)}}
-    .sidebar-note div {{display:grid;gap:4px}}.sidebar-note strong {{font-size:12px}}.sidebar-note small {{color:#aaa3b7;font-size:10px;line-height:1.35}}
-    .app-workspace {{min-width:0}}
-    .topbar {{display:flex;align-items:center;justify-content:space-between;gap:20px;min-height:76px;padding:18px 36px;border-bottom:1px solid var(--line);background:rgba(238,236,243,.88)}}
-    .topbar-context {{display:flex;align-items:baseline;gap:10px}}.topbar-context span {{color:var(--muted);font-size:12px}}.topbar-context strong {{font-size:14px}}
-    .topbar-status {{display:inline-flex;align-items:center;gap:8px;min-height:34px;padding:0 13px;border:1px solid var(--line);border-radius:999px;color:#625c6f;background:rgba(255,255,255,.66);font-size:12px;font-weight:650}}
-    .topbar-status span {{width:7px;height:7px;border-radius:50%;background:#6fc49e}}
-    .page {{width:min(1480px,calc(100% - 72px));margin:0 auto;padding:28px 0 70px}}
-    .header {{position:relative;isolation:isolate;overflow:hidden;padding:34px;border:1px solid rgba(107,86,172,.11);border-radius:28px;background:linear-gradient(118deg,#d6cff0 0%,#e4e0f4 55%,#d9d3ec 100%);box-shadow:0 22px 60px rgba(71,58,104,.12)}}
-    .header::after {{content:"";position:absolute;z-index:-1;top:-110px;right:-70px;width:390px;height:390px;border:1px solid rgba(255,255,255,.4);border-radius:50%;box-shadow:0 0 0 38px rgba(255,255,255,.06),0 0 0 78px rgba(255,255,255,.04)}}
-    .hero-layout {{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(280px,.72fr);gap:34px;align-items:center;min-height:250px}}
-    .hero-copy {{max-width:720px}}.hero-kicker {{margin-bottom:14px;color:#67579b;font-size:11px;font-weight:800;letter-spacing:.16em;text-transform:uppercase}}
-    h1 {{max-width:720px;color:#302a3c;font-family:"Segoe UI Variable Display","Segoe UI Variable Text","Segoe UI",sans-serif;font-size:clamp(36px,5vw,64px);font-weight:650;line-height:1.04;letter-spacing:-.032em}}
-    .hero-lead {{max-width:640px;margin:18px 0 0;color:#655e72;font-size:15px;line-height:1.62}}
-    .library-path {{display:inline-flex;flex-direction:column;gap:3px;max-width:100%;margin-top:22px;padding:10px 14px;border:1px solid rgba(69,56,99,.1);border-radius:12px;color:#554e61;background:rgba(255,255,255,.42);font-size:11px}}
-    .library-path span {{color:#7d748b;font-size:9px;font-weight:800;letter-spacing:.11em;text-transform:uppercase}}
-    .hero-visual {{position:relative;min-height:220px}}
-    .hero-disc {{position:absolute;top:0;right:26px;display:grid;place-items:center;width:188px;aspect-ratio:1;border-radius:50%;background:repeating-radial-gradient(circle,#34303c 0 2px,#25222d 3px 7px);box-shadow:-18px 24px 40px rgba(54,46,72,.24)}}
-    .hero-disc::before {{content:"";width:62px;aspect-ratio:1;border-radius:50%;background:#a58fee;box-shadow:0 0 0 7px #ded8ef}}
-    .hero-disc span {{position:absolute;width:14px;aspect-ratio:1;border-radius:50%;background:#2d2936}}
-    .hero-track {{position:absolute;right:104px;bottom:0;display:grid;gap:4px;min-width:180px;padding:15px 18px;border:1px solid rgba(255,255,255,.58);border-radius:16px;color:#fff;background:rgba(67,58,84,.88);box-shadow:0 14px 35px rgba(53,45,69,.2);backdrop-filter:blur(12px)}}
-    .hero-track small {{color:#cfc8dc;font-size:10px}}.hero-track strong {{font-size:15px}}
-    .hero-wave {{position:absolute;right:5px;bottom:18px;display:flex;align-items:center;gap:3px;height:38px}}
-    .hero-wave i {{width:3px;border-radius:4px;background:#7359d5}}.hero-wave i:nth-child(1),.hero-wave i:nth-child(7) {{height:10px}}
-    .hero-wave i:nth-child(2),.hero-wave i:nth-child(6) {{height:19px}}.hero-wave i:nth-child(3),.hero-wave i:nth-child(5) {{height:29px}}.hero-wave i:nth-child(4) {{height:38px}}
-    .summary {{grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:28px}}
-    .metric {{position:relative;min-height:104px;padding:18px;border:1px solid rgba(70,57,100,.1);border-radius:18px;color:#322d3c;background:rgba(255,255,255,.72);box-shadow:none}}
-    .metric .metric-icon {{position:absolute;top:15px;right:15px;display:grid;place-items:center;width:34px;height:34px;border-radius:10px;color:#7158c4;background:#eeeafb}}
-    .metric-icon svg {{width:20px;height:20px}}.metric-label {{max-width:calc(100% - 44px);color:#797284;font-size:11px;font-weight:650}}.metric strong {{margin-top:14px;color:#312c3a;font-size:28px;line-height:1}}
-    .metric-primary {{grid-column:span 2;color:#322d3c;background:rgba(255,255,255,.82)}}.metric-primary .metric-icon {{color:#6749cb;background:#e8e0fb}}
-    .metric-primary .metric-label {{color:#706879}}.metric-primary strong {{color:#312c3a;font-size:34px}}.metric-alert .metric-icon {{color:#a85f6d;background:#f6dfe4}}
-    .section-heading {{display:flex;align-items:end;justify-content:space-between;gap:24px;margin:38px 0 15px;scroll-margin-top:24px}}
-    .section-heading span {{display:block;margin-bottom:6px;color:var(--accent);font-size:10px;font-weight:800;letter-spacing:.14em;text-transform:uppercase}}
-    .section-heading h2 {{margin:0;font-size:clamp(24px,3vw,34px);letter-spacing:-.03em}}.section-heading p {{margin:0 0 3px;color:var(--muted);font-size:12px}}
-    .analysis-grid {{grid-template-columns:repeat(12,minmax(0,1fr));gap:12px;margin-top:0}}
-    .panel {{grid-column:span 2;padding:20px;border:1px solid var(--line);border-radius:20px;color:var(--text);background:rgba(255,255,255,.82);box-shadow:0 12px 38px rgba(46,38,64,.055);backdrop-filter:none}}
-    .panel.summary-panel {{grid-column:span 4}}.artist-panel {{grid-column:span 3}}.genre-panel {{grid-column:span 2}}.years-panel {{grid-column:span 3}}.panel h2,.section-title {{color:var(--text);font-size:18px;font-weight:650;letter-spacing:-.012em}}
-    .panel-body {{margin-top:17px}}.note,.chart-note,.operation-status {{color:var(--muted)}}.summary-main {{border-color:var(--line);line-height:1.7}}
-    .summary-subtitle {{color:var(--text);font-size:13px}}.format-row,.artist-row,.genre-row,.year-row {{color:#5f5869;font-size:12px}}
-    .format-bar {{height:7px;background:#ebe8f0}}.format-bar span {{background:linear-gradient(90deg,#7e65d9,#b5a4ee)}}
-    .donut-chart {{box-shadow:none}}.donut-hole {{color:var(--text);background:#fff;box-shadow:0 0 0 1px var(--line)}}
-    .chart-legend {{scrollbar-color:#c9c3d2 transparent}}.years-panel .panel-body {{margin-top:14px}}.years-panel .chart-note {{margin-bottom:0}}
-    .heatmap-panel {{margin-top:12px;padding:24px;border-color:var(--line);background:#34303d;box-shadow:0 18px 48px rgba(44,39,53,.12)}}
-    .heatmap-heading h2 {{color:#fff}}.heatmap-heading p {{color:#aaa3b4}}
-    .music-section {{margin-top:34px;padding:24px;border:1px solid var(--line);border-radius:24px;background:rgba(255,255,255,.66);box-shadow:var(--shadow);scroll-margin-top:24px}}
-    .duplicates-heading {{margin-top:34px}}.music-section .duplicates-heading {{margin-top:0}}.section-title {{margin-top:0;font-size:25px}}
-    input,select,button.small {{min-height:42px;height:42px;border-color:var(--line);border-radius:12px;color:#443e4e;background-color:#fff;box-shadow:none}}
-    .search-placeholder {{color:#8d8696}}.search-control input:focus+.search-placeholder {{color:#9b94a5}}
-    input:focus,select:focus,button.small:focus-visible {{border-color:rgba(115,89,213,.55);box-shadow:0 0 0 3px rgba(115,89,213,.12)}}
-    select {{background-image:linear-gradient(45deg,transparent 50%,#746d7e 50%),linear-gradient(135deg,#746d7e 50%,transparent 50%)}}
-    .sort-control::before {{color:var(--accent)}}button.small {{font-size:12px;font-weight:700}}
-    button.small:hover:not(:disabled) {{border-color:rgba(115,89,213,.32);color:var(--accent-strong);background:#f3f0fb}}
-    .music-operations {{padding:12px;border-color:var(--line);border-radius:18px;background:#f1eff5}}
-    .music-operation-groups {{grid-template-columns:minmax(250px,.65fr) minmax(0,2fr)}}.music-operation-block {{border-color:transparent;border-radius:14px;background:rgba(255,255,255,.72)}}
-    .music-operations-title {{color:#5d5667;font-size:12px}}.mode-choice {{border-color:var(--line);color:#5b5464;background:#fff;font-size:12px}}
-    .mode-choice:has(input:checked) {{border-color:rgba(115,89,213,.32);color:#5e47b8;background:#eee9fb}}.operation-status {{padding:3px 4px 0;font-size:11px}}
-    .music-operation-actions .music-operations-row {{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));overflow:visible}}.music-operation-actions .music-operations-row>button.small {{width:100%;height:auto;min-height:42px;white-space:normal;line-height:1.2}}
-    .toolbar {{grid-template-columns:minmax(190px,1.25fr) repeat(4,minmax(120px,1fr));gap:8px}}.music-list {{gap:10px}}
-    .music-card {{padding:15px 52px 15px 15px;border-color:var(--line);border-radius:17px;color:var(--text);background:#fff;box-shadow:0 8px 26px rgba(53,44,72,.045);transition:.16s ease}}
-    .music-card:hover {{transform:translateY(-1px);border-color:rgba(115,89,213,.22);box-shadow:0 13px 34px rgba(53,44,72,.075)}}
-    .music-card-content {{grid-template-columns:100px minmax(0,1fr);gap:16px}}.music-cover {{width:100px;border-color:var(--line);border-radius:13px;color:var(--muted);background:#efedf3}}
-    .empty-cover-icon {{color:var(--accent)}}.music-title {{color:#332e3b;font-size:15px}}.music-path,.track-path {{color:#8b8494}}
-    .music-actions {{gap:7px}}.music-actions .small {{color:#625a70;background:#f2f0f6}}.music-trash-icon {{border-color:#ecd2d8;border-radius:9px;color:#b75464;background:#fbf1f3}}
-    .music-trash-icon:hover {{border-color:#dca9b3;color:#994455;background:#f6dfe4}}.music-card-identity-mismatch {{border-color:#e6c97e;background:#fffaf0;box-shadow:none}}
-    .identity-warning {{border-color:#ead496;color:#815b1c;background:#fff4d8}}.identity-warning-icon {{display:inline-block;width:16px;height:16px;margin-right:5px;vertical-align:-3px}}.music-card-duplicate {{border-color:#e6bd79;background:#fffaf2}}.music-card-unreadable {{border-color:#e5aeb8;background:#fff5f6}}
-    .music-pill {{color:#625b70!important;background:#efedf4!important}}.music-pill-format,.music-pill-bitrate,.music-pill-bit_depth,.music-pill-sample_rate {{color:#5c47ad!important;background:#eee9fb!important}}
-    .music-pill-cover {{color:#267454!important;background:#e2f4ec!important}}.music-pill-lyrics {{color:#7a4d98!important;background:#f1e5f7!important}}.music-pill-status {{color:#a34b5b!important;background:#fae7ea!important}}
-    .quarantine-panel {{border-color:#e8c4cb;color:#8f4654;background:#fff5f6}}.quarantine-panel p,.copy-status {{color:#954c59}}.global-progress {{background:#f3dde1}}
-    .global-progress span {{background:linear-gradient(90deg,#c45b6d,#df8f75)}}.danger-button {{border-color:#e9c2c9!important;color:#a74455!important;background:#fff6f7!important}}
-    .danger-button:hover {{border-color:#daaab3!important;color:#8e3547!important;background:#fbe9ec!important}}.quarantine-one {{border-color:#bfe3d3!important;color:#267255!important;background:#f0faf6!important}}
-    .quarantine-one:hover {{border-color:#9dd4bc!important;color:#1f6048!important;background:#e5f6ee!important}}
-    .group-card {{margin-top:10px;border-color:var(--line);border-radius:18px;color:var(--text);background:#fff;box-shadow:0 10px 32px rgba(51,43,67,.055);backdrop-filter:none}}
-    .group-header {{color:var(--text)}}.group-header:hover {{background:#f7f5fa}}.group-subtitle {{color:var(--muted)}}.badge {{border-color:#d9d0f2;color:#5c48aa;background:#f0ecfb}}
-    .group-body {{border-color:var(--line);background:#f4f2f7}}.comparison {{border-color:var(--line);background:#fff}}.track {{border-color:var(--line)}}
-    .keep {{border-color:#c4e2d5;background:#f3faf7}}.move {{border-color:#ebcbd1;background:#fff7f8}}.keep .track-label {{color:#267255;background:#dff3ea}}.move .track-label {{color:#a04555;background:#f8e2e6}}
-    .custom-audio-player {{border-color:var(--line);color:var(--text);background:#eeeaf4}}.audio-play:hover,.audio-mute:hover {{background:#ddd7e6}}.audio-volume-icon {{color:#6d6577}}
-    .audio-seek-track {{background:#d3ccdc}}.audio-seek-fill {{background:linear-gradient(90deg,#7359d5,#a58fee)}}.quality-grid div {{border-color:var(--line);background:rgba(255,255,255,.72)}}
-    .divider {{color:var(--muted)}}.arrow {{border-color:#e7d5b4;color:#9e6b1f;background:#fff6e5}}.empty {{border-color:#cfc9d7;color:var(--muted);background:rgba(255,255,255,.6)}}
-    .lyrics-modal {{background:rgba(39,34,48,.62);backdrop-filter:blur(8px)}}.lyrics-dialog {{border-color:var(--line);color:var(--text);background:#fbfaff;box-shadow:0 28px 80px rgba(27,22,35,.28)}}
-    .lyrics-dialog-head {{border-color:var(--line)}}.lyrics-dialog-title {{color:var(--text)}}.lyrics-dialog-path,.lyrics-source {{color:var(--muted)}}.lyrics-close {{color:#5e5769;background:#efedf3}}.lyrics-text {{color:#453f4f;background:#fff}}
-    @media (max-width:1180px) {{
-      .app-shell {{grid-template-columns:82px minmax(0,1fr)}}.app-sidebar {{padding-inline:13px}}.app-brand {{justify-content:center;padding-inline:0}}.app-brand>span:last-child,.sidebar-note div {{display:none}}
-      .side-nav a {{justify-content:center;padding:0;font-size:0}}.side-nav a span {{font-size:19px}}.sidebar-note {{grid-template-columns:1fr;place-items:center;padding:14px 8px}}
-      .panel,.panel.summary-panel {{grid-column:span 6}}.hero-layout {{grid-template-columns:minmax(0,1fr) 280px}}.toolbar {{grid-template-columns:repeat(2,minmax(0,1fr))}}.search-control {{grid-column:span 2}}
-    }}
-    @media (max-width:820px) {{
-      .app-shell {{display:block}}.app-sidebar {{position:relative;width:100%;height:auto;padding:14px 18px;flex-direction:row;align-items:center;gap:18px}}.app-brand {{padding:0}}.app-brand>span:last-child {{display:grid}}
-      .side-nav {{display:flex;margin-left:auto}}.side-nav a {{width:40px;min-height:40px}}.sidebar-note {{display:none}}.topbar {{padding:15px 20px}}.page {{width:min(100% - 32px,760px);padding-top:18px}}
-      .header {{padding:25px}}.hero-layout {{grid-template-columns:1fr;min-height:0}}.hero-visual {{display:none}}.summary {{grid-template-columns:repeat(2,minmax(0,1fr))}}.metric-primary {{grid-column:span 2}}
-      .section-heading {{align-items:flex-start;flex-direction:column;gap:6px}}.analysis-grid {{grid-template-columns:1fr}}.panel,.panel.summary-panel {{grid-column:auto}}.music-section {{padding:18px}}
-      .music-operation-groups {{grid-template-columns:1fr}}.music-operation-actions .music-operations-row {{grid-template-columns:repeat(2,minmax(0,1fr))}}.comparison {{grid-template-columns:1fr}}.divider {{min-height:46px}}.arrow {{transform:rotate(90deg)}}
-    }}
-    @media (max-width:560px) {{
-      .app-sidebar {{overflow-x:auto}}.app-brand>span:last-child {{display:none}}.side-nav {{min-width:max-content}}.topbar-status {{display:none}}.page {{width:min(100% - 20px,540px)}}
-      .header {{padding:20px;border-radius:22px}}h1 {{font-size:37px}}.hero-lead {{font-size:13px}}.summary {{grid-template-columns:1fr}}.metric-primary {{grid-column:auto}}.metric {{min-height:92px}}
-      .toolbar,.search-control {{grid-template-columns:1fr;grid-column:auto}}.music-operation-actions .music-operations-row {{grid-template-columns:1fr}}.music-card {{padding-right:48px}}.music-card-content {{grid-template-columns:1fr}}.music-cover {{width:min(100%,160px)}}.music-section {{padding:14px}}
-    }}
-    /* Visual consistency corrections */
-    .app-sidebar {{color:#383241;background:#fbfaff;border-right:1px solid var(--line);box-shadow:8px 0 30px rgba(50,42,66,.035)}}
-    .app-brand {{color:#302a3a}}.app-brand small {{color:#91899d}}
-    .brand-mark {{color:#fff;background:#8f73e2;box-shadow:0 9px 24px rgba(143,115,226,.22)}}
-    .side-nav a {{color:#7c7488}}.side-nav a:hover {{color:#5c48ad;background:#f1edf9;transform:none}}
-    .side-nav a.active {{color:#5943ae;background:#ebe5fa;box-shadow:none}}
-    .side-nav a span {{display:block;width:auto;height:auto;color:inherit;font-size:13px}}
-    .nav-icon {{width:20px;height:20px;flex:0 0 auto}}
-    .sidebar-note {{border-color:var(--line);color:#4d4657;background:#f2eff7}}.sidebar-note small {{color:#8d8598}}
-    .sidebar-note.mode-real {{border-color:#ead3a6;color:#76531d;background:#fff8ea}}
-    .sidebar-note.mode-real .status-dot {{background:#d39a3c;box-shadow:0 0 0 4px rgba(211,154,60,.14)}}
-    .sidebar-note.mode-real small {{color:#98713a}}
-    .page {{padding-top:30px}}.panel {{min-width:0;border-radius:22px;background:#fff}}
-    .analysis-grid {{align-items:stretch}}.artist-row {{grid-template-columns:minmax(0,1fr) minmax(42px,.62fr) 30px;gap:6px}}
-    .format-count {{min-width:0;color:#817a8d;font-variant-numeric:tabular-nums;text-align:right}}
-    .chart-legend {{padding-right:7px;scrollbar-gutter:auto}}.chart-legend-row {{grid-template-columns:9px minmax(0,1fr) 32px 38px;gap:6px;font-size:12px}}
-    .chart-legend-row strong,.chart-legend-row span:last-child {{font-variant-numeric:tabular-nums;text-align:right}}
-    .donut-hole strong,.metric strong,.note strong,.heatmap-cell {{font-variant-numeric:tabular-nums}}
-    .year-chart {{height:196px}}.year-chart-label {{color:#6d6579;font-size:10px;font-weight:650}}
-    .year-chart-value {{color:#312a3c;font-size:11px;font-weight:800;font-variant-numeric:tabular-nums}}
-    .heatmap-panel {{color:var(--text);background:#fff;box-shadow:0 12px 38px rgba(46,38,64,.055)}}
-    .heatmap-heading h2 {{color:var(--text)}}.heatmap-heading p {{color:var(--muted)}}
-    .heatmap-grid {{grid-template-columns:minmax(150px,1.15fr) repeat(var(--heatmap-columns),minmax(82px,1fr));gap:1px;padding:1px;border:1px solid #ece8f2;border-radius:16px;background:#ece8f2}}
-    .heatmap-corner,.heatmap-column,.heatmap-genre,.heatmap-cell {{border:0;text-shadow:none}}
-    .heatmap-corner,.heatmap-column {{color:#5c5567;background:#f7f5fa}}
-    .heatmap-genre {{padding-left:12px;color:#4b4555;background:#fbfaff}}
-    .heatmap-cell {{color:#40394c;font-weight:700}}
-    .heatmap-scale {{color:#8b8495}}.heatmap-scale-bar {{background:linear-gradient(90deg,#f4f1fb,#e5def8,#d1c5f2,#bdaaea,#a38de1);box-shadow:inset 0 0 0 1px rgba(83,65,125,.08)}}
-    @media (max-width:1400px) {{
-      .analysis-grid {{grid-template-columns:repeat(6,minmax(0,1fr))}}.panel {{grid-column:span 2}}.panel.summary-panel {{grid-column:span 6}}
-    }}
-    @media (max-width:1180px) {{
-      .side-nav a span {{display:none}}.nav-icon {{width:20px;height:20px}}
-      .analysis-grid {{grid-template-columns:repeat(2,minmax(0,1fr))}}.panel {{grid-column:auto}}.panel.summary-panel {{grid-column:span 2}}
-    }}
-    @media (max-width:820px) {{
-      .analysis-grid {{grid-template-columns:1fr}}.panel,.panel.summary-panel {{grid-column:auto}}
-      .app-sidebar {{border-right:0;border-bottom:1px solid var(--line)}}
-    }}
-  </style>
+  <style>{REPORT_CSS}</style>
 </head>
 <body>
   <div class="app-shell">
     <aside class="app-sidebar" aria-label="Навигация по отчёту">
       <a class="app-brand" href="#overview" aria-label="Моя медиатека — к обзору">
-        <span class="brand-mark">{lucide_icon("audio-lines", "brand-icon")}</span>
-        <span><strong>Моя медиатека</strong><small>Music Library</small></span>
+        <span class="brand-mark">{catalog_mark()}</span>
+        <span><strong>Моя медиатека</strong><small>Локальная коллекция</small></span>
       </a>
-      <nav class="side-nav">
+      <p class="nav-caption">Библиотека</p>
+      <nav class="side-nav" aria-label="Разделы медиатеки">
         <a href="#overview" class="active">
           {lucide_icon("house", "nav-icon")}
           <span>Обзор</span>
@@ -2565,25 +1631,31 @@ def render_html(payload: dict) -> str:
           <span>Дубли</span>
         </a>
       </nav>
+      <div class="sidebar-library">
+        <span>Источник музыки</span>
+        <p>{lucide_icon("disc")} Ваша коллекция</p>
+        <small>{library_path}</small>
+      </div>
       <div class="sidebar-note" id="processingModeNote" aria-live="polite">
         <span class="status-dot" aria-hidden="true"></span>
         <div><strong id="processingModeTitle">Режим проверки</strong><small id="processingModeDetail">Изменения и удаление отключены</small></div>
       </div>
     </aside>
     <div class="app-workspace">
+      <div class="workspace-bar">
+        <a href="#overview" aria-label="К обзору медиатеки">{lucide_icon("house")}</a>
+        <span>Медиатека</span><span aria-hidden="true">/</span><strong>Обзор коллекции</strong>
+        <span class="workspace-label">Локальная библиотека</span>
+      </div>
   <main class="page">
     <section class="header" id="overview">
       <div class="hero-layout">
+        <div class="collection-art" aria-hidden="true">{catalog_mark("collection-mark")}</div>
         <div class="hero-copy">
-          <div class="hero-kicker">Ваша коллекция · в одном ритме</div>
-          <h1>Музыкальная библиотека</h1>
-          <p class="hero-lead">Слушайте, приводите коллекцию в порядок и находите лучшие версии треков в едином пространстве.</p>
+          <div class="hero-kicker">Ваша музыкальная коллекция</div>
+          <h1>Моя медиатека</h1>
+          <p class="hero-lead">Треки, качество и метаданные вашей библиотеки.</p>
           <div class="library-path"><span>Текущая папка</span>{library_path}</div>
-        </div>
-        <div class="hero-visual" aria-hidden="true">
-          <div class="hero-disc"><span></span></div>
-          <div class="hero-wave"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
-          <div class="hero-track"><small>Сейчас в коллекции</small><strong>{format_number(library.get("total_files"))} треков</strong></div>
         </div>
       </div>
       <div class="summary">
@@ -2597,7 +1669,7 @@ def render_html(payload: dict) -> str:
       </div>
     </section>
 
-    <div class="section-heading" id="insights"><div><span>Статистика коллекции</span><h2>Всё важное — с первого взгляда</h2></div><p>Сводка по качеству, исполнителям и метаданным</p></div>
+    <div class="section-heading" id="insights"><div><span>Обзор библиотеки</span><h2>Ваша коллекция в цифрах</h2></div><p>Форматы, исполнители и метаданные</p></div>
     <div class="analysis-grid">
       <section class="panel summary-panel">
         <h2>Сводка</h2>
