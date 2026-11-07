@@ -1,5 +1,9 @@
 """Redistribution notices for the report's embedded icons."""
 
+from pathlib import Path
+
+FONT_LICENSE_NOTICE = (Path(__file__).parent / "assets" / "Inter-LICENSE.txt").read_text(encoding="utf-8-sig")
+
 # Preserved from the license of the exact icon version used by the report:
 # https://raw.githubusercontent.com/lucide-icons/lucide/1.28.0/LICENSE
 ICON_LICENSE_NOTICE = """Lucide Icons 1.28.0

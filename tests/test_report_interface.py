@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import html
+import base64
 import json
 import re
 import sys
@@ -16,10 +17,14 @@ class Elements(HTMLParser):
     def __init__(self, document: str):
         super().__init__()
         self.elements = []
+        self.texts = []
         self.feed(document)
 
     def handle_starttag(self, tag, attrs):
         self.elements.append((tag, dict(attrs)))
+
+    def handle_data(self, data):
+        self.texts.append(data)
 
 
 class ReportInterfaceTests(unittest.TestCase):
@@ -86,10 +91,11 @@ class ReportInterfaceTests(unittest.TestCase):
         declaration = b'<meta charset="utf-8">'
         self.assertLessEqual(document.index(declaration) + len(declaration), 1024)
 
-    def test_library_location_is_kept_in_payload_without_redundant_chrome(self):
+    def test_library_source_appears_once_in_menu_and_remains_in_payload(self):
         document = self.render()
         visible_markup = document.split('<script id="payload"')[0]
-        self.assertNotIn("D:/Музыка/Library", visible_markup)
+        self.assertEqual(Elements(visible_markup).texts.count("D:/Музыка/Library"), 1)
+        self.assertIn('id="librarySource"', visible_markup)
         self.assertNotIn("Текущая папка", visible_markup)
         self.assertNotIn("Локальная", visible_markup)
         payload = re.search(r'<script id="payload" type="application/json">(.*?)</script>', document, re.S)
@@ -111,6 +117,22 @@ class ReportInterfaceTests(unittest.TestCase):
         lengths = [float(r["stroke-dasharray"].split()[0]) for r in rings]
         self.assertAlmostEqual(sum(lengths), 100, places=4)
         self.assertTrue(all(length > 0 for length in lengths))
+
+    def test_standalone_report_embeds_real_font_and_its_distribution_license(self):
+        document = self.render()
+        font = re.search(r'data:font/woff2;base64,([A-Za-z0-9+/=]+)', document)
+        self.assertIsNotNone(font, "The offline report must contain its font")
+        self.assertEqual(base64.b64decode(font[1])[:4], b'wOF2')
+        license_text = re.search(r'<script id="fontLicense" type="text/plain">(.*?)</script>', document, re.S)
+        self.assertIsNotNone(license_text, "The embedded font must retain its license")
+        self.assertIn("SIL OPEN FONT LICENSE", html.unescape(license_text[1]))
+        self.assertIn("The Inter Project Authors", html.unescape(license_text[1]))
+
+    def test_library_source_preserves_full_path_in_hover_hint(self):
+        elements = Elements(self.render()).elements
+        paths = [a for tag, a in elements if a.get("id") == "librarySourcePath"]
+        self.assertEqual(len(paths), 1)
+        self.assertEqual(paths[0].get("title"), "D:/Музыка/Library")
 
 
 if __name__ == "__main__":

@@ -22,7 +22,8 @@ from mutagen.flac import Picture
 from mutagen.mp4 import MP4Cover
 
 from report_styles import REPORT_CSS
-from report_assets import ICON_LICENSE_NOTICE
+from report_assets import ICON_LICENSE_NOTICE, FONT_LICENSE_NOTICE
+from report_controls import REPORT_CONTROLS_JS
 
 
 AUDIO_EXTENSIONS = {
@@ -1469,6 +1470,11 @@ def render_html(payload: dict) -> str:
     years = library.get("years") or collect_years_from_tracks(library.get("tracks", []))
     library["years"] = years
     library_raw_path = library.get("path", "")
+    source_html = (
+        '<div class="sidebar-source" id="librarySource"><span>Источник</span>'
+        f'<p id="librarySourcePath" title="{html.escape(library_raw_path)}">{html.escape(library_raw_path)}</p></div>'
+        if library_raw_path else ""
+    )
     duplicate_paths = {
         path
         for group in payload.get("groups", [])
@@ -1603,6 +1609,7 @@ def render_html(payload: dict) -> str:
           <span>Дубли</span>
         </a>
       </nav>
+      {source_html}
       <div class="sidebar-note" id="processingModeNote" aria-live="polite">
         <span class="status-dot" aria-hidden="true"></span>
         <div><strong id="processingModeTitle">Режим проверки</strong><small id="processingModeDetail">Изменения и удаление отключены</small></div>
@@ -1793,6 +1800,8 @@ def render_html(payload: dict) -> str:
   </div>
 
   <script id="payload" type="application/json">{html.escape(json_payload)}</script>
+  <script id="fontLicense" type="text/plain">{html.escape(FONT_LICENSE_NOTICE)}</script>
+  <script id="reportControls">{REPORT_CONTROLS_JS}</script>
   <script>
     let cards = Array.from(document.querySelectorAll('.group-card'));
     const sort = document.getElementById('sort');
