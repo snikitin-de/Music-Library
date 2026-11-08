@@ -155,8 +155,9 @@ REPORT_CONTROLS_JS = r"""
     select.tabIndex = -1;
   });
 
-  // Draw at four times the physical pixel density; CSS downsamples the ring.
-  // SVG stays in the standalone document as a no-canvas fallback.
+  // Supersample offscreen, then resample explicitly to physical display pixels.
+  // CSS scaling a large backing store can use a low-quality compositor filter.
+  // SVG stays visible until the canvas has been successfully painted.
   document.querySelectorAll('.donut-chart').forEach(chart => {
     const svg = chart.querySelector('.donut-svg');
     if (!svg) return;
@@ -165,28 +166,36 @@ REPORT_CONTROLS_JS = r"""
     canvas.setAttribute('aria-hidden', 'true');
     const context = canvas.getContext('2d');
     if (!context) return;
+    const buffer = document.createElement('canvas');
+    const painter = buffer.getContext('2d');
+    if (!painter) return;
     chart.insertBefore(canvas, svg);
     let lastSize = '';
     function draw() {
       const box = chart.getBoundingClientRect();
-      const ratio = 4 * Math.max(1, Math.min(devicePixelRatio || 1, 3));
+      const ratio = Math.max(1, devicePixelRatio || 1);
       const width = Math.round(box.width * ratio);
       const height = Math.round(box.height * ratio);
       if (!width || !height || lastSize === width + ':' + height) return;
       lastSize = width + ':' + height;
       canvas.width = width;
       canvas.height = height;
-      context.scale(width / 100, height / 100);
-      context.lineWidth = 21;
-      context.lineCap = 'butt';
+      buffer.width = width * 4;
+      buffer.height = height * 4;
+      painter.scale(buffer.width / 100, buffer.height / 100);
+      painter.lineWidth = 21;
+      painter.lineCap = 'butt';
       svg.querySelectorAll('.donut-segment').forEach(segment => {
         const length = parseFloat(segment.getAttribute('stroke-dasharray'));
         const start = -parseFloat(segment.getAttribute('stroke-dashoffset'));
-        context.strokeStyle = segment.getAttribute('stroke');
-        context.beginPath();
-        context.arc(50, 50, 35.5, start / 100 * Math.PI * 2 - Math.PI / 2, (start + length) / 100 * Math.PI * 2 - Math.PI / 2);
-        context.stroke();
+        painter.strokeStyle = segment.getAttribute('stroke');
+        painter.beginPath();
+        painter.arc(50, 50, 35.5, start / 100 * Math.PI * 2 - Math.PI / 2, (start + length) / 100 * Math.PI * 2 - Math.PI / 2);
+        painter.stroke();
       });
+      context.imageSmoothingEnabled = true;
+      context.imageSmoothingQuality = 'high';
+      context.drawImage(buffer, 0, 0, width, height);
       svg.style.visibility = 'hidden';
     }
     draw();

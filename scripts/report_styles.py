@@ -16,9 +16,21 @@ REPORT_CSS = _FONT_FACE + r"""
 }
 * { box-sizing: border-box; }
 html { scroll-behavior: auto; scroll-padding-top: 24px; }
-body { margin: 0; min-width: 320px; color: var(--text); background: var(--bg); font: 14px/1.5 "Library Inter", Arial, sans-serif; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; font-kerning: normal; }
+body { margin: 0; min-width: 320px; color: var(--text); background: var(--bg); font: 14px/1.5 "Library Inter", Arial, sans-serif; text-rendering: optimizeLegibility; font-kerning: normal; font-synthesis: none; }
 ::selection { color: #000; background: var(--accent); }
-button, input, select { font: inherit; -webkit-font-smoothing: inherit; text-rendering: inherit; background-clip: padding-box; }
+button, input, select { font: inherit; text-rendering: inherit; background-clip: padding-box; }
+/* A neutral standard filter paints text with grayscale coverage on Windows too.
+   Keep it on controls and text, never on layout ancestors: filters establish a
+   containing block for fixed descendants (dropdowns, sidebar and dialogs). */
+button, input, select, label, h1, h2, h3, p, pre,
+.app-brand strong, .nav-caption, .side-nav a, .sidebar-source>span, .sidebar-note,
+.hero-kicker, .metric, .section-heading>span, .note, .summary-subtitle,
+.format-row, .artist-row, .chart-legend, .donut-hole, .year-chart, .heatmap-grid, .heatmap-scale,
+.operation-status, .search-placeholder, .web-select-option,
+.music-title, .music-path, .track-title, .track-path, .music-pill, .audio-time,
+.identity-warning, .music-card-status, .duplicate-card-status, .copy-status,
+.group-title, .group-subtitle, .badges, .track-label, .quality-grid, .divider,
+.lyrics-dialog-path, .lyrics-source { filter: opacity(1); }
 button { cursor: pointer; }
 button:disabled { cursor: not-allowed; opacity: .4; }
 a { color: inherit; }
@@ -124,7 +136,7 @@ h1 { margin: 0; font-size: clamp(32px, 4.5vw, 64px); font-weight: 700; letter-sp
 .duplicates-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 16px; }
 .duplicates-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 input, select, button.small { min-width: 0; min-height: 38px; padding: 8px 14px; border: 1px solid #484848; border-radius: 999px; color: var(--text); background: transparent; }
-button.small { display: inline-flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 500; line-height: 1.4; }
+button.small { display: inline-flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 500; line-height: 20px; }
 button.small:hover:not(:disabled) { border-color: #b3b3b3; background: #ffffff0c; }
 input, select { width: 100%; height: 42px; background: #242424; }
 input:focus, select:focus { outline: 2px solid #fff; outline-offset: 1px; }
@@ -156,12 +168,14 @@ select { appearance: none; padding-right: 42px; font-size: 12px; background-imag
 .music-operations { padding: 18px 20px; border-radius: var(--radius); background: var(--panel); }
 .music-operation-groups { display: flex; flex-wrap: wrap; gap: 16px 32px; }
 .music-operation-block { min-width: 0; }
-.music-operations-title { margin: 0 0 10px; color: var(--muted); font-size: 11px; }
+.music-operations-title { margin: 0 0 10px; color: var(--muted); font-size: 12px; }
 .music-operations-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.mode-choice { display: inline-flex; align-items: center; gap: 7px; padding: 8px 12px; border: 1px solid #484848; border-radius: 999px; font-size: 12px; cursor: pointer; }
-.mode-choice input { width: 13px; height: 13px; min-height: 0; margin: 0; accent-color: var(--accent); }
+.mode-choice { display: inline-flex; align-items: center; gap: 8px; min-height: 38px; padding: 8px 12px; border: 1px solid #484848; border-radius: 999px; font-size: 13px; line-height: 20px; cursor: pointer; }
+.mode-choice input { appearance: none; flex: 0 0 16px; width: 16px; height: 16px; min-height: 0; margin: 0; padding: 0; border: 0; border-radius: 0; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='5.75' fill='none' stroke='%23999999' stroke-width='1.5'/%3E%3C/svg%3E") center/16px 16px no-repeat; }
+.mode-choice input:checked { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='5.75' fill='none' stroke='%232bcf70' stroke-width='1.5'/%3E%3Ccircle cx='8' cy='8' r='3' fill='%232bcf70'/%3E%3C/svg%3E"); }
+.mode-choice input:focus-visible { outline-offset: 3px; border-radius: 50%; }
 .mode-choice:has(input:checked) { border-color: var(--accent); color: var(--accent); background: #2bcf700a; }
-.operation-status { margin-top: 16px; color: var(--muted); font-size: 11px; line-height: 1.6; overflow-wrap: anywhere; }
+.operation-status { margin-top: 16px; color: var(--muted); font-size: 12px; line-height: 20px; overflow-wrap: anywhere; }
 .music-section.collapsed .music-toolbar, .music-section.collapsed .music-list, .music-section.collapsed #musicEmpty { display: none; }
 .music-list { display: grid; gap: 8px; }
 .music-card { position: relative; min-width: 0; padding: 18px 54px 18px 18px; border: 1px solid transparent; border-radius: var(--radius); background: var(--panel); transition: background .15s; }
@@ -175,7 +189,7 @@ select { appearance: none; padding-right: 42px; font-size: 12px; background-imag
 .music-title { font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
 .music-path, .track-path { margin-top: 4px; color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
 .music-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
-.music-actions .small { min-height: 34px; padding: 6px 12px; font-size: 12px; }
+.music-actions .small { min-height: 34px; padding: 6px 12px; font-size: 13px; }
 .music-trash-icon { position: absolute; top: 16px; right: 14px; display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%; color: var(--muted); background: transparent; }
 .music-trash-icon:hover { color: var(--bad); background: #ffffff0c; }
 .trash-svg { width: 17px; height: 17px; }
@@ -333,12 +347,15 @@ select { appearance: none; padding-right: 42px; font-size: 12px; background-imag
   .analysis-grid { grid-template-columns: 1fr; }
   .panel { padding: 18px; } .donut-layout { grid-template-columns: 1fr; gap: 16px; } .donut-chart { width: 140px; }
   .music-operations { padding: 16px; } .music-operation-groups { display: grid; }
-  .music-operations-row { gap: 6px; } .mode-choice { padding-inline: 8px; font-size: 11px; }
-  .duplicates-actions { gap: 6px; } .duplicates-actions .small { min-height: 36px; padding-inline: 10px; font-size: 11px; }
+  .music-operations-row { gap: 6px; } .mode-choice { padding-inline: 8px; }
+  .duplicates-actions { gap: 6px; } .duplicates-actions .small { min-height: 36px; padding-inline: 10px; font-size: 13px; }
   .music-card-content { grid-template-columns: 1fr; } .music-cover { width: 104px; }
   .group-header { grid-template-columns: 1fr; gap: 10px; padding: 16px; }
   .group-body { padding: 10px; } .track { padding: 12px; } .track-head { grid-template-columns: 64px minmax(0, 1fr); gap: 10px; } .music-cover.duplicate-cover { width: 64px; }
   .lyrics-dialog-head { padding: 18px; } .lyrics-text { padding: 20px; font-size: 17px; }
+}
+@media (forced-colors: active) {
+  .mode-choice input, .mode-choice input:checked { appearance: auto; background: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; } *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
