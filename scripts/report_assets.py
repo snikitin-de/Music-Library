@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-FONT_LICENSE_NOTICE = (Path(__file__).parent / "assets" / "Inter-LICENSE.txt").read_text(encoding="utf-8-sig")
+FONT_LICENSE_NOTICE = (Path(__file__).parent / "assets" / "Nunito-LICENSE.txt").read_text(encoding="utf-8-sig")
 
 # Preserved from the license of the exact icon version used by the report:
 # https://raw.githubusercontent.com/lucide-icons/lucide/1.28.0/LICENSE

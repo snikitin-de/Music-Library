@@ -30,6 +30,10 @@ from pathlib import Path
 from typing import Iterable
 
 from mutagen import File as MutagenFile
+if __package__:
+    from .scan_progress import ProgressWriter, progress_files
+else:
+    from scan_progress import ProgressWriter, progress_files
 
 
 if hasattr(sys.stdout, "reconfigure"):
@@ -476,33 +480,26 @@ def scan_library(library: Path) -> list[TrackInfo]:
     return tracks
 
 
-def scan_library_with_stats(library: Path) -> tuple[list[TrackInfo], ScanStats]:
+def scan_library_with_stats(library: Path, progress=None) -> tuple[list[TrackInfo], ScanStats]:
     tracks: list[TrackInfo] = []
     stats = ScanStats()
 
-    for scan_root in scan_roots_for_library(library):
-        for path in scan_root.rglob("*"):
-            if not path.is_file():
-                continue
+    paths = (path for root in scan_roots_for_library(library) for path in root.rglob("*")
+             if path.is_file() and path.suffix.lower() in AUDIO_EXTENSIONS
+             and not should_skip_managed_storage(path, library))
+    for path in progress_files(paths, progress, "tags"):
+        stats.audio_files += 1
+        track = read_track(path)
+        if track is None:
+            stats.skipped_tracks += 1
+            continue
 
-            if path.suffix.lower() not in AUDIO_EXTENSIONS:
-                continue
+        if track.metadata_source == "filename":
+            stats.filename_fallback_tracks += 1
+        else:
+            stats.tagged_tracks += 1
 
-            if should_skip_managed_storage(path, library):
-                continue
-
-            stats.audio_files += 1
-            track = read_track(path)
-            if track is None:
-                stats.skipped_tracks += 1
-                continue
-
-            if track.metadata_source == "filename":
-                stats.filename_fallback_tracks += 1
-            else:
-                stats.tagged_tracks += 1
-
-            tracks.append(track)
+        tracks.append(track)
 
     return tracks, stats
 
@@ -605,6 +602,7 @@ def group_content_duplicates(
     tracks: list[TrackInfo],
     duplicate_groups: dict[tuple[str, ...], list[TrackInfo]],
     stats: ScanStats | None = None,
+    progress=None,
 ) -> dict[tuple[str, ...], list[TrackInfo]]:
     exact_group_sets = {frozenset(item.path for item in items) for items in duplicate_groups.values()}
     by_size: dict[int, list[TrackInfo]] = {}
@@ -612,6 +610,10 @@ def group_content_duplicates(
         by_size.setdefault(track.size, []).append(track)
 
     groups: dict[tuple[str, ...], list[TrackInfo]] = {}
+    total = sum(len(items) for size, items in by_size.items() if size > 0 and len(items) > 1)
+    processed = 0
+    if progress:
+        progress({"stage": "hashes", "processed": 0, "total": total, "current": ""})
     for size, same_size_items in by_size.items():
         if size <= 0 or len(same_size_items) < 2:
             continue
@@ -623,6 +625,10 @@ def group_content_duplicates(
             except OSError as exc:
                 print(f"WARNING: skipped hash for inaccessible audio file: {track.path} ({exc})")
                 continue
+            finally:
+                processed += 1
+                if progress:
+                    progress({"stage": "hashes", "processed": processed, "total": total, "current": track.path.name})
 
             if stats is not None:
                 stats.hashed_files += 1
@@ -782,6 +788,7 @@ def main() -> int:
     parser.add_argument("--review-report", help="CSV report for possible duplicates that need manual review")
     parser.add_argument("--dry-run", action="store_true", help="Do not move files")
     parser.add_argument("--only-file", help="Move only this duplicate file when it is found")
+    parser.add_argument("--progress", action="store_true", help="Emit live scan counters")
     args = parser.parse_args()
 
     library = Path(args.library).expanduser().resolve()
@@ -800,9 +807,10 @@ def main() -> int:
     if not args.dry_run and quarantine is None:
         raise SystemExit("Use --quarantine or run with --dry-run")
 
-    tracks, stats = scan_library_with_stats(library)
+    progress = ProgressWriter() if args.progress else None
+    tracks, stats = scan_library_with_stats(library, progress)
     tag_duplicate_groups = group_duplicates(tracks, stats)
-    hash_duplicate_groups = group_content_duplicates(tracks, tag_duplicate_groups, stats)
+    hash_duplicate_groups = group_content_duplicates(tracks, tag_duplicate_groups, stats, progress)
     duplicate_groups = merge_duplicate_groups(tag_duplicate_groups, hash_duplicate_groups)
     review_groups = group_review_candidates(tracks, duplicate_groups, stats)
 

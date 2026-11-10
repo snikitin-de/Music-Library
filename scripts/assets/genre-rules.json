@@ -1,0 +1,203 @@
+{
+  "checked_at": "2026-11-08",
+  "scope": "Проверенные жанры/стили текущей библиотеки и однозначные синонимы. Незнакомое значение требует проверки и не считается автоматически ошибкой.",
+  "genres": {
+    "Acoustic Rock": "https://musicbrainz.org/genre/00055e8b-b951-46e2-af1e-58b5624e7952",
+    "Adult Contemporary": "https://www.allmusic.com/style/ma0000004445",
+    "Alternative Dance": "https://musicbrainz.org/genre/8301f73c-9166-4108-bfeb-4fd22dc19083",
+    "Alternative Metal": "https://musicbrainz.org/genre/7983ff25-ddf9-411e-a7f9-6cca238bff79",
+    "Alternative Rock": "https://musicbrainz.org/genre/ceeaa283-5d7b-4202-8d1d-e25d116b2a18",
+    "Ambient": "https://musicbrainz.org/genre/608b0471-7531-4854-a348-e698c69cb699",
+    "Blues": "https://musicbrainz.org/genre/fe12b346-a10e-450f-bf81-fa20894b5ea2",
+    "Britpop": "https://musicbrainz.org/genre/f1c9b874-7ef2-4e79-9419-c0bcb5f33a30",
+    "Children's Music": "https://musicbrainz.org/genre/6d76ba14-94f3-4677-a153-9263f8d50f95",
+    "Christmas Music": "https://musicbrainz.org/genre/31aee5bc-c1e8-43d7-a7bc-902df802ccbb",
+    "Classical": "https://musicbrainz.org/genre/6ed4e4d1-9a97-4e2c-b8df-083754f154f4",
+    "Contemporary R&B": "https://musicbrainz.org/genre/4bb4043a-0ee5-4b84-93fa-6ba4567a6ba0",
+    "Country": "https://musicbrainz.org/genre/5f665615-7fb3-49d8-b541-62a7b239edbe",
+    "Dance": "https://musicbrainz.org/genre/e5bba957-8c91-496a-a675-c6d0c6b51c33",
+    "Dance-Pop": "https://musicbrainz.org/genre/b739a895-85ed-4ad3-8717-4e9ef5387dd8",
+    "Dancehall": "https://musicbrainz.org/genre/6c3503e3-bae3-42de-9e4c-7861f2053fbe",
+    "Disco": "https://musicbrainz.org/genre/a04d680b-b5c5-4f6a-87a3-f9f1ff98e3ea",
+    "Dubstep": "https://musicbrainz.org/genre/1b50083b-1afa-4778-82c8-548b309af783",
+    "EDM": "https://www.allmusic.com/advanced-search",
+    "Electro": "https://musicbrainz.org/genre/60f00d05-df4d-496e-8f5a-c45c03a56ad4",
+    "Electronic": "https://musicbrainz.org/genre/89255676-1f14-4dd8-bbad-fca839d6aff4",
+    "Electronic Rock": "https://musicbrainz.org/genre/c4a69842-f891-4569-9506-1882aa5db433",
+    "Electropop": "https://musicbrainz.org/genre/3f3388b4-e36a-4bf8-a0be-66b10d92aaa4",
+    "Eurodance": "https://musicbrainz.org/genre/e9a67960-9b49-4967-a1c9-c26360e9c612",
+    "Europop": "https://musicbrainz.org/genre/50e3ff0e-1abb-4577-9bf3-95d5c539ce2d",
+    "Film Score": "https://www.allmusic.com/genre/film-score-ma0000012306",
+    "Folk": "https://musicbrainz.org/genre/a91eed3a-fdd0-494e-ade0-95ea4117f6eb",
+    "Folk Rock": "https://musicbrainz.org/genre/445dc48f-5233-4b4f-987f-867ff9ade836",
+    "Funk": "https://musicbrainz.org/genre/fe4ba6a1-9873-4fd0-a12b-a70c81818514",
+    "Gothic": "https://musicbrainz.org/genre/d9f42dc1-3a92-4217-8ae5-e9672f595b8e",
+    "Grunge": "https://musicbrainz.org/genre/3f08faa9-6c3e-4b6d-b4b8-08eea45954e2",
+    "Hard Rock": "https://musicbrainz.org/genre/51cb9f91-e6a2-41bf-891f-e78e3f1e52ab",
+    "Heavy Metal": "https://musicbrainz.org/genre/a6719055-99c4-47eb-beaa-71081f2376f9",
+    "Hip Hop": "https://musicbrainz.org/genre/52faa157-6bad-4d86-a0ab-d4dec7d2513c",
+    "House": "https://musicbrainz.org/genre/a2782cb6-1cd0-477c-a61d-b3f8b42dd1b3",
+    "Indie Dance": "https://www.beatport.com/genre/id/37/top-100",
+    "Indie Pop": "https://musicbrainz.org/genre/f390be72-360b-41bb-a310-6a2e638779d2",
+    "Indie Rock": "https://musicbrainz.org/genre/ccd19ebf-052c-4afe-8ad9-fbb0a73f94a7",
+    "Jazz": "https://musicbrainz.org/genre/a715278f-1580-409f-8078-4ffbc800e08b",
+    "K-Pop": "https://musicbrainz.org/genre/b74b3b6c-0700-46b1-aa55-1f2869a3bd1a",
+    "Latin": "https://musicbrainz.org/genre/7369bb8b-3399-4180-8cb2-4e37e0e7b0e7",
+    "Metal": "https://musicbrainz.org/genre/cc28f5aa-5e19-487c-88e1-e56b022f1fdd",
+    "New Wave": "https://musicbrainz.org/genre/56407f9d-3398-4bf3-bbbd-ea372fa5adeb",
+    "Nu Metal": "https://musicbrainz.org/genre/bbad9cda-bde2-448e-821c-7ebf85a54020",
+    "Pop": "https://musicbrainz.org/genre/911c7bbb-172d-4df8-9478-dbff4296e791",
+    "Pop Rap": "https://musicbrainz.org/genre/da2fc3b4-b97d-491a-ac0f-8a731bee7237",
+    "Pop Rock": "https://musicbrainz.org/genre/797e2e85-5ffd-495c-a757-8b4079052f0e",
+    "Pop Soul": "https://musicbrainz.org/genre/64e0bd76-822f-4549-a6fe-9858561282d1",
+    "Power Pop": "https://musicbrainz.org/genre/618704fc-daac-44a2-92c9-89e3b1a2fc8c",
+    "Progressive Rock": "https://musicbrainz.org/genre/ae9b8279-3959-48d8-8a88-741a7f6d4a48",
+    "Psytrance": "https://musicbrainz.org/genre/b3cccf71-e843-4546-87fa-728055ba3147",
+    "Punk": "https://musicbrainz.org/genre/8cc9b280-230b-4a3a-b1e2-8acab0744dd3",
+    "R&B": "https://musicbrainz.org/genre/31be54b2-4d0c-42df-aa44-c496c7b4c3c3",
+    "Reggae": "https://musicbrainz.org/genre/02b2f720-d06e-42ce-85c2-1ecd4191ffcb",
+    "Rock": "https://musicbrainz.org/genre/0e3fc579-2d24-4f20-9dae-736e1ec78798",
+    "Rock And Roll": "https://musicbrainz.org/genre/e4581b76-a842-440b-9b0f-1aa7a00a5c57",
+    "Rockabilly": "https://musicbrainz.org/genre/f1a053eb-61bb-448a-964d-35784c4ae8c1",
+    "Schlager": "https://musicbrainz.org/genre/7edde935-8094-409e-ba33-34779b4668f8",
+    "Singer-songwriter": "https://musicbrainz.org/genre/455f264b-db00-4716-991d-fbd32dc24523",
+    "Soul": "https://musicbrainz.org/genre/1b5e7b16-336b-473e-a364-5120413a9827",
+    "Synth-Pop": "https://musicbrainz.org/genre/988e91a3-3341-416d-b7f8-7dbef6848dac",
+    "Techno": "https://musicbrainz.org/genre/41fe3260-fcc1-450b-bd5a-803886c56912",
+    "Trance": "https://musicbrainz.org/genre/2afc2320-384f-43a4-a71e-1b763c485045",
+    "Video Game Music": "https://www.allmusic.com/style/video-game-music-ma0000002952"
+  },
+  "aliases": {
+    "Рок": [
+      "Rock"
+    ],
+    "Taneční hudba": [
+      "Dance"
+    ],
+    "Klassik": [
+      "Classical"
+    ],
+    "Mezinárodní pop": [
+      "Pop"
+    ],
+    "International Pop": [
+      "Pop"
+    ],
+    "Latin Musik": [
+      "Latin"
+    ],
+    "Pro děti": [
+      "Children's Music"
+    ],
+    "Kids": [
+      "Children's Music"
+    ],
+    "Synthpop": [
+      "Synth-Pop"
+    ],
+    "Electro Pop": [
+      "Electropop"
+    ],
+    "Electro Rock": [
+      "Electronic Rock"
+    ],
+    "Hip-Hop": [
+      "Hip Hop"
+    ],
+    "Rap": [
+      "Hip Hop"
+    ],
+    "Rap/Hip Hop": [
+      "Hip Hop"
+    ],
+    "Hip-Hop/Rap": [
+      "Hip Hop"
+    ],
+    "Rock pop": [
+      "Pop Rock"
+    ],
+    "Pop/Rock": [
+      "Pop Rock"
+    ],
+    "Rock & Roll": [
+      "Rock And Roll"
+    ],
+    "Psy-Trance": [
+      "Psytrance"
+    ],
+    "Vgm": [
+      "Video Game Music"
+    ],
+    "Film Scores": [
+      "Film Score"
+    ],
+    "Dance & EDM": [
+      "Dance",
+      "EDM"
+    ],
+    "Dance y EDM": [
+      "Dance",
+      "EDM"
+    ],
+    "Dance e EDM": [
+      "Dance",
+      "EDM"
+    ],
+    "Dance & Electronic": [
+      "Dance",
+      "Electronic"
+    ],
+    "Christmas": [
+      "Christmas Music"
+    ],
+    "folkrock": [
+      "Folk Rock"
+    ],
+    "ruspop": [
+      "Pop"
+    ],
+    "rusrock": [
+      "Rock"
+    ],
+    "ukrrock": [
+      "Rock"
+    ],
+    "rusrap": [
+      "Hip Hop"
+    ],
+    "Edm Pop": [
+      "EDM",
+      "Pop"
+    ],
+    "Dancehall Pop": [
+      "Dancehall",
+      "Pop"
+    ]
+  },
+  "excluded": {
+    "Singer & Songwriter": "Исключено по пожеланию пользователя; подтверждённый стиль singer-songwriter существует отдельно.",
+    "Alternative": "Широкая категория: без уточнения нельзя однозначно выбрать жанр.",
+    "Alternative & Indie": "Широкая категория направлений, а не однозначный жанр.",
+    "Alternativní hudba": "Широкая категория альтернативной музыки без уточнения жанра.",
+    "Music": "Общая служебная категория музыки.",
+    "Compilation": "Тип релиза — сборник.",
+    "Cover": "Обозначение версии исполнения, а не жанра.",
+    "Piano": "Название инструмента, без указания музыкального стиля.",
+    "Modern": "Слишком общее обозначение периода или категории.",
+    "Oldies": "Обозначение эпохи/радиоформата без конкретного жанра.",
+    "Asiatische Musik": "Региональная категория без конкретного жанра.",
+    "Deutsche Musik": "Языковая/региональная категория без конкретного жанра.",
+    "Chuukese": "Название языка, а не музыкального жанра.",
+    "Limp Bizkit": "Имя исполнителя в поле жанра.",
+    "folkgenre": "Неподтверждённая служебная метка.",
+    "Filme/Videospiele": "Категория кино/видеоигр, не определяет музыкальный стиль.",
+    "Films/Games": "Категория кино/игр, не определяет музыкальный стиль.",
+    "Filmy/videohry": "Категория кино/видеоигр, не определяет музыкальный стиль.",
+    "Filmmusik": "Контекст музыки для кино без уточнения музыкального стиля.",
+    "Filmová hudba": "Контекст музыки для кино без уточнения музыкального стиля.",
+    "Soundtrack": "Тип/контекст релиза — саундтрек, без конкретного музыкального стиля.",
+    "Soundtracks": "Тип/контекст релиза — саундтрек, без конкретного музыкального стиля.",
+    "Film Soundtracks": "Контекст релиза — саундтрек к фильму.",
+    "Gaming": "Контекст прослушивания, без указания музыкального стиля."
+  }
+}

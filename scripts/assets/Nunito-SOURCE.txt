@@ -1,0 +1,7 @@
+Nunito variable, normal, weights 200-1000. Downloaded 2026-11-08.
+Source: https://raw.githubusercontent.com/google/fonts/main/ofl/nunito/Nunito%5Bwght%5D.ttf
+Project: https://github.com/googlefonts/nunito
+License: https://raw.githubusercontent.com/google/fonts/main/ofl/nunito/OFL.txt
+Converted to WOFF2 without subsetting or changing glyphs using fontTools 4.68.0 and Brotli 1.2.1.
+NunitoVariable.ttf SHA256 bb55a5ca5c2042335b3991af27c4d0705d0ef41cac6164ac737fd8f2a1e85207
+NunitoVariable.woff2 SHA256 7b71816481214d64ab0f212f68e59ec66b7f6c88672a723fae868126528e6fd7

@@ -3,6 +3,7 @@
 REPORT_CONTROLS_JS = r"""
 (() => {
   let closeCurrent = null;
+  window.addEventListener('report-page-change', () => { if (closeCurrent) closeCurrent(); });
   document.querySelectorAll('.toolbar select').forEach(select => {
     const wrapper = document.createElement('div');
     wrapper.className = 'web-select';
@@ -50,6 +51,7 @@ REPORT_CONTROLS_JS = r"""
       item.setAttribute('role', 'option');
       if (option.disabled) item.setAttribute('aria-disabled', 'true');
       item.textContent = option.textContent;
+      item.title = option.textContent;
       item.addEventListener('pointermove', () => setActive(index));
       item.addEventListener('pointerdown', event => event.preventDefault());
       item.addEventListener('click', () => choose(index));
@@ -98,7 +100,7 @@ REPORT_CONTROLS_JS = r"""
       opened = true;
       sync();
       const box = trigger.getBoundingClientRect();
-      menu.style.width = Math.min(Math.max(box.width, 240), innerWidth - 24) + 'px';
+      menu.style.width = Math.min(box.width, innerWidth - 24) + 'px';
       menu.style.maxHeight = '300px';
       menu.style.setProperty('--menu-height', '300px');
       menu.hidden = false;
@@ -155,52 +157,5 @@ REPORT_CONTROLS_JS = r"""
     select.tabIndex = -1;
   });
 
-  // Supersample offscreen, then resample explicitly to physical display pixels.
-  // CSS scaling a large backing store can use a low-quality compositor filter.
-  // SVG stays visible until the canvas has been successfully painted.
-  document.querySelectorAll('.donut-chart').forEach(chart => {
-    const svg = chart.querySelector('.donut-svg');
-    if (!svg) return;
-    const canvas = document.createElement('canvas');
-    canvas.className = 'donut-canvas';
-    canvas.setAttribute('aria-hidden', 'true');
-    const context = canvas.getContext('2d');
-    if (!context) return;
-    const buffer = document.createElement('canvas');
-    const painter = buffer.getContext('2d');
-    if (!painter) return;
-    chart.insertBefore(canvas, svg);
-    let lastSize = '';
-    function draw() {
-      const box = chart.getBoundingClientRect();
-      const ratio = Math.max(1, devicePixelRatio || 1);
-      const width = Math.round(box.width * ratio);
-      const height = Math.round(box.height * ratio);
-      if (!width || !height || lastSize === width + ':' + height) return;
-      lastSize = width + ':' + height;
-      canvas.width = width;
-      canvas.height = height;
-      buffer.width = width * 4;
-      buffer.height = height * 4;
-      painter.scale(buffer.width / 100, buffer.height / 100);
-      painter.lineWidth = 21;
-      painter.lineCap = 'butt';
-      svg.querySelectorAll('.donut-segment').forEach(segment => {
-        const length = parseFloat(segment.getAttribute('stroke-dasharray'));
-        const start = -parseFloat(segment.getAttribute('stroke-dashoffset'));
-        painter.strokeStyle = segment.getAttribute('stroke');
-        painter.beginPath();
-        painter.arc(50, 50, 35.5, start / 100 * Math.PI * 2 - Math.PI / 2, (start + length) / 100 * Math.PI * 2 - Math.PI / 2);
-        painter.stroke();
-      });
-      context.imageSmoothingEnabled = true;
-      context.imageSmoothingQuality = 'high';
-      context.drawImage(buffer, 0, 0, width, height);
-      svg.style.visibility = 'hidden';
-    }
-    draw();
-    if (typeof ResizeObserver === 'function') new ResizeObserver(draw).observe(chart);
-    window.addEventListener('resize', draw);
-  });
 })();
 """

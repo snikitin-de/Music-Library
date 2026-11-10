@@ -19,6 +19,7 @@ import re
 import shutil
 import subprocess
 import sys
+import threading
 import time
 import uuid
 from datetime import datetime
@@ -27,6 +28,8 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 from urllib.parse import parse_qs, urlparse
 
 import yaml
+from library_source import SourceFiles, change_source, list_folders, saved_source, validate_folder
+from scan_progress import ProgressStore, run_streaming
 
 from mutagen import File as MutagenFile
 
@@ -92,6 +95,12 @@ _AUDIO_PATH_CACHE: dict[tuple[tuple[tuple[int, int], tuple[int, int]], str], str
 _ENRICHMENT_CANDIDATES: dict[str, dict[str, object]] = {}
 ENRICHMENT_CANDIDATE_TTL = 15 * 60
 LIBRARY_ENV_VARS = ("MUSIC_LIBRARY_PATH", "MUSIC_LIBRARY_ROOT", "LIBRARY_PATH")
+SOURCE_SETTINGS = ROOT / "reports" / "source.json"
+SOURCE_ACTIONS_CSV = ROOT / "reports" / "source_actions.csv"
+SOURCE_BACKUPS = ROOT / "reports" / "source_backups"
+_SOURCE_OVERRIDE = ""
+_MUTATION_LOCK = threading.RLock()
+_SOURCE_PROGRESS = ProgressStore()
 
 
 def norm_path(value: str) -> str:
@@ -138,6 +147,8 @@ def split_configured_path_list(raw: str) -> list[str]:
 
 
 def configured_library_paths() -> list[Path]:
+    if _SOURCE_OVERRIDE:
+        return [Path(_SOURCE_OVERRIDE)]
     paths: list[Path] = []
     seen: set[str] = set()
     for env_name in LIBRARY_ENV_VARS:
@@ -275,6 +286,27 @@ def library_path() -> str:
             f"to the mounted library path. Stored value: {library}"
         )
     raise RuntimeError("Report does not contain a library path")
+
+
+def change_library_source(body: dict) -> dict:
+    global _SOURCE_OVERRIDE
+    if body.get("confirm") != "CHANGE_LIBRARY_SOURCE":
+        raise RuntimeError("Смена источника и пересканирование требуют подтверждения.")
+    progress = _SOURCE_PROGRESS.start(body["progress_id"]) if body.get("progress_id") else None
+    files = SourceFiles(REPORT_HTML, REPORT_CSV, REVIEW_CSV, SOURCE_SETTINGS, SOURCE_ACTIONS_CSV, SOURCE_BACKUPS)
+    try:
+        result = change_source(str(body.get("path", "")), str(body.get("confirm", "")), files, run_command, report_library_path(), progress)
+    except Exception as error:
+        if progress:
+            progress({"stage": "failed", "status": "failed", "error": str(error)})
+        raise
+    _SOURCE_OVERRIDE = result["path"]
+    _REPORT_CACHE.clear()
+    _AUDIO_PATH_CACHE.clear()
+    _ENRICHMENT_CANDIDATES.clear()
+    if progress:
+        progress({"stage": "completed", "status": "completed", "processed": 1, "total": 1, "current": ""})
+    return result
 
 
 def quarantine_path(library: str) -> str:
@@ -689,8 +721,10 @@ def trash_file(file_path: str) -> dict:
     }
 
 
-def run_command(args: list[str]) -> subprocess.CompletedProcess[str]:
+def run_command(args: list[str], progress=None) -> subprocess.CompletedProcess[str]:
     try:
+        if progress:
+            return run_streaming(args, ROOT, progress)
         return subprocess.run(
             args,
             cwd=ROOT,
@@ -2151,6 +2185,23 @@ class ReportHandler(SimpleHTTPRequestHandler):
         return json.loads(self.rfile.read(length).decode("utf-8"))
 
     def do_GET(self) -> None:
+        parsed = urlparse(self.path)
+        if parsed.path == "/api/library-source/progress":
+            scan_id = parse_qs(parsed.query).get("id", [""])[0]
+            state = _SOURCE_PROGRESS.snapshot(scan_id)
+            self.send_json(200 if state else 404, state or {"ok": False, "error": "Сканирование ещё не началось."})
+            return
+        if parsed.path in {"/api/library-source", "/api/folders"}:
+            try:
+                if parsed.path == "/api/folders":
+                    value = parse_qs(parsed.query).get("path", [""])[0]
+                    self.send_json(200, list_folders(value))
+                else:
+                    configured = configured_library_paths()
+                    self.send_json(200, {"ok": True, "path": str(configured[0]) if configured else report_library_path()})
+            except RuntimeError as exc:
+                self.send_json(400, {"ok": False, "error": str(exc)})
+            return
         if self.path.startswith("/api/audio"):
             send_audio_file(self)
             return
@@ -2183,7 +2234,18 @@ class ReportHandler(SimpleHTTPRequestHandler):
         super().do_HEAD()
 
     def do_POST(self) -> None:
+        with _MUTATION_LOCK:
+            self.handle_post()
+
+    def handle_post(self) -> None:
         try:
+            if self.path == "/api/library-source":
+                origin = self.headers.get("Origin")
+                if origin and urlparse(origin).netloc != self.headers.get("Host"):
+                    self.send_json(403, {"ok": False, "error": "Источник можно изменить только из окна отчёта."})
+                    return
+                self.send_json(200, change_library_source(self.read_json()))
+                return
             if self.path == "/api/quarantine-all":
                 require_quarantine_confirmation(self.read_json())
                 self.send_json(200, quarantine_duplicates())
@@ -2251,11 +2313,22 @@ class ReportHandler(SimpleHTTPRequestHandler):
 
 
 def main() -> int:
+    global _SOURCE_OVERRIDE
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--open", action="store_true", help="Open report in browser")
+    parser.add_argument("--library", help="Источник музыки; при смене папки пересобрать отчёт без изменения музыки")
     args = parser.parse_args()
+
+    if args.library:
+        selected = str(validate_folder(str(Path(args.library).expanduser().resolve())))
+        if norm_path(selected) != norm_path(report_library_path()):
+            change_library_source({"path": selected, "confirm": "CHANGE_LIBRARY_SOURCE"})
+        else:
+            _SOURCE_OVERRIDE = selected
+    else:
+        _SOURCE_OVERRIDE = saved_source(SOURCE_SETTINGS, report_library_path())
 
     server = ThreadingHTTPServer((args.host, args.port), ReportHandler)
     url = f"http://{args.host}:{args.port}/reports/library.html"

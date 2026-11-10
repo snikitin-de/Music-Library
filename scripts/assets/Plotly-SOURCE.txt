@@ -1,0 +1,8 @@
+Plotly.js 4.2.0; downloaded 2026-11-08. MIT license.
+Bundle: https://cdn.plot.ly/plotly-4.2.0.min.js
+Russian locale: https://raw.githubusercontent.com/plotly/plotly.js/v4.2.0/dist/plotly-locale-ru.js
+License: https://raw.githubusercontent.com/plotly/plotly.js/v4.2.0/LICENSE
+Files are embedded inline; no CDN requests are made by the report.
+plotly-4.2.0.min.js SHA256 fde93964a7511bfa54c5745c49b5d0e41715cbde0cc5ebeae3f9a02de0396cae
+plotly-locale-ru-4.2.0.js SHA256 6e71925c07074cdd7f670e1a2a910f185405c4833869c4a87132e97e79a19c52
+Plotly-LICENSE.txt SHA256 8c45d9eaf50c2f72dd9c7ab9ef440788ba58a3538484b5c51c1f17d5128752e7
