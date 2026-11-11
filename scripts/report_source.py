@@ -21,9 +21,9 @@ SOURCE_DIALOG_HTML = r"""
       <div class="source-folder-frame"><div class="source-folders" id="sourceFolders" role="group" aria-label="Папки"></div></div>
       <p class="source-status" id="sourceStatus" role="status" aria-live="polite"></p>
       <div class="source-progress" id="sourceProgressPanel" hidden>
-        <div class="source-progress-caption"><strong id="sourceProgressStage">Подготовка сканирования</strong><span id="sourceProgressDetails"></span></div>
+        <div class="source-progress-caption"><strong id="sourceProgressStage" data-scan-stage>Подготовка сканирования</strong><span id="sourceProgressDetails" data-scan-details></span></div>
         <progress id="sourceProgress" max="1" aria-label="Прогресс текущего этапа сканирования"></progress>
-        <div class="source-progress-file" id="sourceProgressFile"></div>
+        <div class="source-progress-file" id="sourceProgressFile" data-scan-file></div>
       </div>
       <p class="source-hint">Здесь показаны папки компьютера, на котором запущена программа. После подтверждения обновятся источник, список музыки и отчёт дублей. Музыкальные файлы останутся на месте, теги не изменятся.</p>
     </div>
@@ -35,6 +35,64 @@ SOURCE_DIALOG_HTML = r"""
 """
 
 SOURCE_DIALOG_JS = r"""
+globalThis.ReportScanProgress = {
+  newId() {
+    return globalThis.crypto?.randomUUID?.() || Date.now().toString(36) + '-' + Math.random().toString(36).slice(2).padEnd(12, '0');
+  },
+  create(panel) {
+    const progressBar = panel.querySelector('progress');
+    const progressStage = panel.querySelector('[data-scan-stage]');
+    const progressDetails = panel.querySelector('[data-scan-details]');
+    const progressFile = panel.querySelector('[data-scan-file]');
+
+    function showProgress(state) {
+      const stages = {starting:'Подготовка сканирования', discover:'Поиск аудиофайлов', tags:'Чтение тегов', hashes:'Проверка точных копий', analysis:'Анализ музыки и обложек', render:'Сборка отчёта', publish:'Сохранение отчётов', completed:'Сканирование завершено', failed:'Сканирование не завершено'};
+      progressStage.textContent = stages[state.stage] || 'Сканирование';
+      const count = Number(state.processed) || 0;
+      const total = state.total;
+      if (state.status === 'failed' || state.stage === 'failed') {
+        progressBar.max = 1;
+        progressBar.value = 0;
+        progressDetails.textContent = '';
+      } else if (Number.isFinite(total) && total > 0) {
+        progressBar.max = total;
+        progressBar.value = count;
+        progressDetails.textContent = count.toLocaleString('ru-RU') + ' из ' + total.toLocaleString('ru-RU') + ' · ' + Math.floor(count / total * 100) + '%';
+      } else if (total === 0) {
+        progressBar.max = 1;
+        progressBar.value = 1;
+        progressDetails.textContent = 'Нет файлов для этого этапа';
+      } else {
+        progressBar.removeAttribute('value');
+        progressDetails.textContent = state.stage === 'discover' ? 'Найдено: ' + count.toLocaleString('ru-RU') : '';
+      }
+      progressFile.textContent = state.current || '';
+      progressFile.title = state.current || '';
+    }
+
+    function watchProgress(url, id) {
+      let stopped = false;
+      let timer;
+      const request = new AbortController();
+      async function poll() {
+        try {
+          const response = await fetch(url + '?id=' + encodeURIComponent(id), {signal: request.signal, cache:'no-store'});
+          const state = await response.json();
+          if (!stopped && response.ok && state.ok) showProgress(state);
+        } catch (error) {
+          // The POST still determines success; temporary polling failures are retried.
+        } finally {
+          if (!stopped) timer = setTimeout(poll, 500);
+        }
+      }
+      poll();
+      return () => { stopped = true; clearTimeout(timer); request.abort(); };
+    }
+
+    return { show: showProgress, watch: watchProgress };
+  },
+};
+
 (() => {
   const source = document.getElementById('librarySource');
   const dialog = document.getElementById('sourceDialog');
@@ -46,59 +104,12 @@ SOURCE_DIALOG_JS = r"""
   const close = document.getElementById('sourceClose');
   const cancel = document.getElementById('sourceCancel');
   const progressPanel = document.getElementById('sourceProgressPanel');
-  const progressBar = document.getElementById('sourceProgress');
-  const progressStage = document.getElementById('sourceProgressStage');
-  const progressDetails = document.getElementById('sourceProgressDetails');
-  const progressFile = document.getElementById('sourceProgressFile');
+  const progress = ReportScanProgress.create(progressPanel);
   let selected = '';
   let parentPath = null;
   let controller = null;
   let busy = false;
   let opening = 0;
-
-  function showProgress(state) {
-    const stages = {starting:'Подготовка сканирования', discover:'Поиск аудиофайлов', tags:'Чтение тегов', hashes:'Проверка точных копий', analysis:'Анализ музыки и обложек', render:'Сборка отчёта', publish:'Сохранение отчётов', completed:'Сканирование завершено', failed:'Сканирование не завершено'};
-    progressStage.textContent = stages[state.stage] || 'Сканирование';
-    const count = Number(state.processed) || 0;
-    const total = state.total;
-    if (state.status === 'failed' || state.stage === 'failed') {
-      progressBar.max = 1;
-      progressBar.value = 0;
-      progressDetails.textContent = '';
-    } else if (Number.isFinite(total) && total > 0) {
-      progressBar.max = total;
-      progressBar.value = count;
-      progressDetails.textContent = count.toLocaleString('ru-RU') + ' из ' + total.toLocaleString('ru-RU') + ' · ' + Math.floor(count / total * 100) + '%';
-    } else if (total === 0) {
-      progressBar.max = 1;
-      progressBar.value = 1;
-      progressDetails.textContent = 'Нет файлов для этого этапа';
-    } else {
-      progressBar.removeAttribute('value');
-      progressDetails.textContent = state.stage === 'discover' ? 'Найдено: ' + count.toLocaleString('ru-RU') : '';
-    }
-    progressFile.textContent = state.current || '';
-    progressFile.title = state.current || '';
-  }
-
-  function watchProgress(id) {
-    let stopped = false;
-    let timer;
-    const request = new AbortController();
-    async function poll() {
-      try {
-        const response = await fetch('/api/library-source/progress?id=' + encodeURIComponent(id), {signal: request.signal, cache:'no-store'});
-        const state = await response.json();
-        if (!stopped && response.ok && state.ok) showProgress(state);
-      } catch (error) {
-        // The POST still determines success; temporary polling failures are retried.
-      } finally {
-        if (!stopped) timer = setTimeout(poll, 500);
-      }
-    }
-    poll();
-    return () => { stopped = true; clearTimeout(timer); request.abort(); };
-  }
 
   async function readJson(url, options) {
     const response = await fetch(url, options);
@@ -185,27 +196,27 @@ SOURCE_DIALOG_JS = r"""
   apply.addEventListener('click', async () => {
     if (busy || !selected) return;
     busy = true;
-    const progressId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
+    const progressId = ReportScanProgress.newId();
     const chosen = selected;
     if (controller) controller.abort();
     dialog.querySelectorAll('button,input').forEach(control => { control.disabled = true; });
     document.querySelectorAll('audio').forEach(audio => audio.pause());
     status.textContent = 'Пересканирую выбранную папку. Музыкальные файлы не изменяются. Дождитесь завершения.';
     progressPanel.hidden = false;
-    showProgress({stage:'starting',processed:0,total:null});
-    const stopProgress = watchProgress(progressId);
+    progress.show({stage:'starting',processed:0,total:null});
+    const stopProgress = progress.watch('/api/library-source/progress', progressId);
     apply.textContent = 'Сканирование...';
     try {
       await readJson('/api/library-source', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({path: chosen, confirm: 'CHANGE_LIBRARY_SOURCE', progress_id: progressId}),
       });
-      showProgress({stage:'completed',processed:1,total:1});
+      progress.show({stage:'completed',processed:1,total:1});
       status.textContent = 'Источник изменён. Открываю обновлённый отчёт...';
       location.hash = '#overview';
       location.reload();
     } catch (error) {
-      showProgress({stage:'failed',processed:0,total:null});
+      progress.show({stage:'failed',processed:0,total:null});
       status.textContent = 'Источник не изменён: ' + (error.message || 'ошибка сканирования.');
     } finally {
       stopProgress();

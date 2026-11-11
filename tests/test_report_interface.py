@@ -42,6 +42,23 @@ class Elements(HTMLParser):
 
 
 class ReportInterfaceTests(unittest.TestCase):
+    def test_duplicate_statistics_match_overview_and_appear_above_search(self):
+        rows = [ReportRow('Группа', 'a.flac', path, 'lower quality score', 'format=flac', 'format=mp3')
+                for path in ['b.mp3', 'c.mp3']]
+        review = [ReportRow('Проверка', 'd.flac', 'e.flac', 'needs_review: same artist/title, tag key is not identical', '', '')]
+        document = render_html(build_payload(rows, {'path': 'D:/Music', 'tracks': []}, review))
+        for ids, value in [(('duplicateGroupsMetric','duplicatePageGroupsMetric'),'1'),
+                           (('duplicateMetric','duplicatePageFilesMetric'),'2'),
+                           (('reviewGroupsMetric','duplicatePageReviewMetric'),'1')]:
+            for element_id in ids:
+                match = re.search(r'<strong id="' + element_id + r'">(.*?)</strong>', document)
+                self.assertIsNotNone(match, element_id)
+                self.assertEqual(match[1], value, element_id)
+        elements = Elements(document).pages['duplicates']
+        stats = next(i for i, (_, a) in enumerate(elements) if 'duplicate-summary' in a.get('class', '').split())
+        search = next(i for i, (_, a) in enumerate(elements) if a.get('id') == 'duplicateSearch')
+        self.assertLess(stats, search)
+
     def render(self, tracks=None, rows=None):
         tracks = tracks or []
         return render_html(build_payload(rows or [], {
@@ -59,7 +76,7 @@ class ReportInterfaceTests(unittest.TestCase):
             "musicList", "musicEmpty",
             "tagVisible", "shazamTagVisible", "layoutVisible", "coverVisible",
             "lyricsVisible", "operationStatus", "rescanLibrary", "findDuplicates",
-            "quarantineCommand", "cards", "empty",
+            "cards", "empty",
             "lyricsModal", "lyricsClose", "processingModeNote",
         }
         self.assertTrue(required.issubset(ids))
@@ -78,17 +95,18 @@ class ReportInterfaceTests(unittest.TestCase):
         self.assertNotIn("musicList", ids["overview"])
         self.assertNotIn("cards", ids["overview"])
         self.assertTrue({"musicList", "musicSearch", "tagVisible"}.issubset(ids["musicSection"]))
-        self.assertTrue({"cards", "findDuplicates", "quarantineCommand"}.issubset(ids["duplicates"]))
+        self.assertTrue({"cards", "findDuplicates"}.issubset(ids["duplicates"]))
+        self.assertTrue({"checkExactDuplicates", "exactDuplicatesMetric", "quarantineCommand"}.isdisjoint(ids["duplicates"]))
         targets = [a["href"] for tag, a in parsed.elements if tag == "a" and a.get("href", "").startswith("#")]
         self.assertEqual(set(targets), {"#overview", "#musicSection", "#duplicates"})
 
-    def test_lists_have_no_collapse_controls_or_collapsible_group_headers(self):
+    def test_music_stays_expanded_and_duplicate_groups_can_be_opened_individually(self):
         parsed = Elements(self.render(rows=[ReportRow("Группа", "D:/Музыка/a.flac", "D:/Музыка/a.mp3", "quality", "format=flac", "format=mp3")]))
         removed = {"expandMusic", "collapseMusic", "expandAll", "collapseAll"}
         self.assertFalse(removed.intersection(a.get("id") for _, a in parsed.elements))
         headers = [(tag, a) for tag, a in parsed.elements if "group-header" in a.get("class", "").split()]
         self.assertEqual(len(headers), 1)
-        self.assertEqual(headers[0][0], "div")
+        self.assertEqual(headers[0][0], "summary")
         music = next(a for _, a in parsed.elements if a.get("id") == "musicSection")
         self.assertNotIn("collapsed", music.get("class", "").split())
 
@@ -136,7 +154,7 @@ class ReportInterfaceTests(unittest.TestCase):
     def test_duplicate_comparison_and_standalone_assets_remain_available(self):
         document = self.render(rows=[ReportRow("Группа", "D:/Музыка/a.flac", "D:/Музыка/a.mp3", "quality", "format=flac", "format=mp3")])
         elements = Elements(document).elements
-        self.assertIn("Оставлен", document)
+        self.assertIn("Предлагается оставить", document)
         self.assertIn("В карантин", document)
         self.assertEqual(len([a for _, a in elements if "quarantine-one" in a.get("class", "").split()]), 2)
         self.assertFalse(any(tag == "script" and "src" in a for tag, a in elements))
@@ -160,7 +178,7 @@ class ReportInterfaceTests(unittest.TestCase):
     def test_review_only_comparisons_keep_their_uncertain_status(self):
         document=self.render(rows=[ReportRow('review | raw', 'D:/Музыка/a.flac','D:/Музыка/b.flac','needs_review: same artist/title, tag key is not identical','format=flac','format=flac')])
         subtitles=re.findall(r'<div class="group-subtitle">(.*?)</div>',document,re.S)
-        self.assertEqual(subtitles,['Требует проверки · сравнений: 1'])
+        self.assertEqual(subtitles,['Возможный дубль · сравнений: 1'])
         labels=re.findall(r'<span class="track-label">(.*?)</span>',document,re.S)
         self.assertEqual(labels,['Лучший кандидат','Для сравнения'])
 

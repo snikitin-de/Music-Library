@@ -28,6 +28,7 @@ from report_source import SOURCE_DIALOG_HTML, SOURCE_DIALOG_JS
 from report_pagination import REPORT_PAGINATION_JS
 from report_lyrics import REPORT_LYRICS_JS
 from report_player import REPORT_PLAYER_JS
+from report_duplicates import REPORT_DUPLICATES_JS
 from genre_rules import normalized_genres, normalize_genre_counts
 from scan_progress import ProgressWriter, progress_files
 from find_duplicates import FORMAT_PRIORITY
@@ -58,6 +59,8 @@ FAVICON_VERSION = "library-green-3"
 # Ready-made SVG paths from Lucide 1.28.0 (ISC):
 # https://cdn.jsdelivr.net/npm/lucide-static@1.28.0/icons/
 LUCIDE_ICON_NODES = {
+    "chevron-down": '<path d="m6 9 6 6 6-6"/>',
+    "pause": '<path d="M6 4h4v16H6zM14 4h4v16h-4z"/>',
     "search": '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
     "audio-lines": '<path d="M2 10v3"/><path d="M6 6v11"/><path d="M10 3v18"/><path d="M14 8v7"/><path d="M18 5v13"/><path d="M22 10v3"/>',
     "house": '<path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
@@ -747,6 +750,15 @@ def format_sample_rate(value: str | None) -> str:
     return "—" if sample_rate <= 0 else f"{sample_rate / 1000:g} kHz"
 
 
+def format_duration(value: str | None) -> str:
+    seconds = safe_int(value)
+    if seconds <= 0:
+        return "—"
+    hours, remainder = divmod(seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    return f"{hours}:{minutes:02}:{seconds:02}" if hours else f"{minutes}:{seconds:02}"
+
+
 def format_size(value: str | None) -> str:
     size = safe_int(value)
     if size <= 0:
@@ -926,10 +938,8 @@ def better_quality_fields(left: dict, right: dict, *, left_cover=None, right_cov
     lyrics = (_quality_presence(left, "lyrics", left_lyrics), _quality_presence(right, "lyrics", right_lyrics))
     mark("cover", *covers)
     mark("lyrics", *lyrics)
-    # Size is only a final tie-breaker; a larger file is not independently better.
-    metrics = [tuple(_quality_number(quality, key) for key in ("bitrate", "bit_depth", "sample_rate", "tag_score")) for quality in (left, right)]
-    same_known_quality = formats[0] == formats[1] and ranks[0] is not None and None not in metrics[0] + metrics[1] + covers + lyrics and metrics[0] == metrics[1] and covers[0] == covers[1] and lyrics[0] == lyrics[1]
-    if same_known_quality and format_size(left.get("size")) != format_size(right.get("size")):
+    # Highlight the larger displayed size; file selection keeps its own quality ranking.
+    if format_size(left.get("size")) != format_size(right.get("size")):
         mark("size", _quality_number(left, "size"), _quality_number(right, "size"), positive=True)
     return better
 
@@ -950,6 +960,7 @@ def render_quality(
 
     items = [
         ("Формат", fmt),
+        ("Длительность", format_duration(quality.get("duration"))),
         ("Битрейт", html.escape(format_bitrate(quality.get("bitrate")))),
         ("Разрядность", f"{bit_depth} бит" if safe_int(quality.get("bit_depth")) > 0 else "—"),
         ("Частота дискретизации", html.escape(format_sample_rate(quality.get("sample_rate")))),
@@ -959,7 +970,7 @@ def render_quality(
         ("Размер", html.escape(format_size(quality.get("size")))),
     ]
 
-    kinds = ["format", "bitrate", "bit_depth", "sample_rate", "tag_score", "cover", "lyrics", "size"]
+    kinds = ["format", "duration", "bitrate", "bit_depth", "sample_rate", "tag_score", "cover", "lyrics", "size"]
     rows = []
     for (label, value), key in zip(items, kinds):
         emphasis = ' class="quality-better" title="Преимущество при сравнении с дублями"' if key in (better_fields or set()) else ""
@@ -978,7 +989,7 @@ def shared_player() -> str:
       <div class="global-controls">
         <div class="global-transport">
           <button class="global-skip" id="globalPrevious" type="button" aria-label="Предыдущий трек" title="Предыдущий трек" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h2v14H5zm14 0v14L8 12z"/></svg></button>
-          <button class="audio-play" id="globalPlay" type="button" aria-label="Воспроизвести" aria-pressed="false">{lucide_icon("play", "audio-play-icon")}</button>
+          <button class="audio-play" id="globalPlay" type="button" aria-label="Воспроизвести" aria-pressed="false">{lucide_icon("play", "audio-play-icon playback-icon")}{lucide_icon("pause", "audio-pause-icon playback-icon")}</button>
           <button class="global-skip" id="globalNext" type="button" aria-label="Следующий трек" title="Следующий трек" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 5h2v14h-2zM5 5l11 7-11 7z"/></svg></button>
         </div>
         <div class="global-timeline">
@@ -1560,8 +1571,20 @@ def render_duplicate_track(item: dict, side: str, cover_info: dict | None, revie
     prefix = "kept" if side == "keep" else "moved"
     path, name = item[f"{prefix}_file"], item[f"{prefix}_name"]
     quality = item[f"{prefix}_quality"]
-    label = ("Лучший кандидат" if side == "keep" else "Для сравнения") if review_only else ("Оставлен" if side == "keep" else "В карантин")
-    reason = html.escape(translate_reason(item["reason"])) if side != "keep" else ""
+    label = ("Лучший кандидат" if side == "keep" else "Для сравнения") if review_only else ("Предлагается оставить" if side == "keep" else "Предлагается в карантин")
+    reason = translate_reason(item["reason"]) if side != "keep" else ""
+    if side != "keep" and not review_only and item["reason"] == "lower quality score":
+        explanations = {
+            "format": "У файла 1 выше приоритет формата",
+            "bitrate": "У файла 1 выше битрейт",
+            "bit_depth": "У файла 1 выше разрядность",
+            "sample_rate": "У файла 1 выше частота дискретизации",
+            "tag_score": "У файла 1 полнее теги",
+            "cover": "У файла 1 есть обложка",
+            "size": "У файла 1 больше размер",
+        }
+        reason = next((text for key, text in explanations.items() if key in (reference_better or set())), "Выбор по рейтингу файла")
+    reason = html.escape(reason)
     has_cover = bool(cover_info.get("has_cover")) if cover_info else None
     has_lyrics = bool(cover_info.get("has_lyrics")) if cover_info else None
     return f'''
@@ -1573,15 +1596,25 @@ def render_duplicate_track(item: dict, side: str, cover_info: dict | None, revie
           {duplicate_cover_preview(path, name, quality, cover_info)}
           <div class="music-card-main">
             <div class="duplicate-track-heading"><span class="track-label">{label}</span><span class="duplicate-reason">{reason}</span></div>
+            <span class="duplicate-file-number"></span>
             <div class="music-title track-title" title="{html.escape(name)}">{html.escape(name)}</div>
             <div class="music-path track-path" title="{html.escape(path)}">{html.escape(item[f"{prefix}_folder"])}</div>
             {render_quality(quality, has_cover, has_lyrics, better_fields=better_fields)}
             <div class="music-actions">
+              <button class="small duplicate-listen" type="button" data-file-path="{html.escape(path)}" aria-label="Слушать" aria-pressed="false">{lucide_icon("play", "duplicate-listen-play playback-icon")}{lucide_icon("pause", "duplicate-listen-pause playback-icon")}<span class="duplicate-listen-label">Слушать</span></button>
               <button class="small quarantine-one" type="button" data-file="{html.escape(path)}">В карантин</button>
             </div>
           </div>
         </div>
       </article>'''
+
+
+def scan_progress_panel(panel_id: str) -> str:
+    return f'''<div class="source-progress" id="{panel_id}" hidden>
+        <div class="source-progress-caption"><strong data-scan-stage role="status"></strong><span data-scan-details></span></div>
+        <progress max="1" aria-label="Прогресс текущего этапа сканирования"></progress>
+        <div class="source-progress-file" data-scan-file></div>
+      </div>'''
 
 
 def render_html(payload: dict) -> str:
@@ -1643,15 +1676,13 @@ def render_html(payload: dict) -> str:
             kept_html = render_duplicate_track(reference, "keep", kept_cover, bool(reference.get("review_only")), left_advantages,
                 duplicate_search_text(reference["kept_file"], tracks_by_path))
             multiple = len(candidates) > 1
-            if multiple:
-                kept_html = f'<div class="duplicate-reference">{kept_html}</div>'
-                candidate_html = f'<div class="duplicate-options">{"".join(candidates)}</div>'
-            else:
-                candidate_html = "".join(candidates)
+            candidate_html = "".join(candidates)
             items_html.append(f'''
                 <div class="comparison{' comparison-multiple' if multiple else ''}" data-kept-file="{html.escape(reference["kept_file"])}">
-                  {kept_html}
-                  {candidate_html}
+                  <div class="duplicate-file-grid" style="--compare-files: {len(candidates) + 1}">
+                    {kept_html}
+                    {candidate_html}
+                  </div>
                   <div class="duplicate-card-status" aria-live="polite">
                     <div class="duplicate-card-status-text"></div>
                     <div class="music-card-progress" aria-hidden="true"><span></span></div>
@@ -1665,21 +1696,25 @@ def render_html(payload: dict) -> str:
                 search_values.append(duplicate_search_text(path, tracks_by_path))
 
         group_subtitle = (
-            f"Требует проверки · сравнений: {group['duplicates_count']}"
+            f"Возможный дубль · сравнений: {group['duplicates_count']}"
             if group.get("review_only")
             else f"Дублей: {group['duplicates_count']}"
         )
         groups_html.append(
             f"""
-            <section class="group-card" data-search="{html.escape(' '.join(search_values).lower())}" data-search-base="{html.escape((group['name'] + ' ' + duplicate_group_title(group, tracks_by_path)).lower())}" data-count="{group["duplicates_count"]}" data-review-only="{'yes' if group.get('review_only') else 'no'}">
-              <div class="group-header">
-                <div>
+            <details class="group-card" data-group-name="{html.escape(group['name'])}" data-search="{html.escape(' '.join(search_values).lower())}" data-search-base="{html.escape((group['name'] + ' ' + duplicate_group_title(group, tracks_by_path)).lower())}" data-count="{group["duplicates_count"]}" data-review-only="{'yes' if group.get('review_only') else 'no'}">
+              <summary class="group-header">
+                <span class="group-cover">{duplicate_cover_preview(group['items'][0]['kept_file'], group['items'][0]['kept_name'], group['items'][0]['kept_quality'], cover_info_for_path(group['items'][0]['kept_file'], cover_by_path, cover_by_name))}</span>
+                <div class="group-heading-text">
                   <h3 class="group-title">{html.escape(duplicate_group_title(group, tracks_by_path))}</h3>
-                  <div class="group-subtitle">{group_subtitle}</div>
+                  <div class="group-differences">{html.escape(' · '.join(group.get('formats', [])))}</div>
+                  <div class="group-meta"><span class="group-file-count"></span><div class="group-subtitle">{group_subtitle}</div></div>
                 </div>
-              </div>
+                <span class="group-status">{'Возможный дубль' if group.get('review_only') else 'К разбору'}</span>
+                {lucide_icon("chevron-down", "group-chevron")}
+              </summary>
               <div class="group-body">{''.join(items_html)}</div>
-            </section>
+            </details>
             """
         )
 
@@ -1744,7 +1779,7 @@ def render_html(payload: dict) -> str:
         <div class="metric"><span class="metric-icon">{lucide_icon("image")}</span><span class="metric-label">С обложкой</span><strong>{format_number(library.get("files_with_cover"))}</strong></div>
         <div class="metric"><span class="metric-icon">{lucide_icon("file-text")}</span><span class="metric-label">С текстом</span><strong>{format_number(library.get("files_with_lyrics"))}</strong></div>
         <div class="metric metric-alert"><span class="metric-icon">{lucide_icon("copy-check")}</span><span class="metric-label">Дублей</span><strong id="duplicateMetric">{format_number(summary["duplicates"])}</strong></div>
-        <div class="metric"><span class="metric-icon">{lucide_icon("circle-alert")}</span><span class="metric-label">На проверку</span><strong>{format_number(summary.get("review_groups", 0))}</strong></div>
+        <div class="metric"><span class="metric-icon">{lucide_icon("circle-alert")}</span><span class="metric-label">Возможные дубли</span><strong id="reviewGroupsMetric">{format_number(summary.get("review_groups", 0))}</strong></div>
       </div>
     </section>
 
@@ -1755,7 +1790,7 @@ def render_html(payload: dict) -> str:
         <div class="panel-body note summary-main">
           Групп дублей: <strong id="duplicateGroupsMetric">{format_number(summary["groups"])}</strong><br>
           Файлов, предлагаемых в карантин: <strong id="duplicateFilesMetric">{format_number(summary["duplicates"])}</strong><br>
-          Возможных групп на проверку: <strong>{format_number(summary.get("review_groups", 0))}</strong><br>
+          Групп возможных дублей: <strong id="reviewGroupsSummaryMetric">{format_number(summary.get("review_groups", 0))}</strong><br>
           Файлов с обложкой: <strong>{format_number(library.get("files_with_cover"))}</strong><br>
           Файлов с текстом песни: <strong>{format_number(library.get("files_with_lyrics"))}</strong><br>
           Не совпадает с аудиоотпечатком: <strong>{format_number(library.get("identity_mismatches", 0))}</strong><br>
@@ -1804,7 +1839,7 @@ def render_html(payload: dict) -> str:
     <div class="quarantine-panel scan-panel" id="scanPanel">
       <p id="scanStatus">Готово к пересканированию библиотеки. Файлы не перемещаются.</p>
       <span class="copy-status" id="scanCopyStatus"></span>
-      <div class="global-progress" id="scanProgress" aria-hidden="true"><span></span></div>
+      {scan_progress_panel("scanProgress")}
     </div>
     <div class="music-operations music-toolbar">
       <div class="music-operation-groups">
@@ -1869,8 +1904,12 @@ def render_html(payload: dict) -> str:
       <h2 class="section-title">Дубли</h2>
       <div class="duplicates-actions">
         <button class="small" id="findDuplicates" type="button">Найти дубли</button>
-        <button class="small danger-button" id="quarantineCommand" type="button">Переместить всё в карантин</button>
       </div>
+    </div>
+    <div class="summary duplicate-summary" role="group" aria-label="Статистика дублей">
+      <div class="metric"><span class="metric-icon">{lucide_icon("copy")}</span><span class="metric-label">Групп дублей</span><strong id="duplicatePageGroupsMetric">{format_number(summary["groups"])}</strong></div>
+      <div class="metric metric-alert"><span class="metric-icon">{lucide_icon("copy-check")}</span><span class="metric-label">Дублей</span><strong id="duplicatePageFilesMetric">{format_number(summary["duplicates"])}</strong></div>
+      <div class="metric"><span class="metric-icon">{lucide_icon("circle-alert")}</span><span class="metric-label">Возможные дубли</span><strong id="duplicatePageReviewMetric">{format_number(summary.get("review_groups", 0))}</strong></div>
     </div>
     <div class="search-control page-search is-empty">
       {lucide_icon("search", "search-icon")}
@@ -1880,12 +1919,19 @@ def render_html(payload: dict) -> str:
     <div class="quarantine-panel scan-panel" id="duplicateScanPanel">
       <p id="duplicateScanStatus">Готово к новому поиску дублей. Файлы не перемещаются.</p>
       <span class="copy-status" id="duplicateScanCopyStatus"></span>
-      <div class="global-progress" id="duplicateScanProgress" aria-hidden="true"><span></span></div>
+      {scan_progress_panel("duplicateScanProgress")}
     </div>
     <div class="quarantine-panel" id="quarantinePanel">
       <p id="quarantineStatus">Готово к безопасному переносу дублей в карантин. Файлы не удаляются.</p>
       <span class="copy-status" id="copyStatus"></span>
       <div class="global-progress" id="globalProgress" aria-hidden="true"><span></span></div>
+    </div>
+    <div class="toolbar duplicate-toolbar">
+      <select id="duplicateFilter" aria-label="Фильтр групп дублей">
+        <option value="all">Все группы</option>
+        <option value="duplicates">Дубли</option>
+        <option value="review">Возможные дубли</option>
+      </select>
     </div>
     <div id="cards"></div>
     <template id="duplicateCardSource">{''.join(groups_html)}</template>
@@ -1933,6 +1979,7 @@ def render_html(payload: dict) -> str:
   <script id="reportPagination">{REPORT_PAGINATION_JS}</script>
   <script id="reportLyrics">{REPORT_LYRICS_JS}</script>
   <script id="reportPlayer">{REPORT_PLAYER_JS}</script>
+  <script id="reportDuplicates">{REPORT_DUPLICATES_JS}</script>
   <script>
     let cards = Array.from(document.getElementById('duplicateCardSource').content.querySelectorAll('.group-card'));
     const sort = document.getElementById('sort');
@@ -1940,11 +1987,11 @@ def render_html(payload: dict) -> str:
     const musicList = document.getElementById('musicList');
     const musicSearch = document.getElementById('musicSearch');
     const duplicateSearch = document.getElementById('duplicateSearch');
+    const duplicateFilter = document.getElementById('duplicateFilter');
     const tagFilter = document.getElementById('tagFilter');
     const layoutFilter = document.getElementById('layoutFilter');
     const identityFilter = document.getElementById('identityFilter');
     const musicEmpty = document.getElementById('musicEmpty');
-    const quarantineButton = document.getElementById('quarantineCommand');
     const quarantinePanel = document.getElementById('quarantinePanel');
     const copyStatus = document.getElementById('copyStatus');
     const quarantineStatus = document.getElementById('quarantineStatus');
@@ -2042,13 +2089,23 @@ def render_html(payload: dict) -> str:
 
     function updatePlayingCards(force = false) {{
       const audio = sharedUI.globalAudio;
-      const key = (playback.track?.path || '') + ':' + !audio.paused;
+      const playing = !audio.paused && !audio.ended;
+      const key = (playback.track?.path || '') + ':' + playing;
       if (!force && key === cardPlaybackKey) return;
       cardPlaybackKey = key;
       document.querySelectorAll('.music-card, .duplicate-track').forEach(card => {{
         const current = playback.matches(card.dataset.filePath);
         card.classList.toggle('is-current-track', current);
-        card.classList.toggle('is-playing-track', current && !audio.paused && !audio.ended);
+        card.classList.toggle('is-playing-track', current && playing);
+        const button = card.querySelector('.duplicate-listen');
+        if (button) {{
+          const active = current && playing;
+          const label = active ? 'Пауза' : 'Слушать';
+          button.querySelector('.duplicate-listen-label').textContent = label;
+          button.classList.toggle('playing', active);
+          button.setAttribute('aria-label', label);
+          button.setAttribute('aria-pressed', String(active));
+        }}
         if (current) card.setAttribute('aria-current', 'true');
         else card.removeAttribute('aria-current');
       }});
@@ -2398,7 +2455,7 @@ def render_html(payload: dict) -> str:
     }}
 
     function setDuplicateActionsDisabled(disabled) {{
-      [...cards, ...musicCards].flatMap(card => Array.from(card.querySelectorAll('.quarantine-one, .trash-one'))).concat([quarantineButton, rescanLibrary, findDuplicates]).filter(Boolean).forEach(button => {{
+      [...cards, ...musicCards].flatMap(card => Array.from(card.querySelectorAll('.quarantine-one, .trash-one'))).concat([rescanLibrary, findDuplicates]).filter(Boolean).forEach(button => {{
         button.disabled = disabled;
       }});
     }}
@@ -2430,7 +2487,8 @@ def render_html(payload: dict) -> str:
         comparison.querySelectorAll('.keep td[data-quality]').forEach(cell => cell.classList.toggle('quality-better', advantages.has(cell.dataset.quality)));
       }});
       const subtitle = group.querySelector('.group-subtitle');
-      if (subtitle) subtitle.textContent = group.dataset.reviewOnly === 'yes' ? `Требует проверки · сравнений: ${{duplicates.length}}` : `Дублей: ${{duplicates.length}}`;
+      if (subtitle) subtitle.textContent = group.dataset.reviewOnly === 'yes' ? `Возможный дубль · сравнений: ${{duplicates.length}}` : `Дублей: ${{duplicates.length}}`;
+      ReportDuplicates.refresh(group);
     }}
 
     function removeDuplicateComparisonsByPaths(paths) {{
@@ -2460,16 +2518,20 @@ def render_html(payload: dict) -> str:
     }}
 
     function updateDuplicateSummaryCounts() {{
-      const visibleGroups = cards.length;
-      const visibleDuplicates = cards.reduce((count, card) => count + card.querySelectorAll('.duplicate-track.move').length, 0);
-      const formattedGroups = visibleGroups.toLocaleString('ru-RU').replace(/\u00a0/g, ' ');
-      const formattedDuplicates = visibleDuplicates.toLocaleString('ru-RU').replace(/\u00a0/g, ' ');
-      const duplicateMetric = document.getElementById('duplicateMetric');
-      const duplicateGroupsMetric = document.getElementById('duplicateGroupsMetric');
-      const duplicateFilesMetric = document.getElementById('duplicateFilesMetric');
-      if (duplicateMetric) duplicateMetric.textContent = formattedDuplicates;
-      if (duplicateGroupsMetric) duplicateGroupsMetric.textContent = formattedGroups;
-      if (duplicateFilesMetric) duplicateFilesMetric.textContent = formattedDuplicates;
+      const duplicateGroups = cards.filter(card => card.dataset.reviewOnly !== 'yes');
+      const duplicates = duplicateGroups.reduce((count, card) => count + card.querySelectorAll('.duplicate-track.move').length, 0);
+      const metrics = [
+        [['duplicateMetric', 'duplicateFilesMetric', 'duplicatePageFilesMetric'], duplicates],
+        [['duplicateGroupsMetric', 'duplicatePageGroupsMetric'], duplicateGroups.length],
+        [['reviewGroupsMetric', 'reviewGroupsSummaryMetric', 'duplicatePageReviewMetric'], cards.length - duplicateGroups.length],
+      ];
+      metrics.forEach(([ids, count]) => {{
+        const formatted = count.toLocaleString('ru-RU').replace(/\u00a0/g, ' ');
+        ids.forEach(id => {{
+          const target = document.getElementById(id);
+          if (target) target.textContent = formatted;
+        }});
+      }});
     }}
 
     function clearTagAttributes(card) {{
@@ -2719,9 +2781,14 @@ def render_html(payload: dict) -> str:
     function applyDuplicateFilters(reset = true) {{
       updateSearchPlaceholder(duplicateSearch);
       const value = duplicateSearch.value.trim().toLowerCase();
-      cards.forEach(card => {{ card.hidden = !!value && !(card.dataset.search || '').includes(value); }});
+      cards.forEach(card => {{
+        const review = card.dataset.reviewOnly === 'yes';
+        const statusMatches = duplicateFilter.value === 'all' || (duplicateFilter.value === 'review' ? review : !review);
+        card.hidden = !statusMatches || (!!value && !(card.dataset.search || '').includes(value));
+      }});
       const matches = cards.filter(card => !card.hidden);
       document.getElementById('empty').classList.toggle('visible', matches.length === 0);
+      document.getElementById('empty').textContent = cards.length ? 'Нет групп по текущему поиску и фильтру.' : 'Дубли не найдены.';
       duplicatePager.setItems(matches, reset);
       if (playbackContext === 'duplicates') updatePlaybackQueue();
     }}
@@ -2739,6 +2806,50 @@ def render_html(payload: dict) -> str:
       if (!wanted || playback.matches(filePath)) playback.clear();
       // Chromium aborts the range request asynchronously; let the server close its handle.
       await new Promise(resolve => setTimeout(resolve, 250));
+    }}
+
+    function canMoveFile(button) {{
+      if (selectedMode() === 'real') return true;
+      const message = 'Включите «Применить изменения», чтобы переместить файл.';
+      const musicCard = button.closest('.music-card');
+      if (musicCard) setCardStatus(musicCard, 'error', message);
+      else setDuplicateStatus(button, 'error', message);
+      return false;
+    }}
+
+    function refreshAfterFileMove(result, paths) {{
+      if (result.reload) {{
+        try {{
+          sessionStorage.setItem('duplicateViewAfterMove', JSON.stringify({{
+            query: duplicateSearch.value,
+            filter: duplicateFilter.value,
+            limit: duplicatePager.limit,
+            open: cards.filter(card => card.open).map(card => card.dataset.groupName),
+          }}));
+        }} catch (error) {{
+          // The updated report can still be loaded when session storage is unavailable.
+        }}
+        window.location.reload();
+        return;
+      }}
+      removeDuplicateComparisonsByPaths(paths);
+      removeMusicCardsByPaths(paths);
+    }}
+
+    function restoreDuplicateViewAfterMove() {{
+      try {{
+        const state = JSON.parse(sessionStorage.getItem('duplicateViewAfterMove') || 'null');
+        if (!state) return;
+        sessionStorage.removeItem('duplicateViewAfterMove');
+        duplicateSearch.value = state.query;
+        duplicateFilter.value = state.filter;
+        duplicatePager.limit = state.limit;
+        const expanded = new Set(state.open);
+        cards.forEach(card => {{ card.open = expanded.has(card.dataset.groupName); }});
+        applyDuplicateFilters(false);
+      }} catch (error) {{
+        // The report can be opened from disk without session storage.
+      }}
     }}
 
     async function runQuarantine(url, body, message, sourceButton = null) {{
@@ -2759,8 +2870,7 @@ def render_html(payload: dict) -> str:
         const result = await response.json();
         if (!response.ok || !result.ok) throw new Error(result.error || 'Команда не выполнена');
         const changedPaths = result.moved_paths || (result.moved ? result.moved.map(item => item.source) : []);
-        removeDuplicateComparisonsByPaths(changedPaths);
-        removeMusicCardsByPaths(changedPaths);
+        refreshAfterFileMove(result, changedPaths);
         quarantineStatus.textContent = 'Готово. Файлы перенесены в карантин, отчёт обновлён.';
         if (sourceComparison && sourceComparison.isConnected) setDuplicateStatus(sourceComparison, 'done', 'Файл перенесён в карантин.');
       }} catch (error) {{
@@ -2773,16 +2883,10 @@ def render_html(payload: dict) -> str:
       }}
     }}
 
-    quarantineButton.addEventListener('click', () => {{
-      const confirmed = window.confirm('Перенести все худшие дубли из CSV-отчёта в карантин? Файлы не удаляются.');
-      if (!confirmed) return;
-      runQuarantine('/api/quarantine-all', {{ confirm: 'MOVE_TO_QUARANTINE' }}, 'Переношу все худшие дубли в карантин...');
-    }});
-
     async function runTrash(filePath, sourceButton) {{
       const sourceMusicCard = sourceButton?.closest?.('.music-card') || null;
       const sourceComparison = sourceButton?.closest?.('.comparison') || null;
-      if (!filePath) return;
+      if (!filePath || !canMoveFile(sourceButton)) return;
 
       const confirmed = window.confirm('Переместить выбранный файл в корзину Trash? Файл не будет удалён безвозвратно.');
       if (!confirmed) return;
@@ -2803,13 +2907,12 @@ def render_html(payload: dict) -> str:
         const response = await fetch('/api/trash-file', {{
           method: 'POST',
           headers: {{ 'Content-Type': 'application/json' }},
-          body: JSON.stringify({{ file: filePath, confirm: 'MOVE_TO_TRASH' }}),
+          body: JSON.stringify({{ file: filePath, mode: 'real', confirm: 'MOVE_TO_TRASH' }}),
         }});
         const result = await response.json();
         if (!response.ok || !result.ok) throw new Error(result.error || 'Команда не выполнена');
         const changedPaths = result.moved_paths || [result.source || filePath];
-        removeDuplicateComparisonsByPaths(changedPaths);
-        removeMusicCardsByPaths(changedPaths);
+        refreshAfterFileMove(result, changedPaths);
         quarantineStatus.textContent = 'Готово. Файл перенесён в корзину Trash, отчёт обновлён.';
         if (sourceMusicCard && sourceMusicCard.isConnected) setCardStatus(sourceMusicCard, 'done', 'Файл перенесён в корзину.');
         if (sourceComparison && sourceComparison.isConnected) setDuplicateStatus(sourceComparison, 'done', 'Файл перенесён в корзину.');
@@ -2833,27 +2936,33 @@ def render_html(payload: dict) -> str:
       const statusPanel = fromDuplicates ? duplicateScanPanel : scanPanel;
       const statusText = fromDuplicates ? duplicateScanStatus : scanStatus;
       const copyText = fromDuplicates ? duplicateScanCopyStatus : scanCopyStatus;
-      const progress = fromDuplicates ? duplicateScanProgress : scanProgress;
+      const progressPanel = fromDuplicates ? duplicateScanProgress : scanProgress;
+      const progress = ReportScanProgress.create(progressPanel);
+      const progressId = ReportScanProgress.newId();
       statusPanel.classList.add('visible');
       statusText.textContent = fromDuplicates ? 'Идёт поиск дублей по всей библиотеке…' : 'Сканирование библиотеки…';
       copyText.textContent = '';
-      progress.classList.add('visible');
+      progressPanel.hidden = false;
+      progress.show({{stage: 'starting'}});
       setDuplicateActionsDisabled(true);
+      const stopProgress = progress.watch('/api/rescan-library/progress', progressId);
       try {{
         const response = await fetch('/api/rescan-library', {{
           method: 'POST',
           headers: {{ 'Content-Type': 'application/json' }},
-          body: JSON.stringify({{ confirm: 'RESCAN_LIBRARY' }}),
+          body: JSON.stringify({{confirm: 'RESCAN_LIBRARY', progress_id: progressId}}),
         }});
         const result = await response.json();
         if (!response.ok || !result.ok) throw new Error(result.error || 'Команда не выполнена');
-        statusText.textContent = 'Готово. CSV дублей и отчёт обновлены, страница перезагружается.';
+        stopProgress();
+        progress.show({{stage: 'completed', processed: 1, total: 1}});
+        statusText.textContent = 'Отчёт обновлён. Открываю результаты…';
         setTimeout(() => window.location.reload(), 500);
       }} catch (error) {{
+        stopProgress();
+        progress.show({{stage: 'failed'}});
         statusText.textContent = 'Не удалось пересканировать библиотеку.';
         copyText.textContent = error.message || String(error);
-      }} finally {{
-        progress.classList.remove('visible');
         setDuplicateActionsDisabled(false);
       }}
     }}
@@ -2935,6 +3044,7 @@ def render_html(payload: dict) -> str:
     function bindCardControls(root) {{
       if (boundCards.has(root)) return;
       boundCards.add(root);
+      if (root.matches('.group-card')) ReportDuplicates.refresh(root);
     const playable = root.matches('.music-card, .duplicate-track') ? [root] : Array.from(root.querySelectorAll('.duplicate-track'));
     playable.forEach(card => {{
       const activate = () => {{
@@ -2953,17 +3063,19 @@ def render_html(payload: dict) -> str:
         event.preventDefault();
         activate();
       }});
+      card.querySelector('.duplicate-listen')?.addEventListener('click', activate);
     }});
     updatePlayingCards(true);
 
     root.querySelectorAll('.quarantine-one').forEach(button => {{
       button.addEventListener('click', event => {{
         event.stopPropagation();
+        if (!canMoveFile(button)) return;
         const confirmed = window.confirm('Переместить выбранный файл в карантин? Файл не удаляется.');
         if (!confirmed) return;
         runQuarantine(
           '/api/quarantine-one',
-          {{ file: button.dataset.file, confirm: 'MOVE_TO_QUARANTINE' }},
+          {{ file: button.dataset.file, mode: 'real', confirm: 'MOVE_TO_QUARANTINE' }},
           'Переношу выбранный файл в карантин...',
           button
         );
@@ -3033,8 +3145,10 @@ def render_html(payload: dict) -> str:
     layoutFilter.addEventListener('change', applyMusicFilters);
     identityFilter.addEventListener('change', applyMusicFilters);
     duplicateSearch.addEventListener('input', () => applyDuplicateFilters());
+    duplicateFilter.addEventListener('change', () => applyDuplicateFilters());
     sort.addEventListener('change', applySort);
     applySort();
+    restoreDuplicateViewAfterMove();
     activatePage(window.location.hash.slice(1) || 'overview');
   </script>
 </body>

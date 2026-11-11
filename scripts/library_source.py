@@ -93,7 +93,10 @@ def _log(files: SourceFiles, previous: str, selected: str, status: str, backup: 
 def change_source(value: str, confirmation: str, files: SourceFiles, run_command, previous: str, progress=None) -> dict:
     if confirmation != "CHANGE_LIBRARY_SOURCE":
         raise RuntimeError("Смена источника и пересканирование требуют подтверждения.")
-    library = validate_folder(value)
+    return scan_library(validate_folder(value), files, run_command, previous, progress, save_source=True)
+
+
+def scan_library(library: Path, files: SourceFiles, run_command, previous: str, progress=None, *, save_source=False) -> dict:
     files.html.parent.mkdir(parents=True, exist_ok=True)
     scripts = Path(__file__).resolve().parent
     results = []
@@ -105,7 +108,7 @@ def change_source(value: str, confirmation: str, files: SourceFiles, run_command
                 raise RuntimeError("Некорректная временная папка отчёта.")
             staged = {target: stage / name for target, name in [
                 (files.csv, "duplicates.csv"), (files.review, "duplicates_needs_review.csv"),
-                (files.html, "library.html"), (files.settings, "source.json"),
+                (files.html, "library.html"),
             ]}
             commands = [
                 [sys.executable, str(scripts / "find_duplicates.py"), "--library", str(library), "--dry-run", "--report", str(staged[files.csv]), "--review-report", str(staged[files.review])],
@@ -120,7 +123,9 @@ def change_source(value: str, confirmation: str, files: SourceFiles, run_command
                 results.append({"command": command, "returncode": result.returncode, "output": result.stdout})
                 if result.returncode:
                     raise RuntimeError(result.stdout or "Не удалось пересканировать папку.")
-            staged[files.settings].write_text(json.dumps({"path": str(library)}, ensure_ascii=False, indent=2), encoding="utf-8")
+            if save_source:
+                staged[files.settings] = stage / "source.json"
+                staged[files.settings].write_text(json.dumps({"path": str(library)}, ensure_ascii=False, indent=2), encoding="utf-8")
             if not all(source.is_file() for source in staged.values()):
                 raise RuntimeError("Не все файлы нового отчёта созданы; источник не изменён.")
             backup.mkdir(parents=True)

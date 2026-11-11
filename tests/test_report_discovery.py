@@ -10,6 +10,31 @@ from test_report_interface import Elements
 
 
 class ReportDiscoveryTests(unittest.TestCase):
+    def test_duplicate_metrics_match_on_both_pages_and_exclude_review_candidates(self):
+        source = self.document()
+        start = source.index('    function updateDuplicateSummaryCounts()')
+        function = source[start:source.index('    function clearTagAttributes(', start)]
+        script = r'''
+const assert=require('node:assert/strict');
+const fields={};const document={getElementById(id){return fields[id] ||= {textContent:''};}};
+let cards=[
+ {hidden:true,dataset:{reviewOnly:'no'},querySelectorAll(){return [1,2];}},
+ {hidden:false,dataset:{reviewOnly:'yes'},querySelectorAll(){return [1];}},
+];
+''' + function + r'''
+updateDuplicateSummaryCounts();
+for(const id of ['duplicateMetric','duplicateFilesMetric','duplicatePageFilesMetric']) assert.equal(fields[id].textContent,'2',id);
+for(const id of ['duplicateGroupsMetric','duplicatePageGroupsMetric']) assert.equal(fields[id].textContent,'1',id);
+for(const id of ['reviewGroupsMetric','reviewGroupsSummaryMetric','duplicatePageReviewMetric']) assert.equal(fields[id].textContent,'1',id);
+cards.shift();updateDuplicateSummaryCounts();
+assert.equal(fields.duplicatePageFilesMetric.textContent,'0');assert.equal(fields.duplicateFilesMetric.textContent,'0');
+assert.equal(fields.duplicatePageReviewMetric.textContent,'1');
+cards=[];updateDuplicateSummaryCounts();
+assert.equal(fields.duplicatePageReviewMetric.textContent,'0');
+'''
+        result = subprocess.run(['node', '-'], input=script, text=True, encoding='utf-8', capture_output=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def document(self):
         rows = [ReportRow('raw group', 'D:/Music/best.flac', path, 'lower quality score',
                           'format=flac; bitrate=900000', 'format=mp3; bitrate=320000')
@@ -43,7 +68,8 @@ class ReportDiscoveryTests(unittest.TestCase):
         function = source[start:end].replace('{{', '{').replace('}}', '}')
         script = r'''
 const assert = require('node:assert/strict');
-const cards = Array.from({length:25}, (_,i)=>({hidden:false,dataset:{search:i===24?'ёлка редкий альбом':'другой трек'}}));
+const cards = Array.from({length:25}, (_,i)=>({hidden:false,dataset:{search:i===24?'ёлка редкий альбом':'другой трек',reviewOnly:i===24?'yes':'no'}}));
+const duplicateFilter={value:'all'};
 const duplicateSearch={value:'  ЁЛКА  ',closest:()=>({classList:{toggle(){}}})};
 const empty={classList:{toggle(_,v){this.visible=v;}}};
 const document={getElementById:()=>empty};
@@ -61,6 +87,12 @@ duplicateSearch.value='no match'; applyDuplicateFilters();
 assert.equal(matches.length,0); assert.equal(empty.classList.visible,true);
 duplicateSearch.value=''; applyDuplicateFilters();
 assert.equal(matches.length,25); assert.equal(empty.classList.visible,false);
+duplicateFilter.value='review'; applyDuplicateFilters();
+assert.deepEqual(matches,[cards[24]],'Review filtering includes unmounted groups');
+duplicateSearch.value='другой'; applyDuplicateFilters();
+assert.equal(matches.length,0,'Search and review filter must both match');
+duplicateFilter.value='duplicates'; applyDuplicateFilters();
+assert.equal(matches.length,24);
 '''
         result = subprocess.run(['node', '-'], input=script, text=True, encoding='utf-8', capture_output=True)
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -75,11 +107,13 @@ const assert=require('node:assert/strict');
 const fields={};
 const document={getElementById(id){return fields[id] ||= {textContent:'',classList:{toggle(){}}};}};
 const duplicateSearch={value:''};
+const duplicateFilter={value:'all'};
 function updateSearchPlaceholder(){}
 let pageItems;
 const playbackContext='duplicates';
 function updatePlaybackQueue(){}
 const duplicatePager={setItems(items){pageItems=items;}};
+const ReportDuplicates={refresh(){}}; // Layout is exercised separately; this fixture models file removal only.
 let candidates=['D:/Music/a.mp3','D:/Music/b.mp3'].map((path,i)=>({dataset:{filePath:path,search:i===0?'removed album':'remaining album',referenceBetter:i===0?'bitrate':''},remove(){candidates=candidates.filter(c=>c!==this);}}));
 const reference={dataset:{search:'best track'}};
 const cell={dataset:{quality:'bitrate'},classList:{toggle(_,on){this.green=on;}}};

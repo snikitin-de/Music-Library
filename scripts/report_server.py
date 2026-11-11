@@ -22,13 +22,14 @@ import sys
 import threading
 import time
 import uuid
+from collections import Counter, defaultdict
 from datetime import datetime
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from urllib.parse import parse_qs, urlparse
 
 import yaml
-from library_source import SourceFiles, change_source, list_folders, saved_source, validate_folder
+from library_source import SourceFiles, change_source, list_folders, saved_source, scan_library, validate_folder
 from scan_progress import ProgressStore, run_streaming
 
 from mutagen import File as MutagenFile
@@ -555,12 +556,49 @@ def update_report_without_scan(remaining_rows: list[dict[str, str]], moved_paths
     _AUDIO_PATH_CACHE.clear()
 
 
+def update_duplicate_reports_after_move(rows: list[dict[str, str]], moved_paths: set[str]) -> dict:
+    references = defaultdict(list)
+    for row in rows:
+        references[(row["duplicate_group"], norm_path(row["kept_file"]))].append(row)
+
+    remaining = []
+    reload = False
+    for (_, kept), candidates in references.items():
+        survivors = [row for row in candidates if norm_path(row["moved_file"]) not in moved_paths]
+        if kept not in moved_paths:
+            remaining.extend(survivors)
+        elif len(survivors) >= 2:
+            # The scanner writes candidates in descending quality order.
+            reference, *others = survivors
+            remaining.extend(
+                dict(row, kept_file=reference["moved_file"], kept_quality=reference["moved_quality"])
+                for row in others
+            )
+            reload = True
+
+    review_rows = read_review_report_rows()
+    affected = {row["review_group"] for row in review_rows if norm_path(row["file"]) in moved_paths}
+    if affected:
+        survivors = [row for row in review_rows if norm_path(row["file"]) not in moved_paths]
+        counts = Counter(row["review_group"] for row in survivors)
+        first_rows = {}
+        for row in review_rows:
+            first_rows.setdefault(row["review_group"], norm_path(row["file"]))
+        reload |= any(counts[group] >= 2 and first_rows[group] in moved_paths for group in affected)
+        write_review_report_rows([
+            row for row in survivors if row["review_group"] not in affected or counts[row["review_group"]] >= 2
+        ])
+
+    write_duplicate_rows(remaining)
+    update_report_without_scan(remaining, moved_paths)
+    return {"remaining_duplicates": len(remaining), "reload": reload}
+
+
 def move_duplicate_files(only_file: str | None = None, worse_only: bool = False) -> dict:
     library = Path(library_path())
     quarantine = Path(quarantine_path(str(library)))
     rows = read_duplicate_rows()
     wanted = norm_path(only_file) if only_file else None
-    remaining = []
     moved = []
     selected: set[str] = set()
     processed: set[str] = set()
@@ -585,14 +623,6 @@ def move_duplicate_files(only_file: str | None = None, worse_only: bool = False)
             for path in row_paths
             if path and norm_path(path) in selected and (not worse_only or path == row.get("moved_file", ""))
         ]
-        if not row_selected_paths:
-            remaining.append(row)
-            continue
-
-        if wanted is not None and not row_selected_paths:
-            remaining.append(row)
-            continue
-
         for source_text in row_selected_paths:
             source = Path(source_text)
             source_key = norm_path(str(source))
@@ -614,14 +644,13 @@ def move_duplicate_files(only_file: str | None = None, worse_only: bool = False)
         raise RuntimeError("Selected duplicate was not found in the current CSV report.")
 
     moved_paths = {norm_path(item["source"]) for item in moved}
-    write_duplicate_rows(remaining)
-    update_report_without_scan(remaining, moved_paths)
+    report = update_duplicate_reports_after_move(rows, moved_paths)
     return {
         "ok": True,
         "quarantine": str(quarantine),
         "moved": moved,
         "moved_paths": sorted(moved_paths),
-        "remaining_duplicates": len(remaining),
+        **report,
     }
 
 
@@ -655,24 +684,13 @@ def quarantine_review_file(file_path: str) -> dict:
     move_file_with_retry(source, destination)
     append_file_action("quarantine_review", str(source), str(destination), "moved")
 
-    write_review_report_rows([
-        row for row in review_rows if row.get("review_group", "") not in affected_groups
-    ])
-    remaining = [
-        row for row in read_duplicate_rows()
-        if source_key not in {
-            norm_path(row.get("kept_file", "")),
-            norm_path(row.get("moved_file", "")),
-        }
-    ]
-    write_duplicate_rows(remaining)
-    update_report_without_scan(remaining, {source_key})
+    report = update_duplicate_reports_after_move(read_duplicate_rows(), {source_key})
     return {
         "ok": True,
         "quarantine": str(quarantine),
         "moved": [{"source": str(source), "destination": str(destination), "status": "moved"}],
         "moved_paths": [source_key],
-        "remaining_duplicates": len(remaining),
+        **report,
     }
 
 
@@ -693,31 +711,14 @@ def trash_file(file_path: str) -> dict:
     append_file_action("trash", str(source), str(destination), "moved")
 
     source_key = norm_path(str(source))
-    remaining = []
-    for row in read_duplicate_rows():
-        if source_key in {norm_path(row.get("kept_file", "")), norm_path(row.get("moved_file", ""))}:
-            continue
-        remaining.append(row)
-
-    write_duplicate_rows(remaining)
-    review_rows = read_review_report_rows()
-    affected_groups = {
-        row.get("review_group", "")
-        for row in review_rows
-        if norm_path(row.get("file", "")) == source_key
-    }
-    if affected_groups:
-        write_review_report_rows([
-            row for row in review_rows if row.get("review_group", "") not in affected_groups
-        ])
-    update_report_without_scan(remaining, {source_key})
+    report = update_duplicate_reports_after_move(read_duplicate_rows(), {source_key})
     return {
         "ok": True,
         "trash": str(trash),
         "source": str(source),
         "destination": str(destination),
         "moved_paths": [source_key],
-        "remaining_duplicates": len(remaining),
+        **report,
     }
 
 
@@ -744,41 +745,24 @@ def run_command(args: list[str], progress=None) -> subprocess.CompletedProcess[s
         raise RuntimeError(str(exc)) from exc
 
 
-def refresh_report(library: str) -> list[dict[str, object]]:
-    commands = [
-        [
-            sys.executable,
-            "scripts/find_duplicates.py",
-            "--library",
-            library,
-            "--dry-run",
-            "--report",
-            str(REPORT_CSV),
-        ],
-        [
-            sys.executable,
-            "scripts/generate_html_report.py",
-            "--csv",
-            str(REPORT_CSV),
-            "--library",
-            library,
-            "--out",
-            str(REPORT_HTML),
-        ],
-    ]
-    results = []
-    for command in commands:
-        result = run_command(command)
-        results.append(
-            {
-                "command": " ".join(command),
-                "returncode": result.returncode,
-                "output": result.stdout,
-            }
-        )
-        if result.returncode != 0:
-            raise RuntimeError(result.stdout)
-    return results
+def rescan_current_library(body: dict) -> dict:
+    if body.get("confirm") != "RESCAN_LIBRARY":
+        raise RuntimeError("Пересканирование требует подтверждения.")
+    progress = _SOURCE_PROGRESS.start(body["progress_id"]) if body.get("progress_id") else None
+    files = SourceFiles(REPORT_HTML, REPORT_CSV, REVIEW_CSV, SOURCE_SETTINGS, SOURCE_ACTIONS_CSV, SOURCE_BACKUPS)
+    try:
+        library = library_path()
+        result = scan_library(Path(library), files, run_command, library, progress)
+    except Exception as error:
+        if progress:
+            progress({"stage": "failed", "status": "failed", "error": str(error)})
+        raise
+    _REPORT_CACHE.clear()
+    _AUDIO_PATH_CACHE.clear()
+    _ENRICHMENT_CANDIDATES.clear()
+    if progress:
+        progress({"stage": "completed", "status": "completed", "processed": 1, "total": 1, "current": ""})
+    return result
 
 
 def refresh_html_report(library: str) -> dict[str, object]:
@@ -903,14 +887,11 @@ def quarantine_duplicates(only_file: str | None = None) -> dict:
     return move_from_csv(only_file)
 
 
-def require_quarantine_confirmation(body: dict) -> None:
-    if body.get("confirm") != "MOVE_TO_QUARANTINE":
-        raise RuntimeError("Quarantine action requires explicit confirmation.")
-
-
-def require_trash_confirmation(body: dict) -> None:
-    if body.get("confirm") != "MOVE_TO_TRASH":
-        raise RuntimeError("Trash action requires explicit confirmation.")
+def require_move_confirmation(body: dict, token: str) -> None:
+    if body.get("mode") != "real":
+        raise RuntimeError("Включите «Применить изменения», чтобы переместить файл.")
+    if body.get("confirm") != token:
+        raise RuntimeError("Подтвердите перемещение файла.")
 
 
 def report_music_path_set() -> set[str]:
@@ -2186,7 +2167,7 @@ class ReportHandler(SimpleHTTPRequestHandler):
 
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
-        if parsed.path == "/api/library-source/progress":
+        if parsed.path in {"/api/library-source/progress", "/api/rescan-library/progress"}:
             scan_id = parse_qs(parsed.query).get("id", [""])[0]
             state = _SOURCE_PROGRESS.snapshot(scan_id)
             self.send_json(200 if state else 404, state or {"ok": False, "error": "Сканирование ещё не началось."})
@@ -2247,13 +2228,12 @@ class ReportHandler(SimpleHTTPRequestHandler):
                 self.send_json(200, change_library_source(self.read_json()))
                 return
             if self.path == "/api/quarantine-all":
-                require_quarantine_confirmation(self.read_json())
-                self.send_json(200, quarantine_duplicates())
+                self.send_json(400, dict(ok=False, error='Массовый перенос недоступен. Выберите файл в разделе «Дубли».'))
                 return
 
             if self.path == "/api/quarantine-one":
                 body = self.read_json()
-                require_quarantine_confirmation(body)
+                require_move_confirmation(body, "MOVE_TO_QUARANTINE")
                 duplicate_file = str(body.get("file") or body.get("moved_file") or "")
                 duplicate_allowed = {norm_path(path) for path in current_duplicate_files()}
                 review_allowed = {norm_path(path) for path in current_review_files()}
@@ -2275,7 +2255,7 @@ class ReportHandler(SimpleHTTPRequestHandler):
 
             if self.path == "/api/trash-file":
                 body = self.read_json()
-                require_trash_confirmation(body)
+                require_move_confirmation(body, "MOVE_TO_TRASH")
                 file_path = str(body.get("file", ""))
                 if not file_path:
                     self.send_json(400, {"ok": False, "error": "File path is required."})
@@ -2284,13 +2264,7 @@ class ReportHandler(SimpleHTTPRequestHandler):
                 return
 
             if self.path == "/api/rescan-library":
-                body = self.read_json()
-                if body.get("confirm") != "RESCAN_LIBRARY":
-                    raise RuntimeError("Rescan requires explicit confirmation.")
-                commands = refresh_report(library_path())
-                _REPORT_CACHE.clear()
-                _AUDIO_PATH_CACHE.clear()
-                self.send_json(200, {"ok": True, "commands": commands, "reload": True})
+                self.send_json(200, rescan_current_library(self.read_json()))
                 return
 
             if self.path == "/api/music-operation":

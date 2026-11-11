@@ -16,6 +16,54 @@ class SharedPlayerTests(unittest.TestCase):
                                 capture_output=True, text=True, encoding='utf-8')
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_duplicate_listen_buttons_follow_play_pause_switch_and_end(self):
+        import sys
+        sys.path.insert(0, str(ROOT / 'scripts'))
+        from generate_html_report import render_html, build_payload
+        report = render_html(build_payload([], {'tracks': [], 'path': 'D:/Music'}))
+        start = report.index('    function updatePlayingCards(')
+        function = report[start:report.index('    function updateGlobalPlayer(', start)]
+        self.run_js(function + r'''
+const assert=require('node:assert/strict');
+function classes(){return {toggle(name,on){this[name]=on;}};}
+function card(path){
+ const label={textContent:'Слушать'};
+ const button={classList:classes(),attrs:{},setAttribute(k,v){this.attrs[k]=v;},querySelector(){return label;}};
+ return {dataset:{filePath:path},classList:classes(),label,button,
+  setAttribute(){},removeAttribute(){},querySelector(selector){return selector==='.duplicate-listen'?button:null;}};
+}
+const cards=[card('a.flac'),card('b.flac'),card('A.FLAC')];
+const document={querySelectorAll(){return cards;}};
+class Audio extends EventTarget {
+ constructor(){super();this.paused=true;this.ended=false;}
+ pause(){this.paused=true;this.dispatchEvent(new Event('pause'));}
+ load(){} removeAttribute(){this.src='';}
+}
+const audio=new Audio(), sharedUI={globalAudio:audio};let cardPlaybackKey='';
+const playback=new ReportPlayer(audio,{
+ normalizePath:p=>p.toLowerCase(),onUpdate:updatePlayingCards,
+ play:async a=>{a.paused=false;a.ended=false;a.dispatchEvent(new Event('play'));},seek:async()=>{}
+});
+const labels=()=>cards.map(c=>c.label.textContent);
+(async()=>{
+ await playback.toggle({path:'a.flac'});
+ assert.deepEqual(labels(),['Пауза','Слушать','Пауза'],'Playing state must reach every card for the active path');
+ assert.equal(cards[0].button.attrs['aria-label'],'Пауза');
+ assert.equal(cards[0].button.classList.playing,true,'Pause icon must follow playback');
+ await playback.toggle();
+ assert.deepEqual(labels(),['Слушать','Слушать','Слушать'],'Pausing from the shared player must reset card buttons');
+ assert.equal(cards[0].button.classList.playing,false);
+ await playback.toggle({path:'b.flac'});
+ assert.deepEqual(labels(),['Слушать','Пауза','Слушать'],'Switching files must reset the previous button');
+ cards.push(card('b.flac'));updatePlayingCards(true);
+ assert.equal(cards[3].label.textContent,'Пауза','Newly mounted cards must receive the active state');
+ audio.ended=true;audio.dispatchEvent(new Event('ended'));
+ assert.deepEqual(labels(),['Слушать','Слушать','Слушать','Слушать'],'Ending must reset labels even before paused changes');
+ playback.clear();
+ assert.ok(cards.every(c=>c.button.attrs['aria-label']==='Слушать'));
+})().catch(e=>{console.error(e);process.exitCode=1;});
+''')
+
     def test_one_source_survives_reselection_and_tracks_switch_cancels_pending_work(self):
         self.run_js(r'''
 const assert=require('node:assert/strict');
