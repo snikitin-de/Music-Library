@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from scan_progress import ProgressStore, progress_files, run_streaming
 from find_duplicates import scan_library_with_stats, group_content_duplicates
 from generate_html_report import analyze_library
+from report_server import track_payload_from_file
 
 
 class ScanProgressTests(unittest.TestCase):
@@ -32,7 +33,7 @@ class ScanProgressTests(unittest.TestCase):
                     audio.setnchannels(1)
                     audio.setsampwidth(2)
                     audio.setframerate(8000)
-                    audio.writeframes(b'\0\0' * 80)
+                    audio.writeframes(b'\0\0' * 16000)
             events = []
             tracks, stats = scan_library_with_stats(root, events.append)
             group_content_duplicates(tracks, {}, stats, events.append)
@@ -41,6 +42,8 @@ class ScanProgressTests(unittest.TestCase):
                 final = [event for event in events if event['stage'] == stage][-1]
                 self.assertEqual((final['processed'], final['total']), (2, 2))
             self.assertEqual(report['total_files'], 2)
+            self.assertEqual([track.get('duration') for track in report['tracks']], [2, 2])
+            self.assertEqual(track_payload_from_file(root / 'a.wav').get('duration'), 2)
 
     def test_subprocess_delivers_progress_before_it_exits(self):
         with tempfile.TemporaryDirectory() as temp:

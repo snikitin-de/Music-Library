@@ -213,7 +213,6 @@ globalThis.ReportScanProgress = {
       });
       progress.show({stage:'completed',processed:1,total:1});
       status.textContent = 'Источник изменён. Открываю обновлённый отчёт...';
-      location.hash = '#overview';
       location.reload();
     } catch (error) {
       progress.show({stage:'failed',processed:0,total:null});

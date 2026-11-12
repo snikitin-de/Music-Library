@@ -100,7 +100,7 @@ class ReportInterfaceTests(unittest.TestCase):
         targets = [a["href"] for tag, a in parsed.elements if tag == "a" and a.get("href", "").startswith("#")]
         self.assertEqual(set(targets), {"#overview", "#musicSection", "#duplicates"})
 
-    def test_music_stays_expanded_and_duplicate_groups_can_be_opened_individually(self):
+    def test_duplicate_groups_can_be_opened_individually(self):
         parsed = Elements(self.render(rows=[ReportRow("Группа", "D:/Музыка/a.flac", "D:/Музыка/a.mp3", "quality", "format=flac", "format=mp3")]))
         removed = {"expandMusic", "collapseMusic", "expandAll", "collapseAll"}
         self.assertFalse(removed.intersection(a.get("id") for _, a in parsed.elements))
@@ -109,6 +109,34 @@ class ReportInterfaceTests(unittest.TestCase):
         self.assertEqual(headers[0][0], "summary")
         music = next(a for _, a in parsed.elements if a.get("id") == "musicSection")
         self.assertNotIn("collapsed", music.get("class", "").split())
+
+    def test_music_table_keeps_details_collapsed_and_uses_track_tags(self):
+        tracks = [
+            {"path": "D:/Музыка/01.flac", "name": "01.flac", "duration": 204, "tags": [
+                {"kind": "title", "label": "название", "value": "Песня <версия>"},
+                {"kind": "artist", "label": "исполнитель", "value": "Исполнитель"},
+                {"kind": "album", "label": "альбом", "value": "Альбом"},
+                {"kind": "genre", "label": "жанр", "value": "Синти-поп"},
+            ]},
+            {"path": "D:/Музыка/02.flac", "name": "02.flac", "tags": []},
+        ]
+        parsed = Elements(self.render(tracks=tracks))
+        elements = parsed.pages["musicSection"]
+        self.assertEqual(next(tag for tag, a in elements if a.get("id") == "musicList"), "table")
+        groups = [a for tag, a in elements if tag == "tbody" and a.get("data-file-path")]
+        self.assertEqual([a["data-sort-name"] for a in groups], ["песня <версия>", "02.flac"])
+        self.assertIn("синти-поп", groups[0]["data-music-search"])
+        self.assertIn("3:24", parsed.texts)
+        self.assertIn("—", parsed.texts)
+        self.assertIn("Песня <версия>", parsed.texts)
+        toggles = [a for tag, a in elements if tag == "button" and a.get("class") == "music-details-toggle"]
+        self.assertEqual(len(toggles), 2)
+        for toggle in toggles:
+            self.assertEqual(toggle.get("aria-expanded"), "false")
+            tag, panel = next((tag, a) for tag, a in elements if a.get("id") == toggle["aria-controls"])
+            self.assertEqual(tag, "tr")
+            self.assertIn("hidden", panel)
+        self.assertNotEqual(toggles[0]["aria-controls"], toggles[1]["aria-controls"])
 
     def test_empty_duplicates_page_shows_an_empty_state(self):
         parsed = Elements(self.render())

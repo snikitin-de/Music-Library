@@ -60,6 +60,7 @@ FAVICON_VERSION = "library-green-3"
 # https://cdn.jsdelivr.net/npm/lucide-static@1.28.0/icons/
 LUCIDE_ICON_NODES = {
     "chevron-down": '<path d="m6 9 6 6 6-6"/>',
+    "clock": '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
     "pause": '<path d="M6 4h4v16H6zM14 4h4v16h-4z"/>',
     "search": '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
     "audio-lines": '<path d="M2 10v3"/><path d="M6 6v11"/><path d="M10 3v18"/><path d="M14 8v7"/><path d="M18 5v13"/><path d="M22 10v3"/>',
@@ -424,22 +425,23 @@ def split_genres(value: str) -> list[str]:
     return normalized_genres(value)
 
 
+def track_genres(track: dict) -> list[str]:
+    return [genre for value in tag_values(track, "genre") for genre in split_genres(value)]
+
+
 def collect_genres_from_tracks(tracks: list[dict]) -> dict[str, int]:
     genres: Counter[str] = Counter()
     display_names: dict[str, str] = {}
 
     for track in tracks:
         seen = set()
-        for tag in track.get("tags", []):
-            if not isinstance(tag, dict) or tag.get("kind") != "genre":
+        for genre in track_genres(track):
+            key = normalize(genre)
+            if not key or key in seen:
                 continue
-            for genre in split_genres(tag.get("value", "")):
-                key = normalize(genre)
-                if not key or key in seen:
-                    continue
-                seen.add(key)
-                display_names.setdefault(key, genre)
-                genres[key] += 1
+            seen.add(key)
+            display_names.setdefault(key, genre)
+            genres[key] += 1
 
     return {
         display_names[key]: count
@@ -597,6 +599,7 @@ def analyze_library(library: Path | None, identity_report: Path | None = None, p
         cover_url = cover_api_url(str(path)) if has_cover else ""
         cover_tag = make_display_tag("обложка", "есть" if has_cover else "нет", "cover")
         lyrics_tag = make_display_tag("текст песни", "есть" if has_lyrics else "нет", "lyrics")
+        size_tag = music_file_size_tag(path)
 
         try:
             audio = MutagenFile(path, easy=True)
@@ -612,6 +615,7 @@ def analyze_library(library: Path | None, identity_report: Path | None = None, p
                         make_display_tag("формат", path.suffix.lower().lstrip(".").upper(), "format"),
                         cover_tag,
                         lyrics_tag,
+                        size_tag,
                         make_display_tag("статус", "не читается", "status"),
                     ],
                     "has_cover": has_cover,
@@ -634,6 +638,7 @@ def analyze_library(library: Path | None, identity_report: Path | None = None, p
                         make_display_tag("формат", path.suffix.lower().lstrip(".").upper(), "format"),
                         cover_tag,
                         lyrics_tag,
+                        size_tag,
                         make_display_tag("статус", "не распознан", "status"),
                     ],
                     "has_cover": has_cover,
@@ -664,6 +669,7 @@ def analyze_library(library: Path | None, identity_report: Path | None = None, p
             make_display_tag("формат", path.suffix.lower().lstrip(".").upper(), "format"),
             cover_tag,
             lyrics_tag,
+            size_tag,
         ]
         info = getattr(audio, "info", None)
         bitrate = int(getattr(info, "bitrate", 0) or 0)
@@ -689,6 +695,7 @@ def analyze_library(library: Path | None, identity_report: Path | None = None, p
                 "path": str(path),
                 "folder": str(path.parent),
                 "tags": track_tags,
+                "duration": duration_seconds(getattr(info, "length", None)),
                 "has_cover": has_cover,
                 "cover_data_uri": cover_data_uri,
                 "cover_url": cover_url,
@@ -725,13 +732,21 @@ def parse_quality(value: str) -> dict[str, str]:
     return result
 
 
-def safe_int(value: str | None) -> int:
+def safe_int(value: str | int | float | None) -> int:
     if not value:
         return 0
     try:
         return int(float(value))
-    except ValueError:
+    except (ValueError, OverflowError):
         return 0
+
+
+def duration_seconds(value: str | int | float | None) -> float:
+    try:
+        seconds = float(value or 0)
+    except (TypeError, ValueError, OverflowError):
+        return 0
+    return seconds if math.isfinite(seconds) and seconds > 0 else 0
 
 
 def format_number(value) -> str:
@@ -750,7 +765,7 @@ def format_sample_rate(value: str | None) -> str:
     return "—" if sample_rate <= 0 else f"{sample_rate / 1000:g} kHz"
 
 
-def format_duration(value: str | None) -> str:
+def format_duration(value: str | int | float | None) -> str:
     seconds = safe_int(value)
     if seconds <= 0:
         return "—"
@@ -759,7 +774,7 @@ def format_duration(value: str | None) -> str:
     return f"{hours}:{minutes:02}:{seconds:02}" if hours else f"{minutes}:{seconds:02}"
 
 
-def format_size(value: str | None) -> str:
+def format_size(value: str | int | None) -> str:
     size = safe_int(value)
     if size <= 0:
         return "—"
@@ -771,6 +786,14 @@ def format_size(value: str | None) -> str:
         n /= 1024
         idx += 1
     return f"{int(n)} {units[idx]}" if idx == 0 else f"{n:.1f} {units[idx]}"
+
+
+def music_file_size_tag(path: Path) -> dict[str, str]:
+    try:
+        size = path.stat().st_size
+    except OSError:
+        size = 0
+    return make_display_tag("размер", format_size(size), "size")
 
 
 def file_name(path: str) -> str:
@@ -1014,19 +1037,16 @@ def cover_preview(track: dict) -> str:
     cover_data_uri = str(track.get("cover_data_uri") or "")
     cover_url = str(track.get("cover_url") or "")
     cover_src = cover_data_uri or cover_url
-    has_cover = bool(track.get("has_cover")) or bool(cover_src)
-    cover_state = "есть" if has_cover else "нет"
     if cover_src:
         return (
-            '<div class="music-cover music-cover-has" title="Обложка: есть">'
+            '<span class="music-cover music-cover-has">'
             f'<img src="{html.escape(cover_src)}" alt="Обложка трека {html.escape(track.get("name", ""))}" loading="lazy">'
-            "</div>"
+            "</span>"
         )
     return (
-        '<div class="music-cover music-cover-empty" title="Обложка: нет" aria-label="Обложка: нет">'
+        '<span class="music-cover music-cover-empty" aria-label="Обложка: нет">'
         f'{lucide_icon("image-off", "empty-cover-icon")}'
-        f'<strong>{cover_state}</strong>'
-        "</div>"
+        "</span>"
     )
 
 
@@ -1429,12 +1449,9 @@ def already_layouted(track: dict, library_path: str) -> bool:
 
 
 def render_music_list(tracks: list[dict], duplicate_paths: set[str] | None = None, library_path: str = "") -> str:
-    if not tracks:
-        return '<div class="empty visible">Музыкальные файлы не найдены.</div>'
-
     duplicate_paths = duplicate_paths or set()
     items = []
-    for track in tracks:
+    for index, track in enumerate(tracks, start=1):
         tag_search_values = []
         tag_values_by_kind = defaultdict(list)
         tag_parts = []
@@ -1443,9 +1460,11 @@ def render_music_list(tracks: list[dict], duplicate_paths: set[str] | None = Non
                 label = tag.get("label", "")
                 value = tag.get("value", "")
                 kind = re.sub(r"[^a-z0-9_-]", "", tag.get("kind", "tag").lower()) or "tag"
-                text = f"{label}: {value}" if value else label
+                text = f"{label}: {value}" if label and value else label or value
                 tag_search_values.append(text)
                 tag_values_by_kind[kind].append(text)
+                if kind in {"title", "artist", "album"}:
+                    continue
                 presence = f' data-present="{"yes" if str(value).strip().lower() == "есть" else "no"}"' if kind in {"cover", "lyrics"} else ""
                 tag_parts.append(
                     f'<span class="music-pill music-pill-{html.escape(kind)}"{presence}>{html.escape(text)}</span>'
@@ -1466,20 +1485,15 @@ def render_music_list(tracks: list[dict], duplicate_paths: set[str] | None = Non
             f'data-tag-{html.escape(kind)}="{html.escape(" ".join(values).lower())}"'
             for kind, values in sorted(tag_values_by_kind.items())
         )
-        sort_artist = " ".join(tag_values_by_kind.get("artist", []) or tag_values_by_kind.get("albumartist", [])).lower()
-        sort_album = " ".join(tag_values_by_kind.get("album", [])).lower()
         sort_year = " ".join(tag_values_by_kind.get("year", [])).lower()
         sort_format = " ".join(tag_values_by_kind.get("format", [])).lower()
-        status_text = " ".join(tag_values_by_kind.get("status", [])).lower()
-        card_classes = ["music-card"]
         identity_mismatch = bool(track.get("identity_mismatch"))
         identity = track.get("identity") or {}
-        if identity_mismatch:
-            card_classes.append("music-card-identity-mismatch")
-        if track.get("path", "") in duplicate_paths:
-            card_classes.append("music-card-duplicate")
-        if "не читается" in status_text or "не распознан" in status_text:
-            card_classes.append("music-card-unreadable")
+        duplicate_note = (
+            '<div class="music-track-match">Есть совпадения в разделе «Дубли»</div>'
+            if track.get("path", "") in duplicate_paths
+            else ""
+        )
         is_layouted = already_layouted(track, library_path)
         layout_status = "done" if is_layouted else "ready"
         layout_disabled = (
@@ -1492,6 +1506,9 @@ def render_music_list(tracks: list[dict], duplicate_paths: set[str] | None = Non
         lyrics_disabled = "" if has_lyrics else ' disabled aria-disabled="true" title="Текст песни не найден"'
         lyrics_title = " · ".join(tag_values(track, "title"))
         lyrics_artist = " · ".join(tag_values(track, "artist") or tag_values(track, "albumartist"))
+        title = lyrics_title or track.get("name", "")
+        album = " · ".join(tag_values(track, "album"))
+        details_id = f"music-details-{index}"
         cover_search_disabled = ' disabled aria-disabled="true" title="Обложка уже есть"' if has_cover else ""
         lyrics_search_disabled = ' disabled aria-disabled="true" title="Текст уже есть"' if has_lyrics else ""
         identity_warning = ""
@@ -1515,17 +1532,44 @@ def render_music_list(tracks: list[dict], duplicate_paths: set[str] | None = Non
                 'Исполнитель или название не совпадают с тегами.</div>'
             )
         cover_html = cover_preview(track)
+        duration = duration_seconds(track.get("duration"))
+        genres_attr = html.escape(json.dumps(track_genres(track), ensure_ascii=False))
         items.append(
             f"""
-            <article class="{html.escape(" ".join(card_classes))}" tabindex="0" aria-label="Музыкальная запись: {html.escape(track.get("name", ""))}" data-file-path="{html.escape(track.get("path", ""))}" data-layout-status="{layout_status}" data-identity-mismatch="{'yes' if identity_mismatch else 'no'}" data-music-search="{html.escape(search_text)}" data-sort-name="{html.escape(track.get("name", "").lower())}" data-sort-artist="{html.escape(sort_artist)}" data-sort-album="{html.escape(sort_album)}" data-sort-year="{html.escape(sort_year)}" data-sort-format="{html.escape(sort_format)}" {tag_attributes}>
-              <button class="music-trash-icon trash-one" type="button" data-file-path="{html.escape(track.get("path", ""))}" title="В корзину" aria-label="В корзину">
-                {lucide_icon("trash", "trash-svg")}
-              </button>
-              <div class="music-card-content">
-                {cover_html}
-                <div class="music-card-main">
-                  <div class="music-title">{html.escape(track.get("name", ""))}</div>
-                  <div class="music-path" title="{html.escape(track.get("path", ""))}">{html.escape(track.get("folder", ""))}</div>
+            <tbody class="music-card" data-file-path="{html.escape(track.get("path", ""))}" data-layout-status="{layout_status}" data-identity-mismatch="{'yes' if identity_mismatch else 'no'}" data-music-search="{html.escape(search_text)}" data-music-genres="{genres_attr}" data-duration="{duration}" data-sort-name="{html.escape(title.lower())}" data-sort-artist="{html.escape(lyrics_artist.lower())}" data-sort-album="{html.escape(album.lower())}" data-sort-year="{html.escape(sort_year)}" data-sort-format="{html.escape(sort_format)}" {tag_attributes}>
+              <tr class="music-track-row">
+                <td class="music-track-number"></td>
+                <th scope="row">
+                  <div class="music-track-name">
+                    <button class="music-play" type="button" title="Слушать" aria-label="Слушать: {html.escape(title)}" aria-pressed="false">
+                      {cover_html}
+                      <span class="music-play-icons">
+                        {lucide_icon("play", "music-play-icon playback-icon")}
+                        {lucide_icon("pause", "music-pause-icon playback-icon")}
+                      </span>
+                    </button>
+                    <div class="music-track-text">
+                      <div class="music-title" title="{html.escape(title)}">{html.escape(title)}</div>
+                      <div class="music-track-artist" title="{html.escape(lyrics_artist)}">{html.escape(lyrics_artist)}</div>
+                      <div class="music-track-album-mobile" title="{html.escape(album)}">{html.escape(album)}</div>
+                    </div>
+                  </div>
+                </th>
+                <td class="music-track-album" title="{html.escape(album)}">{html.escape(album or "—")}</td>
+                <td class="music-track-duration">{format_duration(duration)}</td>
+                <td class="music-track-control">
+                  <button class="music-details-toggle" type="button" aria-expanded="false" aria-controls="{details_id}" aria-label="Подробности: {html.escape(title)}" title="Подробности">
+                    {lucide_icon("chevron-down", "group-chevron")}
+                  </button>
+                </td>
+              </tr>
+              <tr class="music-track-details" id="{details_id}" hidden>
+                <td colspan="5"><div class="music-track-panel">
+                  <button class="music-trash-icon trash-one" type="button" data-file-path="{html.escape(track.get("path", ""))}" title="В корзину" aria-label="В корзину">
+                    {lucide_icon("trash", "trash-svg")}
+                  </button>
+                  <div class="music-path">{html.escape(track.get("path") or track.get("folder", ""))}</div>
+                  {duplicate_note}
                   <div class="music-pills">{tags}</div>
                   {identity_warning}
                   <div class="music-actions">
@@ -1540,9 +1584,9 @@ def render_music_list(tracks: list[dict], duplicate_paths: set[str] | None = Non
                     <div class="music-card-status-text"></div>
                     <div class="music-card-progress" aria-hidden="true"><span></span></div>
                   </div>
-                </div>
-              </div>
-            </article>
+                </div></td>
+              </tr>
+            </tbody>
             """
         )
     return "".join(items)
@@ -1618,7 +1662,6 @@ def scan_progress_panel(panel_id: str) -> str:
 
 
 def render_html(payload: dict) -> str:
-    json_payload = json.dumps(payload, ensure_ascii=False)
     summary = payload["summary"]
     library = payload["library"]
     top_artists = library.get("top_artists") or infer_top_artists_from_tracks(library.get("tracks", []))
@@ -1626,6 +1669,7 @@ def render_html(payload: dict) -> str:
     library["genres"] = genres
     years = library.get("years") or collect_years_from_tracks(library.get("tracks", []))
     library["years"] = years
+    json_payload = json.dumps(payload, ensure_ascii=False)
     library_raw_path = library.get("path", "")
     source_html = (
         '<button class="sidebar-source" id="librarySource" type="button" aria-haspopup="dialog" '
@@ -1826,8 +1870,11 @@ def render_html(payload: dict) -> str:
 
     <section class="report-view music-section" data-page="musicSection" id="musicSection" hidden>
       <div class="duplicates-heading music-heading">
-        <h2 class="section-title">Моя музыка</h2>
-      <div class="duplicates-actions">
+        <div>
+          <h2 class="section-title">Моя музыка</h2>
+          <p class="music-summary" id="musicSummary"></p>
+        </div>
+        <div class="duplicates-actions">
           <button class="small" id="rescanLibrary" type="button">Пересканировать библиотеку</button>
         </div>
       </div>
@@ -1854,7 +1901,7 @@ def render_html(payload: dict) -> str:
           </div>
         </section>
       </div>
-      <div class="operation-status" id="operationStatus">Режим проверки: будет показан план без изменения файлов. Глобальные кнопки работают по отфильтрованному списку, кнопки внутри карточки — только по своей записи.</div>
+      <div class="operation-status" id="operationStatus">Режим проверки: будет показан план без изменения файлов. Глобальные кнопки работают по отфильтрованному списку, кнопки в подробностях — только по выбранной записи.</div>
     </div>
     <div class="toolbar music-toolbar">
       <select id="tagFilter" aria-label="Фильтр по тегам">
@@ -1865,6 +1912,7 @@ def render_html(payload: dict) -> str:
         <option value="bitrate">Тег: битрейт</option>
         <option value="bit_depth">Тег: разрядность</option>
         <option value="sample_rate">Тег: частота дискретизации</option>
+        <option value="size">Тег: размер</option>
         <option value="album">Тег: альбом</option>
         <option value="albumartist">Тег: исполнитель альбома</option>
         <option value="artist">Тег: исполнитель</option>
@@ -1893,8 +1941,19 @@ def render_html(payload: dict) -> str:
         </select>
       </div>
     </div>
-    <div class="music-list" id="musicList"></div>
-    <template id="musicCardSource">{music_html}</template>
+    <div class="music-genre-filters" id="musicGenreFilters" role="group" aria-label="Фильтр по жанрам" hidden></div>
+    <table class="music-list" id="musicList" aria-label="Моя музыка" hidden>
+      <thead>
+        <tr>
+          <th class="music-track-number" scope="col" aria-label="Номер">#</th>
+          <th scope="col">Название</th>
+          <th class="music-track-album" scope="col">Альбом</th>
+          <th class="music-track-duration" scope="col" aria-label="Длительность" title="Длительность">{lucide_icon("clock")}</th>
+          <th class="music-track-control" scope="col" aria-label="Подробности"></th>
+        </tr>
+      </thead>
+    </table>
+    <template id="musicCardSource"><table>{music_html}</table></template>
     <div class="list-pagination" id="musicPagination" hidden><p role="status" aria-live="polite"></p><button class="small" type="button">Показать ещё 10 треков</button></div>
     <div class="empty" id="musicEmpty">{'Ничего не найдено по текущему фильтру музыки.' if tracks else 'Музыкальные файлы не найдены.'}</div>
     </section>
@@ -1985,6 +2044,11 @@ def render_html(payload: dict) -> str:
     const sort = document.getElementById('sort');
     let musicCards = Array.from(document.getElementById('musicCardSource').content.querySelectorAll('.music-card'));
     const musicList = document.getElementById('musicList');
+    const musicSummary = document.getElementById('musicSummary');
+    const musicGenreFilters = document.getElementById('musicGenreFilters');
+    const musicNumber = new Intl.NumberFormat('ru');
+    const musicPlural = new Intl.PluralRules('ru');
+    let musicGenre = '';
     const musicSearch = document.getElementById('musicSearch');
     const duplicateSearch = document.getElementById('duplicateSearch');
     const duplicateFilter = document.getElementById('duplicateFilter');
@@ -2087,28 +2151,37 @@ def render_html(payload: dict) -> str:
       syncOpenLyricsPlayer();
     }}
 
-    function updatePlayingCards(force = false) {{
+    function updatePlayingCard(card) {{
+      const audio = sharedUI.globalAudio;
+      const current = playback.matches(card.dataset.filePath);
+      const active = current && !audio.paused && !audio.ended;
+      card.classList.toggle('is-current-track', current);
+      card.classList.toggle('is-playing-track', active);
+      const button = card.querySelector('.music-play, .duplicate-listen');
+      if (button) {{
+        const label = active ? 'Пауза' : 'Слушать';
+        const duplicateLabel = button.querySelector('.duplicate-listen-label');
+        if (duplicateLabel) {{
+          duplicateLabel.textContent = label;
+          button.classList.toggle('playing', active);
+          button.setAttribute('aria-label', label);
+        }} else {{
+          button.title = label;
+          button.setAttribute('aria-label', label + ': ' + card.querySelector('.music-title').textContent);
+        }}
+        button.setAttribute('aria-pressed', String(active));
+      }}
+      if (current) card.setAttribute('aria-current', 'true');
+      else card.removeAttribute('aria-current');
+    }}
+
+    function updatePlayingCards() {{
       const audio = sharedUI.globalAudio;
       const playing = !audio.paused && !audio.ended;
       const key = (playback.track?.path || '') + ':' + playing;
-      if (!force && key === cardPlaybackKey) return;
+      if (key === cardPlaybackKey) return;
       cardPlaybackKey = key;
-      document.querySelectorAll('.music-card, .duplicate-track').forEach(card => {{
-        const current = playback.matches(card.dataset.filePath);
-        card.classList.toggle('is-current-track', current);
-        card.classList.toggle('is-playing-track', current && playing);
-        const button = card.querySelector('.duplicate-listen');
-        if (button) {{
-          const active = current && playing;
-          const label = active ? 'Пауза' : 'Слушать';
-          button.querySelector('.duplicate-listen-label').textContent = label;
-          button.classList.toggle('playing', active);
-          button.setAttribute('aria-label', label);
-          button.setAttribute('aria-pressed', String(active));
-        }}
-        if (current) card.setAttribute('aria-current', 'true');
-        else card.removeAttribute('aria-current');
-      }});
+      document.querySelectorAll('.music-card, .duplicate-track').forEach(updatePlayingCard);
     }}
 
     function updateGlobalPlayer() {{
@@ -2157,7 +2230,10 @@ def render_html(payload: dict) -> str:
     const reportPages = Array.from(document.querySelectorAll('.report-view[data-page]'));
     const pageTitles = {{overview: 'Обзор', musicSection: 'Моя музыка', duplicates: 'Дубли'}};
     const boundCards = new WeakSet();
-    const musicPager = new ReportPagedList(musicList, document.getElementById('musicPagination'), document.getElementById('musicSection'), bindCardControls);
+    const musicPager = new ReportPagedList(musicList, document.getElementById('musicPagination'), document.getElementById('musicSection'), (card, index) => {{
+      card.querySelector('.music-track-number').textContent = index + 1;
+      bindCardControls(card);
+    }});
     const duplicatePager = new ReportPagedList(document.getElementById('cards'), document.getElementById('duplicatePagination'), document.getElementById('duplicates'), bindCardControls);
     const musicCollator = new Intl.Collator('ru', {{ numeric: true, sensitivity: 'base' }});
     duplicatePager.setItems(cards);
@@ -2196,12 +2272,12 @@ def render_html(payload: dict) -> str:
       processingModeNote.setAttribute('aria-pressed', mode === 'real' ? 'true' : 'false');
       processingModeNote.title = mode === 'real' ? 'Переключить на режим проверки' : 'Переключить на применение изменений';
       if (mode === 'real') {{
-        if (operationStatus) operationStatus.textContent = 'Изменения включены: каждое действие потребует отдельного подтверждения. Удаление файлов запрещено. Глобальные кнопки работают по отфильтрованному списку, кнопки внутри карточки — только по своей записи.';
+        if (operationStatus) operationStatus.textContent = 'Изменения включены: каждое действие потребует отдельного подтверждения. Удаление файлов запрещено. Глобальные кнопки работают по отфильтрованному списку, кнопки в подробностях — только по выбранной записи.';
         if (processingModeTitle) processingModeTitle.textContent = 'Применить изменения';
         if (processingModeDetail) processingModeDetail.textContent = 'Каждое действие требует подтверждения';
         if (processingModeNote) processingModeNote.classList.add('mode-real');
       }} else {{
-        if (operationStatus) operationStatus.textContent = 'Режим проверки: будет показан план без изменения файлов. Глобальные кнопки работают по отфильтрованному списку, кнопки внутри карточки — только по своей записи.';
+        if (operationStatus) operationStatus.textContent = 'Режим проверки: будет показан план без изменения файлов. Глобальные кнопки работают по отфильтрованному списку, кнопки в подробностях — только по выбранной записи.';
         if (processingModeTitle) processingModeTitle.textContent = 'Режим проверки';
         if (processingModeDetail) processingModeDetail.textContent = 'Изменения и удаление отключены';
         if (processingModeNote) processingModeNote.classList.remove('mode-real');
@@ -2309,8 +2385,10 @@ def render_html(payload: dict) -> str:
       lyricsModal.setAttribute('aria-hidden', 'false');
 
       try {{
-        const response = await fetch(`/api/lyrics?file=${{encodeURIComponent(filePath)}}`);
-        const result = await response.json();
+        const serverError = 'Сервер отчёта недоступен. Запустите его и откройте отчёт через сервер.';
+        const response = await fetch(`/api/lyrics?file=${{encodeURIComponent(filePath)}}`)
+          .catch(() => {{ throw new Error(serverError); }});
+        const result = await response.json().catch(() => {{ throw new Error(serverError); }});
         if (requestId !== lyricsRequestId) return;
         if (!response.ok || !result.ok) throw new Error(result.error || 'Текст песни не найден.');
         lyricsRawText = result.lyrics || '';
@@ -2325,7 +2403,7 @@ def render_html(payload: dict) -> str:
         setLyricsView(false);
       }} catch (error) {{
         if (requestId !== lyricsRequestId) return;
-        lyricsSource.textContent = 'Источник: текст не найден';
+        lyricsSource.textContent = 'Источник: не определён';
         lyricsText.textContent = error.message || String(error);
         lyricsText.classList.remove('loading');
         lyricsText.classList.add('error');
@@ -2380,6 +2458,10 @@ def render_html(payload: dict) -> str:
           );
           if (refreshedCard) updateMusicCardFromTrack(refreshedCard, track);
         }});
+        if (refreshedTracks.length) {{
+          refreshMusicOverview();
+          applyMusicFilters();
+        }}
         setCardStatus(card, 'done', saveResult.message || 'Сохранено.');
       }} catch (error) {{
         setCardStatus(card, 'error', error.message || String(error));
@@ -2468,6 +2550,7 @@ def render_html(payload: dict) -> str:
         if (remove) card.remove();
         return !remove;
       }});
+      refreshMusicOverview();
       applyMusicFilters();
     }}
 
@@ -2544,7 +2627,7 @@ def render_html(payload: dict) -> str:
       if (!tag || typeof tag !== 'object') return String(tag || '');
       const label = tag.label || '';
       const value = tag.value || '';
-      return value ? `${{label}}: ${{value}}` : label;
+      return label && value ? `${{label}}: ${{value}}` : label || value;
     }}
 
     function updateCoverPreview(card, track) {{
@@ -2569,36 +2652,52 @@ def render_html(payload: dict) -> str:
         img.loading = 'lazy';
         cover.appendChild(img);
       }} else {{
-        cover.innerHTML = '<span aria-hidden="true">♪</span><strong>нет</strong>';
+        cover.innerHTML = '{lucide_icon("image-off", "empty-cover-icon")}';
       }}
     }}
 
     function updateMusicCardFromTrack(card, track) {{
-      const oldPath = card.dataset.filePath;
       if (!card || !track) return;
 
+      const previousPath = card.dataset.filePath;
       const path = track.path || '';
       const folder = track.folder || '';
       const name = track.name || '';
       const tags = Array.isArray(track.tags) ? track.tags : [];
+      const values = kind => tags.filter(tag => tag && typeof tag === 'object' && tag.kind === kind)
+        .map(tag => String(tag.value || '').trim()).filter(Boolean);
+      const lyricsTitle = values('title').join(' · ');
+      const lyricsArtist = (values('artist').length ? values('artist') : values('albumartist')).join(' · ');
+      const trackTitle = lyricsTitle || name;
+      const album = values('album').join(' · ');
       const tagValuesByKind = {{}};
       const tagSearchValues = [];
 
       card.dataset.filePath = path;
-      card.dataset.sortName = name.toLowerCase();
+      card.dataset.sortName = trackTitle.toLowerCase();
       clearTagAttributes(card);
 
       const title = card.querySelector('.music-title');
+      const artist = card.querySelector('.music-track-artist');
       const pathNode = card.querySelector('.music-path');
-      const previousPath = oldPath;
       musicCardByPath.delete(normalizePathForCompare(previousPath));
       musicCardByPath.set(normalizePathForCompare(path), card);
       const pills = card.querySelector('.music-pills');
-      if (title) title.textContent = name;
-      if (pathNode) {{
-        pathNode.textContent = folder;
-        pathNode.title = path;
-      }}
+      title.textContent = title.title = trackTitle;
+      artist.textContent = artist.title = lyricsArtist;
+      card.querySelectorAll('.music-track-album, .music-track-album-mobile').forEach(node => {{
+        node.title = album;
+        node.textContent = album || (node.classList.contains('music-track-album') ? '—' : '');
+      }});
+      const seconds = Number(track.duration);
+      card.dataset.duration = seconds > 0 && Number.isFinite(seconds) ? seconds : 0;
+      card.querySelector('.music-track-duration').textContent = seconds > 0 && Number.isFinite(seconds)
+        ? formatAudioTime(seconds) : '—';
+      if (Array.isArray(track.genres)) card.dataset.musicGenres = JSON.stringify(track.genres);
+      const play = card.querySelector('.music-play');
+      play.setAttribute('aria-label', play.title + ': ' + trackTitle);
+      card.querySelector('.music-details-toggle').setAttribute('aria-label', 'Подробности: ' + trackTitle);
+      pathNode.textContent = path || folder;
       updateCoverPreview(card, track);
 
       if (pills) {{
@@ -2611,6 +2710,7 @@ def render_html(payload: dict) -> str:
           tagSearchValues.push(text);
           if (!tagValuesByKind[kind]) tagValuesByKind[kind] = [];
           tagValuesByKind[kind].push(text);
+          if (['title', 'artist', 'album'].includes(kind)) return;
 
           const pill = document.createElement('span');
           pill.className = `music-pill music-pill-${{kind}}`;
@@ -2625,8 +2725,8 @@ def render_html(payload: dict) -> str:
       Object.entries(tagValuesByKind).forEach(([kind, values]) => {{
         card.setAttribute(`data-tag-${{kind}}`, values.join(' ').toLowerCase());
       }});
-      card.dataset.sortArtist = (tagValuesByKind.artist || tagValuesByKind.albumartist || []).join(' ').toLowerCase();
-      card.dataset.sortAlbum = (tagValuesByKind.album || []).join(' ').toLowerCase();
+      card.dataset.sortArtist = lyricsArtist.toLowerCase();
+      card.dataset.sortAlbum = album.toLowerCase();
       card.dataset.sortYear = (tagValuesByKind.year || []).join(' ').toLowerCase();
       card.dataset.sortFormat = (tagValuesByKind.format || []).join(' ').toLowerCase();
       card.dataset.musicSearch = [name, folder, tagSearchValues.join(' ')].join(' ').toLowerCase();
@@ -2637,10 +2737,8 @@ def render_html(payload: dict) -> str:
       if (lyricsButton) {{
         lyricsButton.dataset.filePath = path;
         lyricsButton.dataset.trackName = name;
-        const values = kind => tags.filter(tag => tag && typeof tag === 'object' && tag.kind === kind)
-          .map(tag => String(tag.value || '').trim()).filter(Boolean);
-        lyricsButton.dataset.lyricsTitle = values('title').join(' · ');
-        lyricsButton.dataset.lyricsArtist = (values('artist').length ? values('artist') : values('albumartist')).join(' · ');
+        lyricsButton.dataset.lyricsTitle = lyricsTitle;
+        lyricsButton.dataset.lyricsArtist = lyricsArtist;
         lyricsButton.disabled = !hasLyrics;
         lyricsButton.setAttribute('aria-disabled', hasLyrics ? 'false' : 'true');
         lyricsButton.title = hasLyrics ? '' : 'Текст песни не найден';
@@ -2655,7 +2753,7 @@ def render_html(payload: dict) -> str:
           ? (enrichmentKind === 'cover' ? 'Обложка уже есть' : 'Текст уже есть')
           : '';
       }});
-      card.querySelectorAll('.music-action-single').forEach(button => {{
+      card.querySelectorAll('.music-action-single, .trash-one').forEach(button => {{
         button.dataset.filePath = path;
       }});
       if (playback.matches(previousPath)) {{
@@ -2720,9 +2818,12 @@ def render_html(payload: dict) -> str:
         const handleInCard = useCardStatus;
         if (response.ok && result.ok && handleInCard) {{
           const updatedTrack = result.track || result.refresh?.tracks?.[0] || null;
-          if (updatedTrack) updateMusicCardFromTrack(sourceCard, updatedTrack);
+          if (updatedTrack) {{
+            updateMusicCardFromTrack(sourceCard, updatedTrack);
+            refreshMusicOverview();
+          }}
           setCardStatus(sourceCard, 'done', result.message || 'Операция завершена.');
-          applyMusicFilters();
+          applySort();
         }}
         if (!response.ok || !result.ok) throw new Error(result.error || 'Команда не выполнена');
 
@@ -2754,6 +2855,61 @@ def render_html(payload: dict) -> str:
       searchControl.classList.toggle('is-empty', input.value.length === 0);
     }}
 
+    function musicGenreKey(genre) {{
+      return genre.toLowerCase().replaceAll('ё', 'е').trim().replace(/\\s+/g, ' ');
+    }}
+
+    function musicGenresForCard(card) {{
+      return new Map(JSON.parse(card.dataset.musicGenres).map(genre => [musicGenreKey(genre), genre]));
+    }}
+
+    function refreshMusicOverview() {{
+      const genres = new Map();
+      let seconds = 0;
+      let withDuration = 0;
+      musicCards.forEach(card => {{
+        const duration = Number(card.dataset.duration);
+        if (duration > 0) {{
+          seconds += duration;
+          withDuration += 1;
+        }}
+        musicGenresForCard(card).forEach((label, key) => {{
+          if (!genres.has(key)) genres.set(key, {{ label, count: 0 }});
+          genres.get(key).count += 1;
+        }});
+      }});
+
+      const total = musicCards.length;
+      const units = {{ one: 'трек', few: 'трека', many: 'треков', other: 'треков' }};
+      let summary = `${{musicNumber.format(total)}} ${{units[musicPlural.select(total)]}}`;
+      if (withDuration) {{
+        const hours = Math.floor(seconds / 3600);
+        const minutes = Math.floor(seconds / 60) % 60;
+        const time = hours ? `${{musicNumber.format(hours)}} ч. ${{minutes}} мин.`
+          : minutes ? `${{minutes}} мин. ${{Math.floor(seconds % 60)}} сек.`
+          : `${{Math.floor(seconds)}} сек.`;
+        summary += ` · ${{time}}`;
+        if (withDuration < total) summary += ` (для ${{musicNumber.format(withDuration)}} из ${{musicNumber.format(total)}})`;
+      }} else if (total) {{
+        summary += ' · длительность неизвестна';
+      }}
+      musicSummary.textContent = summary;
+
+      if (!genres.has(musicGenre)) musicGenre = '';
+      const sortedGenres = [...genres.entries()].sort(([, a], [, b]) =>
+        b.count - a.count || musicCollator.compare(a.label, b.label));
+      musicGenreFilters.hidden = !sortedGenres.length;
+      musicGenreFilters.replaceChildren(...[['', {{ label: 'Все жанры' }}], ...sortedGenres].map(([key, genre]) => {{
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'music-genre';
+        button.dataset.musicGenre = key;
+        button.textContent = genre.label;
+        button.setAttribute('aria-pressed', String(key === musicGenre));
+        return button;
+      }}));
+    }}
+
     function applyMusicFilters() {{
       updateSearchPlaceholder();
       const value = musicSearch.value.trim().toLowerCase();
@@ -2769,11 +2925,13 @@ def render_html(payload: dict) -> str:
         const matchesLayout = layoutKind === 'all' || card.dataset.layoutStatus === layoutKind;
         const mismatch = card.dataset.identityMismatch === 'yes';
         const matchesIdentity = identityKind === 'all' || (identityKind === 'mismatch' ? mismatch : !mismatch);
-        const visible = matchesText && matchesLayout && matchesIdentity;
+        const matchesGenre = !musicGenre || musicGenresForCard(card).has(musicGenre);
+        const visible = matchesText && matchesLayout && matchesIdentity && matchesGenre;
         card.hidden = !visible;
         if (visible) visibleCount += 1;
       }});
       musicEmpty.classList.toggle('visible', visibleCount === 0);
+      musicList.hidden = visibleCount === 0;
       musicPager.setItems(musicCards.filter(card => !card.hidden));
       if (playbackContext === 'music') updatePlaybackQueue();
     }}
@@ -2971,6 +3129,7 @@ def render_html(payload: dict) -> str:
       if (!Number.isFinite(seconds) || seconds < 0) return '0:00';
       const minutes = Math.floor(seconds / 60);
       const rest = Math.floor(seconds % 60).toString().padStart(2, '0');
+      if (minutes >= 60) return `${{Math.floor(minutes / 60)}}:${{String(minutes % 60).padStart(2, '0')}}:${{rest}}`;
       return `${{minutes}}:${{rest}}`;
     }}
 
@@ -3042,16 +3201,29 @@ def render_html(payload: dict) -> str:
     }}
 
     function bindCardControls(root) {{
-      if (boundCards.has(root)) return;
+      const alreadyBound = boundCards.has(root);
+      if (!alreadyBound && root.matches('.group-card')) ReportDuplicates.refresh(root);
+      const playable = root.matches('.music-card, .duplicate-track') ? [root] : Array.from(root.querySelectorAll('.duplicate-track'));
+      playable.forEach(updatePlayingCard);
+      if (alreadyBound) return;
       boundCards.add(root);
-      if (root.matches('.group-card')) ReportDuplicates.refresh(root);
-    const playable = root.matches('.music-card, .duplicate-track') ? [root] : Array.from(root.querySelectorAll('.duplicate-track'));
     playable.forEach(card => {{
       const activate = () => {{
         playbackContext = card.matches('.duplicate-track') ? 'duplicates' : 'music';
         updatePlaybackQueue();
         playback.toggle(trackForPath(card.dataset.filePath, card));
       }};
+      const musicPlay = card.querySelector('.music-play');
+      if (musicPlay) {{
+        musicPlay.addEventListener('click', activate);
+        const toggle = card.querySelector('.music-details-toggle');
+        const details = card.querySelector('.music-track-details');
+        toggle.addEventListener('click', () => {{
+          details.hidden = !details.hidden;
+          toggle.setAttribute('aria-expanded', String(!details.hidden));
+        }});
+        return;
+      }}
       card.addEventListener('click', event => {{
         if (event.target.closest('button, a, input, select, textarea, summary, [contenteditable="true"]')) return;
         const selection = window.getSelection();
@@ -3065,7 +3237,6 @@ def render_html(payload: dict) -> str:
       }});
       card.querySelector('.duplicate-listen')?.addEventListener('click', activate);
     }});
-    updatePlayingCards(true);
 
     root.querySelectorAll('.quarantine-one').forEach(button => {{
       button.addEventListener('click', event => {{
@@ -3142,11 +3313,22 @@ def render_html(payload: dict) -> str:
       applyMusicFilters();
     }});
     tagFilter.addEventListener('change', applyMusicFilters);
+    musicGenreFilters.addEventListener('click', event => {{
+      const button = event.target.closest('.music-genre');
+      if (!button) return;
+      const key = button.dataset.musicGenre;
+      musicGenre = key === musicGenre ? '' : key;
+      for (const chip of musicGenreFilters.children) {{
+        chip.setAttribute('aria-pressed', String(chip.dataset.musicGenre === musicGenre));
+      }}
+      applyMusicFilters();
+    }});
     layoutFilter.addEventListener('change', applyMusicFilters);
     identityFilter.addEventListener('change', applyMusicFilters);
     duplicateSearch.addEventListener('input', () => applyDuplicateFilters());
     duplicateFilter.addEventListener('change', () => applyDuplicateFilters());
     sort.addEventListener('change', applySort);
+    refreshMusicOverview();
     applySort();
     restoreDuplicateViewAfterMove();
     activatePage(window.location.hash.slice(1) || 'overview');

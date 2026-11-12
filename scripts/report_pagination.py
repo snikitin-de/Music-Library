@@ -1,4 +1,4 @@
-"""Incremental mounting of standalone report cards, ten items at a time."""
+"""Incremental mounting of report track rows and duplicate groups."""
 
 REPORT_PAGINATION_JS = r"""
 class ReportPagedList {
@@ -43,17 +43,18 @@ class ReportPagedList {
   render() {
     const next = this.items.slice(0, this.limit);
     const wanted = new Set(next);
-    Array.from(this.container.children).forEach(card => {
+    const mounted = this.container.tBodies ?? this.container.children;
+    Array.from(mounted).forEach(card => {
       if (!wanted.has(card)) {
         card.querySelectorAll('audio').forEach(player => player.pause());
         card.remove();
       }
     });
     next.forEach((card, index) => {
-      if (this.container.children[index] !== card) {
-        this.container.insertBefore(card, this.container.children[index] || null);
+      if (mounted[index] !== card) {
+        this.container.insertBefore(card, mounted[index] || null);
       }
-      this.onMount(card);
+      this.onMount(card, index);
     });
     this.panel.hidden = this.items.length === 0;
     this.button.hidden = next.length === this.items.length;
