@@ -72,7 +72,7 @@ class ReportInterfaceTests(unittest.TestCase):
         ids = [attrs["id"] for _, attrs in elements if "id" in attrs]
         self.assertEqual(len(ids), len(set(ids)))
         required = {
-            "musicSearch", "tagFilter", "identityFilter", "layoutFilter", "sort",
+            "musicSearch",
             "musicList", "musicEmpty",
             "tagVisible", "shazamTagVisible", "layoutVisible", "coverVisible",
             "lyricsVisible", "operationStatus", "rescanLibrary", "findDuplicates",
@@ -123,8 +123,17 @@ class ReportInterfaceTests(unittest.TestCase):
         parsed = Elements(self.render(tracks=tracks))
         elements = parsed.pages["musicSection"]
         self.assertEqual(next(tag for tag, a in elements if a.get("id") == "musicList"), "table")
+        self.assertFalse(any(tag == "select" for tag, _ in elements))
+        self.assertEqual([a["data-music-sort"] for tag, a in elements
+                          if tag == "button" and "data-music-sort" in a], ["number", "name", "artist", "album", "duration"])
+        self.assertEqual([a["aria-sort"] for tag, a in elements
+                          if tag == "th" and "aria-sort" in a], ["ascending"])
         groups = [a for tag, a in elements if tag == "tbody" and a.get("data-file-path")]
+        self.assertEqual([a["data-sort-number"] for a in groups], ["1", "2"])
         self.assertEqual([a["data-sort-name"] for a in groups], ["песня <версия>", "02.flac"])
+        self.assertEqual([a["data-sort-artist"] for a in groups], ["исполнитель", ""])
+        self.assertEqual([a["title"] for tag, a in elements
+                          if tag == "td" and a.get("class") == "music-track-artist"], ["Исполнитель", ""])
         self.assertIn("синти-поп", groups[0]["data-music-search"])
         self.assertIn("3:24", parsed.texts)
         self.assertIn("—", parsed.texts)

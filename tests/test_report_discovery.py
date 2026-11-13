@@ -13,7 +13,7 @@ class ReportDiscoveryTests(unittest.TestCase):
     def test_duplicate_metrics_match_on_both_pages_and_exclude_review_candidates(self):
         source = self.document()
         start = source.index('    function updateDuplicateSummaryCounts()')
-        function = source[start:source.index('    function clearTagAttributes(', start)]
+        function = source[start:source.index('    function tagText(', start)]
         script = r'''
 const assert=require('node:assert/strict');
 const fields={};const document={getElementById(id){return fields[id] ||= {textContent:''};}};
@@ -99,7 +99,7 @@ assert.equal(matches.length,24);
 
     def test_removing_one_candidate_keeps_reference_and_remaining_candidates(self):
         source = self.document()
-        functions = source[source.index('    function refreshGroupAfterComparisonRemoval('):source.index('    function clearTagAttributes(')]
+        functions = source[source.index('    function refreshGroupAfterComparisonRemoval('):source.index('    function tagText(')]
         normalize = source[source.index('    function normalizePathForCompare('):source.index('    function setDuplicateStatus(')]
         filtering = source[source.index('    function applyDuplicateFilters('):source.index('    function audioPath(')]
         script = r'''

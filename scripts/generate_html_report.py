@@ -60,6 +60,8 @@ FAVICON_VERSION = "library-green-3"
 # https://cdn.jsdelivr.net/npm/lucide-static@1.28.0/icons/
 LUCIDE_ICON_NODES = {
     "chevron-down": '<path d="m6 9 6 6 6-6"/>',
+    "chevron-left": '<path d="m15 18-6-6 6-6"/>',
+    "chevron-right": '<path d="m9 18 6-6-6-6"/>',
     "clock": '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
     "pause": '<path d="M6 4h4v16H6zM14 4h4v16h-4z"/>',
     "search": '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
@@ -1481,12 +1483,6 @@ def render_music_list(tracks: list[dict], duplicate_paths: set[str] | None = Non
                 " ".join(tag_search_values),
             ]
         ).lower()
-        tag_attributes = " ".join(
-            f'data-tag-{html.escape(kind)}="{html.escape(" ".join(values).lower())}"'
-            for kind, values in sorted(tag_values_by_kind.items())
-        )
-        sort_year = " ".join(tag_values_by_kind.get("year", [])).lower()
-        sort_format = " ".join(tag_values_by_kind.get("format", [])).lower()
         identity_mismatch = bool(track.get("identity_mismatch"))
         identity = track.get("identity") or {}
         duplicate_note = (
@@ -1536,9 +1532,9 @@ def render_music_list(tracks: list[dict], duplicate_paths: set[str] | None = Non
         genres_attr = html.escape(json.dumps(track_genres(track), ensure_ascii=False))
         items.append(
             f"""
-            <tbody class="music-card" data-file-path="{html.escape(track.get("path", ""))}" data-layout-status="{layout_status}" data-identity-mismatch="{'yes' if identity_mismatch else 'no'}" data-music-search="{html.escape(search_text)}" data-music-genres="{genres_attr}" data-duration="{duration}" data-sort-name="{html.escape(title.lower())}" data-sort-artist="{html.escape(lyrics_artist.lower())}" data-sort-album="{html.escape(album.lower())}" data-sort-year="{html.escape(sort_year)}" data-sort-format="{html.escape(sort_format)}" {tag_attributes}>
+            <tbody class="music-card" data-file-path="{html.escape(track.get("path", ""))}" data-layout-status="{layout_status}" data-music-search="{html.escape(search_text)}" data-music-genres="{genres_attr}" data-duration="{duration}" data-sort-number="{index}" data-sort-name="{html.escape(title.lower())}" data-sort-artist="{html.escape(lyrics_artist.lower())}" data-sort-album="{html.escape(album.lower())}">
               <tr class="music-track-row">
-                <td class="music-track-number"></td>
+                <td class="music-track-number">{index}</td>
                 <th scope="row">
                   <div class="music-track-name">
                     <button class="music-play" type="button" title="Слушать" aria-label="Слушать: {html.escape(title)}" aria-pressed="false">
@@ -1550,11 +1546,12 @@ def render_music_list(tracks: list[dict], duplicate_paths: set[str] | None = Non
                     </button>
                     <div class="music-track-text">
                       <div class="music-title" title="{html.escape(title)}">{html.escape(title)}</div>
-                      <div class="music-track-artist" title="{html.escape(lyrics_artist)}">{html.escape(lyrics_artist)}</div>
+                      <div class="music-track-artist-mobile" title="{html.escape(lyrics_artist)}">{html.escape(lyrics_artist)}</div>
                       <div class="music-track-album-mobile" title="{html.escape(album)}">{html.escape(album)}</div>
                     </div>
                   </div>
                 </th>
+                <td class="music-track-artist" title="{html.escape(lyrics_artist)}">{html.escape(lyrics_artist or "—")}</td>
                 <td class="music-track-album" title="{html.escape(album)}">{html.escape(album or "—")}</td>
                 <td class="music-track-duration">{format_duration(duration)}</td>
                 <td class="music-track-control">
@@ -1564,7 +1561,7 @@ def render_music_list(tracks: list[dict], duplicate_paths: set[str] | None = Non
                 </td>
               </tr>
               <tr class="music-track-details" id="{details_id}" hidden>
-                <td colspan="5"><div class="music-track-panel">
+                <td colspan="6"><div class="music-track-panel">
                   <button class="music-trash-icon trash-one" type="button" data-file-path="{html.escape(track.get("path", ""))}" title="В корзину" aria-label="В корзину">
                     {lucide_icon("trash", "trash-svg")}
                   </button>
@@ -1869,86 +1866,45 @@ def render_html(payload: dict) -> str:
     </div>
 
     <section class="report-view music-section" data-page="musicSection" id="musicSection" hidden>
-      <div class="duplicates-heading music-heading">
-        <div>
-          <h2 class="section-title">Моя музыка</h2>
-          <p class="music-summary" id="musicSummary"></p>
-        </div>
-        <div class="duplicates-actions">
-          <button class="small" id="rescanLibrary" type="button">Пересканировать библиотеку</button>
-        </div>
-      </div>
+      <header class="music-heading">
+        <h2 class="section-title">Моя музыка</h2>
+        <p class="music-summary" id="musicSummary"></p>
+      </header>
     <div class="search-control page-search is-empty">
       {lucide_icon("search", "search-icon")}
       <input id="musicSearch" type="search" placeholder=" " aria-label="Поиск по музыке">
       <span class="search-placeholder" aria-hidden="true">Поиск: исполнитель, альбом, трек</span>
     </div>
-    <div class="quarantine-panel scan-panel" id="scanPanel">
-      <p id="scanStatus">Готово к пересканированию библиотеки. Файлы не перемещаются.</p>
-      <span class="copy-status" id="scanCopyStatus"></span>
-      {scan_progress_panel("scanProgress")}
-    </div>
-    <div class="music-operations music-toolbar">
-      <div class="music-operation-groups">
-        <section class="music-operation-block music-operation-actions">
-          <p class="music-operations-title">Обработка</p>
-          <div class="music-operations-row">
-            <button class="small" id="tagVisible" type="button">Теги beets</button>
-            <button class="small" id="shazamTagVisible" type="button">Теги Shazam</button>
-            <button class="small" id="layoutVisible" type="button">Разложить по папкам</button>
-            <button class="small" id="coverVisible" type="button">Найти обложки</button>
-            <button class="small" id="lyricsVisible" type="button">Найти тексты</button>
-          </div>
-        </section>
+    <section class="music-operations music-toolbar" aria-labelledby="musicActionsTitle">
+      <h3 class="music-operations-title" id="musicActionsTitle">Действия</h3>
+      <div class="music-operations-row">
+        <button class="small" id="tagVisible" type="button">Теги beets</button>
+        <button class="small" id="shazamTagVisible" type="button">Теги Shazam</button>
+        <button class="small" id="layoutVisible" type="button">Разложить по папкам</button>
+        <button class="small" id="coverVisible" type="button">Найти обложки</button>
+        <button class="small" id="lyricsVisible" type="button">Найти тексты</button>
+        <button class="small" id="rescanLibrary" type="button">Пересканировать библиотеку</button>
       </div>
-      <div class="operation-status" id="operationStatus">Режим проверки: будет показан план без изменения файлов. Глобальные кнопки работают по отфильтрованному списку, кнопки в подробностях — только по выбранной записи.</div>
-    </div>
-    <div class="toolbar music-toolbar">
-      <select id="tagFilter" aria-label="Фильтр по тегам">
-        <option value="all">Теги: все</option>
-        <option value="format">Тег: формат</option>
-        <option value="cover">Тег: обложка</option>
-        <option value="lyrics">Тег: текст песни</option>
-        <option value="bitrate">Тег: битрейт</option>
-        <option value="bit_depth">Тег: разрядность</option>
-        <option value="sample_rate">Тег: частота дискретизации</option>
-        <option value="size">Тег: размер</option>
-        <option value="album">Тег: альбом</option>
-        <option value="albumartist">Тег: исполнитель альбома</option>
-        <option value="artist">Тег: исполнитель</option>
-        <option value="genre">Тег: жанр</option>
-        <option value="title">Тег: название</option>
-        <option value="year">Тег: год</option>
-        <option value="status">Тег: статус</option>
-      </select>
-      <select id="identityFilter" aria-label="Фильтр по аудиоотпечатку">
-        <option value="all">Отпечаток: все</option>
-        <option value="mismatch">Отпечаток: не совпадает</option>
-        <option value="match">Отпечаток: совпадает</option>
-      </select>
-      <select id="layoutFilter" aria-label="Фильтр по раскладке">
-        <option value="all">Раскладка: все</option>
-        <option value="ready">Раскладка: нет</option>
-        <option value="done">Раскладка: есть</option>
-      </select>
-      <div class="sort-control">
-        <select id="sort" aria-label="Сортировка музыки">
-          <option value="name">Название</option>
-          <option value="artist">Исполнитель</option>
-          <option value="album">Альбом</option>
-          <option value="year">Год</option>
-          <option value="format">Формат</option>
-        </select>
+      <div class="operation-status" id="operationStatus" role="status"></div>
+      <div class="quarantine-panel scan-panel" id="scanPanel">
+        <p id="scanStatus" role="status"></p>
+        <span class="copy-status" id="scanCopyStatus"></span>
+        {scan_progress_panel("scanProgress")}
       </div>
+    </section>
+    <div class="music-genre-pagination" id="musicGenrePagination" role="group" aria-label="Фильтр по жанрам" hidden>
+      <button class="music-genre-arrow" id="musicGenrePrevious" type="button" aria-label="Предыдущие жанры" aria-controls="musicGenreFilters" hidden>{lucide_icon("chevron-left")}</button>
+      <div class="music-genre-filters" id="musicGenreFilters"></div>
+      <button class="music-genre-arrow" id="musicGenreNext" type="button" aria-label="Следующие жанры" aria-controls="musicGenreFilters" hidden>{lucide_icon("chevron-right")}</button>
     </div>
-    <div class="music-genre-filters" id="musicGenreFilters" role="group" aria-label="Фильтр по жанрам" hidden></div>
     <table class="music-list" id="musicList" aria-label="Моя музыка" hidden>
       <thead>
         <tr>
-          <th class="music-track-number" scope="col" aria-label="Номер">#</th>
-          <th scope="col">Название</th>
-          <th class="music-track-album" scope="col">Альбом</th>
-          <th class="music-track-duration" scope="col" aria-label="Длительность" title="Длительность">{lucide_icon("clock")}</th>
+          <th class="music-track-number" scope="col"><button class="music-sort" type="button" data-music-sort="number" aria-label="Номер" title="Номер">#</button></th>
+          <th scope="col" aria-sort="ascending"><button class="music-sort" type="button" data-music-sort="name">Название</button></th>
+          <th class="music-track-artist" scope="col"><button class="music-sort" type="button" data-music-sort="artist">Исполнитель</button></th>
+          <th class="music-track-album" scope="col"><button class="music-sort" type="button" data-music-sort="album">Альбом</button></th>
+          <th class="music-track-duration" scope="col"><button class="music-sort" type="button" data-music-sort="duration" aria-label="Длительность" title="Длительность">{lucide_icon("clock")}</button></th>
           <th class="music-track-control" scope="col" aria-label="Подробности"></th>
         </tr>
       </thead>
@@ -2041,20 +1997,22 @@ def render_html(payload: dict) -> str:
   <script id="reportDuplicates">{REPORT_DUPLICATES_JS}</script>
   <script>
     let cards = Array.from(document.getElementById('duplicateCardSource').content.querySelectorAll('.group-card'));
-    const sort = document.getElementById('sort');
     let musicCards = Array.from(document.getElementById('musicCardSource').content.querySelectorAll('.music-card'));
     const musicList = document.getElementById('musicList');
+    const musicSortButtons = musicList.querySelectorAll('[data-music-sort]');
+    let musicSortKey = 'name';
+    let musicSortDirection = 1;
     const musicSummary = document.getElementById('musicSummary');
+    const musicGenrePagination = document.getElementById('musicGenrePagination');
     const musicGenreFilters = document.getElementById('musicGenreFilters');
+    const musicGenrePrevious = document.getElementById('musicGenrePrevious');
+    const musicGenreNext = document.getElementById('musicGenreNext');
     const musicNumber = new Intl.NumberFormat('ru');
     const musicPlural = new Intl.PluralRules('ru');
     let musicGenre = '';
     const musicSearch = document.getElementById('musicSearch');
     const duplicateSearch = document.getElementById('duplicateSearch');
     const duplicateFilter = document.getElementById('duplicateFilter');
-    const tagFilter = document.getElementById('tagFilter');
-    const layoutFilter = document.getElementById('layoutFilter');
-    const identityFilter = document.getElementById('identityFilter');
     const musicEmpty = document.getElementById('musicEmpty');
     const quarantinePanel = document.getElementById('quarantinePanel');
     const copyStatus = document.getElementById('copyStatus');
@@ -2230,10 +2188,7 @@ def render_html(payload: dict) -> str:
     const reportPages = Array.from(document.querySelectorAll('.report-view[data-page]'));
     const pageTitles = {{overview: 'Обзор', musicSection: 'Моя музыка', duplicates: 'Дубли'}};
     const boundCards = new WeakSet();
-    const musicPager = new ReportPagedList(musicList, document.getElementById('musicPagination'), document.getElementById('musicSection'), (card, index) => {{
-      card.querySelector('.music-track-number').textContent = index + 1;
-      bindCardControls(card);
-    }});
+    const musicPager = new ReportPagedList(musicList, document.getElementById('musicPagination'), document.getElementById('musicSection'), bindCardControls);
     const duplicatePager = new ReportPagedList(document.getElementById('cards'), document.getElementById('duplicatePagination'), document.getElementById('duplicates'), bindCardControls);
     const musicCollator = new Intl.Collator('ru', {{ numeric: true, sensitivity: 'base' }});
     duplicatePager.setItems(cards);
@@ -2272,12 +2227,10 @@ def render_html(payload: dict) -> str:
       processingModeNote.setAttribute('aria-pressed', mode === 'real' ? 'true' : 'false');
       processingModeNote.title = mode === 'real' ? 'Переключить на режим проверки' : 'Переключить на применение изменений';
       if (mode === 'real') {{
-        if (operationStatus) operationStatus.textContent = 'Изменения включены: каждое действие потребует отдельного подтверждения. Удаление файлов запрещено. Глобальные кнопки работают по отфильтрованному списку, кнопки в подробностях — только по выбранной записи.';
         if (processingModeTitle) processingModeTitle.textContent = 'Применить изменения';
         if (processingModeDetail) processingModeDetail.textContent = 'Каждое действие требует подтверждения';
         if (processingModeNote) processingModeNote.classList.add('mode-real');
       }} else {{
-        if (operationStatus) operationStatus.textContent = 'Режим проверки: будет показан план без изменения файлов. Глобальные кнопки работают по отфильтрованному списку, кнопки в подробностях — только по выбранной записи.';
         if (processingModeTitle) processingModeTitle.textContent = 'Режим проверки';
         if (processingModeDetail) processingModeDetail.textContent = 'Изменения и удаление отключены';
         if (processingModeNote) processingModeNote.classList.remove('mode-real');
@@ -2460,7 +2413,7 @@ def render_html(payload: dict) -> str:
         }});
         if (refreshedTracks.length) {{
           refreshMusicOverview();
-          applyMusicFilters();
+          applySort();
         }}
         setCardStatus(card, 'done', saveResult.message || 'Сохранено.');
       }} catch (error) {{
@@ -2617,12 +2570,6 @@ def render_html(payload: dict) -> str:
       }});
     }}
 
-    function clearTagAttributes(card) {{
-      Array.from(card.attributes).forEach(attribute => {{
-        if (attribute.name.startsWith('data-tag-')) card.removeAttribute(attribute.name);
-      }});
-    }}
-
     function tagText(tag) {{
       if (!tag || typeof tag !== 'object') return String(tag || '');
       const label = tag.label || '';
@@ -2675,16 +2622,17 @@ def render_html(payload: dict) -> str:
 
       card.dataset.filePath = path;
       card.dataset.sortName = trackTitle.toLowerCase();
-      clearTagAttributes(card);
 
       const title = card.querySelector('.music-title');
-      const artist = card.querySelector('.music-track-artist');
       const pathNode = card.querySelector('.music-path');
       musicCardByPath.delete(normalizePathForCompare(previousPath));
       musicCardByPath.set(normalizePathForCompare(path), card);
       const pills = card.querySelector('.music-pills');
       title.textContent = title.title = trackTitle;
-      artist.textContent = artist.title = lyricsArtist;
+      card.querySelectorAll('.music-track-artist, .music-track-artist-mobile').forEach(node => {{
+        node.title = lyricsArtist;
+        node.textContent = lyricsArtist || (node.classList.contains('music-track-artist') ? '—' : '');
+      }});
       card.querySelectorAll('.music-track-album, .music-track-album-mobile').forEach(node => {{
         node.title = album;
         node.textContent = album || (node.classList.contains('music-track-album') ? '—' : '');
@@ -2722,13 +2670,8 @@ def render_html(payload: dict) -> str:
         }});
       }}
 
-      Object.entries(tagValuesByKind).forEach(([kind, values]) => {{
-        card.setAttribute(`data-tag-${{kind}}`, values.join(' ').toLowerCase());
-      }});
       card.dataset.sortArtist = lyricsArtist.toLowerCase();
       card.dataset.sortAlbum = album.toLowerCase();
-      card.dataset.sortYear = (tagValuesByKind.year || []).join(' ').toLowerCase();
-      card.dataset.sortFormat = (tagValuesByKind.format || []).join(' ').toLowerCase();
       card.dataset.musicSearch = [name, folder, tagSearchValues.join(' ')].join(' ').toLowerCase();
       const layoutButton = card.querySelector('[data-action="layout"]');
       card.dataset.layoutStatus = layoutButton?.disabled ? 'done' : 'ready';
@@ -2838,14 +2781,27 @@ def render_html(payload: dict) -> str:
     }}
 
     function applySort() {{
-      const sorted = [...musicCards];
-      sorted.sort((a, b) => {{
-        const key = sort.value || 'name';
-        const left = a.getAttribute(`data-sort-${{key}}`) || a.dataset.sortName || '';
-        const right = b.getAttribute(`data-sort-${{key}}`) || b.dataset.sortName || '';
-        return musicCollator.compare(left, right);
+      const numeric = musicSortKey === 'number' || musicSortKey === 'duration';
+      const sortValue = card => {{
+        if (musicSortKey === 'duration') return Number(card.dataset.duration);
+        const value = card.getAttribute(`data-sort-${{musicSortKey}}`);
+        return numeric ? Number(value) : value;
+      }};
+      musicCards.sort((a, b) => {{
+        const left = sortValue(a);
+        const right = sortValue(b);
+        if (Boolean(left) !== Boolean(right)) return left ? -1 : 1;
+        const comparison = numeric ? left - right : musicCollator.compare(left, right);
+        return comparison * musicSortDirection || musicCollator.compare(a.dataset.sortName, b.dataset.sortName);
       }});
-      musicCards = sorted;
+      musicSortButtons.forEach(button => {{
+        const header = button.closest('th');
+        if (button.dataset.musicSort === musicSortKey) {{
+          header.setAttribute('aria-sort', musicSortDirection === 1 ? 'ascending' : 'descending');
+        }} else {{
+          header.removeAttribute('aria-sort');
+        }}
+      }});
       applyMusicFilters();
     }}
 
@@ -2861,6 +2817,25 @@ def render_html(payload: dict) -> str:
 
     function musicGenresForCard(card) {{
       return new Map(JSON.parse(card.dataset.musicGenres).map(genre => [musicGenreKey(genre), genre]));
+    }}
+
+    function updateMusicGenreArrows() {{
+      const {{ scrollLeft, scrollWidth, clientWidth }} = musicGenreFilters;
+      const focused = document.activeElement;
+      musicGenrePrevious.hidden = scrollLeft <= 1;
+      musicGenreNext.hidden = scrollWidth - clientWidth - scrollLeft <= 1;
+      if (focused === musicGenrePrevious && musicGenrePrevious.hidden && !musicGenreNext.hidden) {{
+        musicGenreNext.focus();
+      }} else if (focused === musicGenreNext && musicGenreNext.hidden && !musicGenrePrevious.hidden) {{
+        musicGenrePrevious.focus();
+      }}
+    }}
+
+    function turnMusicGenrePage(direction) {{
+      const rail = musicGenreFilters;
+      const edgeSpace = parseFloat(getComputedStyle(rail).scrollPaddingInlineStart);
+      const pageWidth = Math.max(1, rail.clientWidth - 2 * edgeSpace);
+      rail.scrollBy({{ left: direction * pageWidth }});
     }}
 
     function refreshMusicOverview() {{
@@ -2898,7 +2873,7 @@ def render_html(payload: dict) -> str:
       if (!genres.has(musicGenre)) musicGenre = '';
       const sortedGenres = [...genres.entries()].sort(([, a], [, b]) =>
         b.count - a.count || musicCollator.compare(a.label, b.label));
-      musicGenreFilters.hidden = !sortedGenres.length;
+      musicGenrePagination.hidden = !sortedGenres.length;
       musicGenreFilters.replaceChildren(...[['', {{ label: 'Все жанры' }}], ...sortedGenres].map(([key, genre]) => {{
         const button = document.createElement('button');
         button.type = 'button';
@@ -2908,25 +2883,17 @@ def render_html(payload: dict) -> str:
         button.setAttribute('aria-pressed', String(key === musicGenre));
         return button;
       }}));
+      updateMusicGenreArrows();
     }}
 
     function applyMusicFilters() {{
       updateSearchPlaceholder();
       const value = musicSearch.value.trim().toLowerCase();
-      const tagKind = tagFilter.value;
-      const layoutKind = layoutFilter.value;
-      const identityKind = identityFilter.value;
       let visibleCount = 0;
       musicCards.forEach(card => {{
-        const searchArea = tagKind === 'all'
-          ? (card.dataset.musicSearch || '')
-          : (card.getAttribute(`data-tag-${{tagKind}}`) || '');
-        const matchesText = !value || searchArea.includes(value);
-        const matchesLayout = layoutKind === 'all' || card.dataset.layoutStatus === layoutKind;
-        const mismatch = card.dataset.identityMismatch === 'yes';
-        const matchesIdentity = identityKind === 'all' || (identityKind === 'mismatch' ? mismatch : !mismatch);
+        const matchesText = !value || card.dataset.musicSearch.includes(value);
         const matchesGenre = !musicGenre || musicGenresForCard(card).has(musicGenre);
-        const visible = matchesText && matchesLayout && matchesIdentity && matchesGenre;
+        const visible = matchesText && matchesGenre;
         card.hidden = !visible;
         if (visible) visibleCount += 1;
       }});
@@ -3312,7 +3279,6 @@ def render_html(payload: dict) -> str:
       updateSearchPlaceholder();
       applyMusicFilters();
     }});
-    tagFilter.addEventListener('change', applyMusicFilters);
     musicGenreFilters.addEventListener('click', event => {{
       const button = event.target.closest('.music-genre');
       if (!button) return;
@@ -3323,11 +3289,20 @@ def render_html(payload: dict) -> str:
       }}
       applyMusicFilters();
     }});
-    layoutFilter.addEventListener('change', applyMusicFilters);
-    identityFilter.addEventListener('change', applyMusicFilters);
+    musicGenrePrevious.addEventListener('click', () => turnMusicGenrePage(-1));
+    musicGenreNext.addEventListener('click', () => turnMusicGenrePage(1));
+    musicGenreFilters.addEventListener('scroll', updateMusicGenreArrows, {{ passive: true }});
+    new ResizeObserver(updateMusicGenreArrows).observe(musicGenreFilters);
     duplicateSearch.addEventListener('input', () => applyDuplicateFilters());
     duplicateFilter.addEventListener('change', () => applyDuplicateFilters());
-    sort.addEventListener('change', applySort);
+    musicSortButtons.forEach(button => {{
+      button.addEventListener('click', () => {{
+        const key = button.dataset.musicSort;
+        musicSortDirection = key === musicSortKey ? -musicSortDirection : 1;
+        musicSortKey = key;
+        applySort();
+      }});
+    }});
     refreshMusicOverview();
     applySort();
     restoreDuplicateViewAfterMove();
