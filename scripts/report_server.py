@@ -50,14 +50,17 @@ from generate_html_report import (
     collect_genres_from_tracks,
     collect_years_from_tracks,
     cover_api_url,
+    duration_seconds,
     embedded_cover,
     embedded_cover_bytes,
     first_tag,
     has_embedded_lyrics,
     lyrics_for_track_with_source,
     make_display_tag,
+    music_file_size_tag,
     read_review_rows,
     render_html,
+    track_genres,
     year_from,
 )
 
@@ -797,6 +800,7 @@ def track_payload_from_file(path: Path) -> dict:
         make_display_tag("формат", path.suffix.lower().lstrip(".").upper(), "format"),
         make_display_tag("обложка", "есть" if has_cover else "нет", "cover"),
         make_display_tag("текст песни", "есть" if has_lyrics else "нет", "lyrics"),
+        music_file_size_tag(path),
     ]
 
     try:
@@ -826,15 +830,18 @@ def track_payload_from_file(path: Path) -> dict:
             if value_text:
                 track_tags.append(make_display_tag(label, value_text, kind))
 
-    return {
+    track = {
         "name": path.name,
         "path": str(path),
         "folder": str(path.parent),
         "tags": track_tags,
+        "duration": duration_seconds(getattr(getattr(audio, "info", None), "length", None)),
         "has_cover": has_cover,
         "cover_data_uri": cover_data_uri,
         "cover_url": cover_url,
     }
+    track["genres"] = track_genres(track)
+    return track
 
 
 def refresh_report_tracks(files: list[str]) -> dict[str, object]:
@@ -2121,22 +2128,22 @@ def send_lyrics_json(handler: "ReportHandler") -> None:
     requested = params.get("file", [""])[0]
 
     if not requested:
-        handler.send_json(400, {"ok": False, "error": "Missing file"})
+        handler.send_json(400, {"ok": False, "error": "Не указан файл."})
         return
 
     source = resolve_audio_path(requested)
     if source is None:
-        handler.send_json(404, {"ok": False, "error": "Audio file not found"})
+        handler.send_json(404, {"ok": False, "error": "Аудиофайл не найден или недоступен."})
         return
 
     metadata = report_metadata()
     allowed_exact = norm_path(requested) in metadata["path_set"]  # type: ignore[operator]
     if not allowed_exact and not source_inside_library(source):
-        handler.send_json(403, {"ok": False, "error": "File is not listed in the current report or library"})
+        handler.send_json(403, {"ok": False, "error": "Файл не входит в текущий отчёт или библиотеку."})
         return
 
     if source.suffix.lower() not in AUDIO_EXTENSIONS:
-        handler.send_json(415, {"ok": False, "error": "Unsupported audio file type"})
+        handler.send_json(415, {"ok": False, "error": "Формат аудиофайла не поддерживается."})
         return
 
     lyrics, source_name = lyrics_for_track_with_source(source)
