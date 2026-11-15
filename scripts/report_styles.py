@@ -39,7 +39,7 @@ button, input, select { font: inherit; text-rendering: inherit; background-clip:
    containing block for fixed descendants (dropdowns, sidebar and dialogs). */
 button, input, select, label, h1, h2, h3, p, pre,
 .app-brand strong, .nav-caption, .side-nav a, .sidebar-source>span, .sidebar-note,
-.hero-kicker, .metric, .section-heading>span, .note, .summary-subtitle,
+.metric, .section-heading>span, .note, .summary-subtitle,
 .format-row, .artist-row, .chart-legend, .donut-hole, .year-chart, .heatmap-grid, .heatmap-scale,
 .operation-status, .search-placeholder, .web-select-option,
 .music-title, .music-path, .track-title, .track-path, .music-pill, .audio-time,
@@ -80,19 +80,29 @@ svg { width: 20px; height: 20px; flex-shrink: 0; vertical-align: middle; shape-r
 .sidebar-note small { color: var(--muted); font-size: 12px; }
 .sidebar-note.mode-real strong { color: var(--warning); }
 .app-workspace { grid-column: 2; min-width: 0; min-height: calc(100vh - 16px); border-radius: var(--radius); background: var(--panel-solid); }
-.app-workspace:has(#musicSection:not([hidden])) {
-  background: linear-gradient(#513a9f, #2a1e51 24%, #21183f 48%, #181622 75%, var(--panel-solid))
-    top / 100% 610px no-repeat var(--panel-solid);
+.app-workspace:has(.report-view:not([hidden])) {
+  --library-gradient-color: #513a9f;
+  background: linear-gradient(
+    var(--library-gradient-color),
+    color-mix(in srgb, var(--library-gradient-color) 72%, var(--panel-solid)) 24%,
+    color-mix(in srgb, var(--library-gradient-color) 43%, var(--panel-solid)) 48%,
+    color-mix(in srgb, var(--library-gradient-color) 16%, var(--panel-solid)) 75%,
+    var(--panel-solid)
+  ) top / 100% 610px no-repeat var(--panel-solid);
+}
+.app-workspace:has(.report-view[data-page="overview"]:not([hidden])) {
+  --library-gradient-color: color-mix(in srgb, var(--accent) 74%, var(--panel-solid));
+}
+.app-workspace:has(#duplicates:not([hidden])) {
+  --library-gradient-color: #266882;
 }
 .page { width: 100%; max-width: 1800px; margin: 0 auto; padding: 0 32px 56px; }
-.header { margin: 0 -32px; padding: 32px 32px 24px; border-radius: var(--radius) var(--radius) 0 0; background: linear-gradient(180deg, #27382e 0, #1d2922 48%, #121212 100%); }
+.header { margin: 0 -32px; padding: 32px 32px 24px; }
 .hero-layout { display: flex; align-items: center; gap: 24px; min-width: 0; }
 .collection-art { display: grid; place-items: center; flex: 0 0 140px; height: 140px; border-radius: var(--radius-tile); background: var(--accent); color: #0b301c; box-shadow: 0 8px 24px #0004; }
 .collection-art svg { width: 72px; height: 72px; stroke-width: 1.6; }
 .hero-copy { min-width: 0; }
-.hero-kicker { margin-bottom: 4px; font-size: 12px; font-weight: 600; }
 h1 { margin: 0; font-size: clamp(32px, 4.5vw, 64px); font-weight: 750; letter-spacing: -.8px; line-height: 1.15; }
-.hero-lead { margin: 10px 0 0; color: #c7ceca; font-size: 13px; }
 .summary { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; margin-top: 28px; }
 .summary.duplicate-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0 0 16px; }
 .duplicate-summary .metric { display: flex; flex-direction: column; }
@@ -102,10 +112,9 @@ h1 { margin: 0; font-size: clamp(32px, 4.5vw, 64px); font-weight: 750; letter-sp
 .metric-label { display: block; color: #b3b3b3; font-size: 12px; }
 .metric-icon { display: none; }
 .metric-primary strong { color: var(--accent); }
-.section-heading { display: flex; justify-content: space-between; align-items: end; gap: 16px; margin-top: 22px; }
+.section-heading { margin-top: 22px; }
 .section-heading span { color: var(--muted); font-size: 12px; }
 .section-heading h2, .section-title { margin: 0; font-size: 24px; font-weight: 750; letter-spacing: -.3px; line-height: 1.3; }
-.section-heading p { margin: 0; color: var(--muted); font-size: 12px; }
 .analysis-grid { display: grid; grid-template-columns: 1.1fr 1fr 1fr 1fr; gap: 12px; margin-top: 16px; align-items: stretch; }
 .panel { min-width: 0; padding: 20px; border-radius: var(--radius); background: var(--panel); container-type: inline-size; }
 .panel h2 { margin: 0; font-size: 16px; font-weight: 700; letter-spacing: 0; }
@@ -164,11 +173,9 @@ h1 { margin: 0; font-size: clamp(32px, 4.5vw, 64px); font-weight: 750; letter-sp
 .heatmap-scale-bar { width: 140px; height: 6px; border-radius: 3px; background: linear-gradient(90deg, #242424, #224d34, #297442, #2b7c48); }
 .music-section { margin-top: 36px; scroll-margin-top: 24px; }
 .report-view.music-section { margin-top: 0; padding-top: 28px; }
-.duplicates-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 16px; }
-.music-heading { padding-block: 20px 12px; margin-bottom: 16px; }
-.music-heading .section-title { font-size: clamp(36px, 5.5vw, 72px); line-height: 1.05; letter-spacing: -.04em; }
+.library-section-heading { padding-block: 20px 12px; margin-bottom: 16px; }
+.library-section-heading .section-title { font-size: clamp(36px, 5.5vw, 72px); line-height: 1.05; letter-spacing: -.04em; }
 .music-summary { margin: 4px 0 0; color: #e2dbf4; font-size: 14px; font-variant-numeric: tabular-nums; }
-.duplicates-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 input, select, button.small { min-width: 0; min-height: 38px; padding: 8px 14px; border: 1px solid transparent; border-radius: 999px; color: var(--text); background: #242424; }
 button.small { display: inline-flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 500; line-height: 20px; transition: background .15s; }
 button.small:hover:not(:disabled) { background: #303030; }
@@ -203,7 +210,7 @@ select { appearance: none; padding-right: 42px; font-size: 12px; background-imag
 .web-select-option[aria-selected="true"] { color: var(--accent-strong); }
 .web-select-option[aria-disabled="true"] { color: #777; cursor: not-allowed; }
 .music-toolbar { margin: 16px 0; }
-.music-operations { padding: 18px 20px; border-radius: var(--radius); background: var(--panel); }
+.music-operations { padding: 18px 20px; border-radius: var(--radius); background: #100c1d50; }
 .music-operations-title { margin: 0 0 10px; color: #e2dbf4; font-size: 13px; font-weight: 700; }
 .music-operations-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .operation-status { margin-top: 16px; color: var(--muted); font-size: 12px; line-height: 20px; overflow-wrap: anywhere; }
@@ -222,12 +229,13 @@ select { appearance: none; padding-right: 42px; font-size: 12px; background-imag
 @media (prefers-reduced-motion: no-preference) {
   .music-genre-filters { scroll-behavior: smooth; }
 }
-#musicSection .music-operations { background: #100c1d50; }
-#musicSection :is(.page-search input, .music-operations button.small, .music-genre:not([aria-pressed="true"])) {
+#duplicates .music-operations { background: #08131a50; }
+#duplicates .music-operations-title { color: #dceff5; }
+:is(#musicSection, #duplicates) :is(.page-search input, .music-operations button.small, .music-genre:not([aria-pressed="true"]), .duplicate-toolbar select, .duplicate-toolbar .web-select-trigger) {
   background-color: #ffffff17;
 }
-#musicSection :is(.page-search input, .music-operations button.small, .music-genre:not([aria-pressed="true"])):hover,
-#musicSection .page-search input:focus {
+:is(#musicSection, #duplicates) :is(.page-search input, .music-operations button.small, .music-genre:not([aria-pressed="true"]), .duplicate-toolbar select, .duplicate-toolbar .web-select-trigger):hover,
+:is(#musicSection, #duplicates) :is(.page-search input:focus, .duplicate-toolbar .web-select-trigger[aria-expanded="true"]) {
   background-color: #ffffff28;
 }
 .music-list { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; }
@@ -423,6 +431,8 @@ body.has-player .lyrics-dialog { max-height: min(85vh, calc(100dvh - var(--playe
 .duplicate-file-table th:last-child { width: 40%; text-align: right; }
 .duplicate-matrix-note { margin: 10px 0 0; color: var(--muted); font-size: 12px; }
 .duplicate-toolbar { margin-bottom: 16px; }
+#duplicates .page-search { margin-bottom: 8px; }
+.duplicate-toolbar :is(select, .web-select-trigger) { height: 38px; }
 .quality-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 12px; }
 .quality-table tr { height: 32px; }
 .quality-table th, .quality-table td { padding: 6px 0; border-bottom: 1px solid #ffffff0a; overflow-wrap: anywhere; }
@@ -523,9 +533,7 @@ body.has-player .lyrics-dialog { max-height: min(85vh, calc(100dvh - var(--playe
   .page { padding-inline: 24px; } .header { margin-inline: -24px; padding-inline: 24px; }
   .collection-art { flex-basis: 104px; height: 104px; } .collection-art svg { width: 56px; height: 56px; }
   .hero-layout { gap: 18px; }
-  .hero-lead { max-width: 380px; }
   .donut-layout { grid-template-columns: 1fr; }
-  .section-heading p { display: none; }
   .toolbar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 760px) {
@@ -539,10 +547,10 @@ body.has-player .lyrics-dialog { max-height: min(85vh, calc(100dvh - var(--playe
   .nav-caption { display: none; }
   .sidebar-note { order: 1; margin: 0 0 0 auto; padding: 0; border: 0; } .sidebar-note small { display: none; } .sidebar-note strong { font-size: 12px; }
   .sidebar-footer { order: 3; flex: 1 0 100%; grid-template-columns: minmax(0, 1fr) auto; align-items: center; width: 100%; margin: 6px 0 0; padding-top: 10px; }
-  .app-workspace { border-radius: 0; } .header { border-radius: 0; }
+  .app-workspace { border-radius: 0; }
   .page { padding: 0 20px 40px; } .header { margin-inline: -20px; padding: 24px 20px 16px; }
   .hero-layout { align-items: start; } .collection-art { flex-basis: 80px; height: 80px; } .collection-art svg { width: 44px; height: 44px; }
-  h1 { font-size: 34px; } .hero-lead { font-size: 12px; }
+  h1 { font-size: 34px; }
   .metric { padding: 12px 10px; } .metric strong { font-size: 24px; }
   .summary { gap: 6px; margin-top: 20px; }
   .metric-label { font-size: 12px; }
@@ -557,13 +565,12 @@ body.has-player .lyrics-dialog { max-height: min(85vh, calc(100dvh - var(--playe
   .side-nav a span { white-space: nowrap; }
   .page { padding-inline: 16px; } .header { margin-inline: -16px; padding-inline: 16px; }
   .hero-layout { gap: 12px; } .collection-art { flex-basis: 64px; height: 64px; } .collection-art svg { width: 36px; height: 36px; }
-  h1 { font-size: 28px; letter-spacing: -.4px; } .hero-kicker { font-size: 12px; } .hero-lead { font-size: 12px; }
+  h1 { font-size: 28px; letter-spacing: -.4px; }
   .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .analysis-grid { grid-template-columns: 1fr; }
   .panel { padding: 18px; } .donut-layout { grid-template-columns: 1fr; gap: 16px; }
   .music-operations { padding: 16px; }
   .music-operations-row { gap: 6px; }
-  .duplicates-actions { gap: 6px; } .duplicates-actions .small { min-height: 36px; padding-inline: 10px; font-size: 13px; }
   .music-card-content { grid-template-columns: 1fr; } .music-cover { width: 104px; }
   .group-header { gap: 10px; padding: 12px; }
   .group-status { display: none; }
@@ -574,7 +581,7 @@ body.has-player .lyrics-dialog { max-height: min(85vh, calc(100dvh - var(--playe
   .lyrics-text { padding: 4px 12px 16px 20px; font-size: 20px; }
 }
 @media (max-width: 680px) {
-  .app-workspace:has(#musicSection:not([hidden])) { background-size: 100% 760px; }
+  .app-workspace:has(.report-view:not([hidden])) { background-size: 100% 760px; }
   .toolbar > .web-select, .toolbar > select { flex: 1 1 140px; width: auto; }
   .music-list :is(.music-track-artist, .music-track-album) { display: none; }
   :is(.music-track-artist-mobile, .music-track-album-mobile):not(:empty) { display: block; }

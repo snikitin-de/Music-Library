@@ -1209,12 +1209,10 @@ def render_genre_bars(genres: dict, tracks: list[dict] | None = None) -> str:
     top_percent = round(top_count / total * 100)
     coverage = ""
     if tracks is not None:
-        with_genre, without_genre = genre_coverage(tracks)
+        with_genre, _ = genre_coverage(tracks)
         coverage = (
             '<p class="chart-note">'
-            f'Проверенные жанры определены у <strong>{format_number(with_genre)}</strong> из '
-            f'<strong>{len(tracks)}</strong> файлов. '
-            f'Не определён: <strong>{format_number(without_genre)}</strong>.'
+            f'Файлов с жанрами: <strong>{format_number(with_genre)}</strong>'
             '</p>'
         )
     ring = plotly_chart([{
@@ -1808,9 +1806,7 @@ def render_html(payload: dict) -> str:
       <div class="hero-layout">
         <div class="collection-art" aria-hidden="true">{lucide_icon("audio-lines")}</div>
         <div class="hero-copy">
-          <div class="hero-kicker">Ваша музыкальная коллекция</div>
           <h1>Моя медиатека</h1>
-          <p class="hero-lead">Треки, качество и метаданные вашей библиотеки.</p>
         </div>
       </div>
       <div class="summary">
@@ -1824,7 +1820,7 @@ def render_html(payload: dict) -> str:
       </div>
     </section>
 
-    <div class="section-heading" id="insights"><div><span>Обзор библиотеки</span><h2>Ваша коллекция в цифрах</h2></div><p>Форматы, исполнители и метаданные</p></div>
+    <div class="section-heading" id="insights"><span>Обзор библиотеки</span><h2>Ваша коллекция в цифрах</h2></div>
     <div class="analysis-grid">
       <section class="panel summary-panel">
         <h2>Сводка</h2>
@@ -1866,7 +1862,7 @@ def render_html(payload: dict) -> str:
     </div>
 
     <section class="report-view music-section" data-page="musicSection" id="musicSection" hidden>
-      <header class="music-heading">
+      <header class="library-section-heading">
         <h2 class="section-title">Моя музыка</h2>
         <p class="music-summary" id="musicSummary"></p>
       </header>
@@ -1915,12 +1911,9 @@ def render_html(payload: dict) -> str:
     </section>
 
     <section class="report-view music-section duplicates-section" data-page="duplicates" id="duplicates" hidden>
-    <div class="duplicates-heading">
+    <header class="library-section-heading">
       <h2 class="section-title">Дубли</h2>
-      <div class="duplicates-actions">
-        <button class="small" id="findDuplicates" type="button">Найти дубли</button>
-      </div>
-    </div>
+    </header>
     <div class="summary duplicate-summary" role="group" aria-label="Статистика дублей">
       <div class="metric"><span class="metric-icon">{lucide_icon("copy")}</span><span class="metric-label">Групп дублей</span><strong id="duplicatePageGroupsMetric">{format_number(summary["groups"])}</strong></div>
       <div class="metric metric-alert"><span class="metric-icon">{lucide_icon("copy-check")}</span><span class="metric-label">Дублей</span><strong id="duplicatePageFilesMetric">{format_number(summary["duplicates"])}</strong></div>
@@ -1931,22 +1924,28 @@ def render_html(payload: dict) -> str:
       <input id="duplicateSearch" type="search" placeholder=" " aria-label="Поиск по дублям">
       <span class="search-placeholder" aria-hidden="true">Поиск: исполнитель, альбом, трек</span>
     </div>
-    <div class="quarantine-panel scan-panel" id="duplicateScanPanel">
-      <p id="duplicateScanStatus">Готово к новому поиску дублей. Файлы не перемещаются.</p>
-      <span class="copy-status" id="duplicateScanCopyStatus"></span>
-      {scan_progress_panel("duplicateScanProgress")}
-    </div>
-    <div class="quarantine-panel" id="quarantinePanel">
-      <p id="quarantineStatus">Готово к безопасному переносу дублей в карантин. Файлы не удаляются.</p>
-      <span class="copy-status" id="copyStatus"></span>
-      <div class="global-progress" id="globalProgress" aria-hidden="true"><span></span></div>
-    </div>
     <div class="toolbar duplicate-toolbar">
       <select id="duplicateFilter" aria-label="Фильтр групп дублей">
         <option value="all">Все группы</option>
         <option value="duplicates">Дубли</option>
         <option value="review">Возможные дубли</option>
       </select>
+    </div>
+    <section class="music-operations music-toolbar" aria-labelledby="duplicateActionsTitle">
+      <h3 class="music-operations-title" id="duplicateActionsTitle">Действия</h3>
+      <div class="music-operations-row">
+        <button class="small" id="findDuplicates" type="button">Найти дубли</button>
+      </div>
+      <div class="quarantine-panel scan-panel" id="duplicateScanPanel">
+        <p id="duplicateScanStatus" role="status"></p>
+        <span class="copy-status" id="duplicateScanCopyStatus"></span>
+        {scan_progress_panel("duplicateScanProgress")}
+      </div>
+    </section>
+    <div class="quarantine-panel" id="quarantinePanel">
+      <p id="quarantineStatus">Готово к безопасному переносу дублей в карантин. Файлы не удаляются.</p>
+      <span class="copy-status" id="copyStatus"></span>
+      <div class="global-progress" id="globalProgress" aria-hidden="true"><span></span></div>
     </div>
     <div id="cards"></div>
     <template id="duplicateCardSource">{''.join(groups_html)}</template>
