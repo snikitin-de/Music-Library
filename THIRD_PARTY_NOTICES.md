@@ -1,5 +1,7 @@
 # Third-party notices
 
+The legacy [PNG favicon](reports/favicon.png) is [Music icon by Freepik](https://www.flaticon.com/free-icon/music_9325026) from Flaticon.
+
 Interface icons and the SVG favicon use the following third-party licenses, also embedded in generated HTML.
 
 Lucide Icons 1.28.0
