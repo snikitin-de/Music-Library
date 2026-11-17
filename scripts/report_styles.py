@@ -577,7 +577,6 @@ body.has-player .lyrics-dialog { max-height: min(85vh, calc(100dvh - var(--playe
 .duplicate-track { display: flex; flex-direction: column; min-width: 0; padding: 14px 36px 14px 14px; border: 0; border-radius: var(--radius-small); background: var(--soft); box-shadow: 0 3px 10px #0002; }
 .duplicate-track:hover { background: #2b2b2b; }
 .duplicate-file-column .duplicate-track { padding: 0 24px 0 0; background: transparent; box-shadow: none; }
-.duplicate-file-column .duplicate-track .music-trash-icon { top: 0; right: 0; }
 .duplicate-track .music-actions .duplicate-listen { min-width: 100px; background: #414141; }
 .duplicate-track .music-actions .duplicate-listen:hover:not(:disabled) { background: #505050; }
 .duplicate-track .music-actions .quarantine-one { background: #304738; }

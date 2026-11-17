@@ -1701,9 +1701,6 @@ def render_duplicate_track(item: dict, side: str, cover_info: dict | None, revie
     has_lyrics = bool(cover_info.get("has_lyrics")) if cover_info else None
     return f'''
       <article class="track {side} duplicate-track" tabindex="0" aria-label="Музыкальная запись: {html.escape(name)}" data-file-path="{html.escape(path)}" data-search="{html.escape(search_text)}" data-reference-better="{' '.join(sorted(reference_better or []))}">
-        <button class="music-trash-icon trash-one" type="button" data-file-path="{html.escape(path)}" title="В корзину" aria-label="В корзину">
-          {lucide_icon("trash", "trash-svg")}
-        </button>
         <div class="music-card-content">
           {duplicate_cover_preview(path, name, quality, cover_info)}
           <div class="music-card-main">
@@ -3299,9 +3296,8 @@ def render_html(payload: dict) -> str:
     }}
 
     async function runTrash(filePath, sourceButton) {{
-      const sourceMusicCard = sourceButton?.closest?.('.music-card') || null;
-      const sourceComparison = sourceButton?.closest?.('.comparison') || null;
-      if (!filePath || !canMoveFile(sourceButton)) return;
+      const sourceMusicCard = sourceButton.closest('.music-card');
+      if (!sourceMusicCard || !filePath || !canMoveFile(sourceButton)) return;
 
       const confirmed = window.confirm('Переместить выбранный файл в корзину Trash? Файл не будет удалён безвозвратно.');
       if (!confirmed) return;
@@ -3311,11 +3307,8 @@ def render_html(payload: dict) -> str:
       copyStatus.textContent = '';
       globalProgress.classList.add('visible');
       setDuplicateActionsDisabled(true);
-      if (sourceMusicCard) {{
-        setMusicActionDisabled(true, sourceMusicCard);
-        setCardStatus(sourceMusicCard, 'running', 'Перемещаю файл в корзину...');
-      }}
-      if (sourceComparison) setDuplicateStatus(sourceComparison, 'running', 'Перемещаю файл в корзину...');
+      setMusicActionDisabled(true, sourceMusicCard);
+      setCardStatus(sourceMusicCard, 'running', 'Перемещаю файл в корзину...');
 
       try {{
         await releaseAudioStreams(filePath);
@@ -3329,17 +3322,15 @@ def render_html(payload: dict) -> str:
         const changedPaths = result.moved_paths || [result.source || filePath];
         refreshAfterFileMove(result, changedPaths);
         quarantineStatus.textContent = 'Готово. Файл перенесён в корзину Trash, отчёт обновлён.';
-        if (sourceMusicCard && sourceMusicCard.isConnected) setCardStatus(sourceMusicCard, 'done', 'Файл перенесён в корзину.');
-        if (sourceComparison && sourceComparison.isConnected) setDuplicateStatus(sourceComparison, 'done', 'Файл перенесён в корзину.');
+        if (sourceMusicCard.isConnected) setCardStatus(sourceMusicCard, 'done', 'Файл перенесён в корзину.');
       }} catch (error) {{
         quarantineStatus.textContent = 'Не удалось переместить файл в корзину.';
         copyStatus.textContent = error.message || String(error);
-        if (sourceMusicCard) setCardStatus(sourceMusicCard, 'error', error.message || String(error));
-        if (sourceComparison) setDuplicateStatus(sourceComparison, 'error', error.message || String(error));
+        setCardStatus(sourceMusicCard, 'error', error.message || String(error));
       }} finally {{
         globalProgress.classList.remove('visible');
         setDuplicateActionsDisabled(false);
-        if (sourceMusicCard) setMusicActionDisabled(false, sourceMusicCard);
+        setMusicActionDisabled(false, sourceMusicCard);
       }}
     }}
 

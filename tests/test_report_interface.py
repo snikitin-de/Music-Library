@@ -393,7 +393,7 @@ class ReportInterfaceTests(unittest.TestCase):
         self.assertEqual(len([a for _,a in parsed.elements if 'duplicate-quality' in a.get('class','').split()]),2)
         self.assertFalse(any('quality-grid' in a.get('class','').split() for _,a in parsed.elements))
         trash=[a for _,a in parsed.elements if 'trash-one' in a.get('class','').split() and 'music-trash-icon' in a.get('class','').split()]
-        self.assertTrue({path,'D:/Музыка/a.mp3'}.issubset(a['data-file-path'] for a in trash))
+        self.assertEqual([a['data-file-path'] for a in trash], [path])
 
     def test_review_only_comparisons_keep_their_uncertain_status(self):
         document=self.render(rows=[ReportRow('review | raw', 'D:/Музыка/a.flac','D:/Музыка/b.flac','needs_review: same artist/title, tag key is not identical','format=flac','format=flac')])
