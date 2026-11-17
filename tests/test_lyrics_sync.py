@@ -97,6 +97,12 @@ assert.equal(lines[0].getAttribute('aria-current'),'true');
 player.currentTime=10;fire(player,'seeked');assert.equal(lines[0].getAttribute('aria-current'),null);
 player.currentTime=12;fire(player,'seeked');
 assert.equal(lines[1].getAttribute('aria-current'),'true');assert.equal(lines[2].getAttribute('aria-current'),'true');
+assert.equal(lines[0].classList.contains('is-played'),true);
+assert.equal(lines[3].classList.contains('is-played'),false);
+player.currentTime=3;fire(player,'seeked');
+assert.equal(lines[0].classList.contains('is-played'),false);
+assert.equal(lines[1].classList.contains('is-played'),false);
+player.currentTime=12;fire(player,'seeked');
 fire(container,'wheel');assert.equal(sync.follow,false);
 const scrolls=container.scrollCalls.length;
 player.currentTime=15;fire(player,'timeupdate');
@@ -106,7 +112,9 @@ player.paused=false;fire(player,'play');assert.equal(frames.size,1);
 player.paused=true;fire(player,'pause');assert.equal(frames.size,0);
 assert.equal(lines[3].getAttribute('aria-current'),'true','Pause keeps the current line');
 player.ended=true;fire(player,'ended');assert.equal(lines[3].getAttribute('aria-current'),null);assert.equal(frames.size,0);
+assert.equal(lines[3].classList.contains('is-played'),true);
 sync.bind(model,player,false);assert.equal(container.classList.contains('is-synced'),false);
+assert.equal(lines[3].classList.contains('is-played'),false);
 sync.dispose();const previous=updates;fire(player,'timeupdate');assert.equal(updates,previous,'Dispose must detach media listeners');
 ''')
 

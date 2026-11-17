@@ -59,6 +59,14 @@ assert.equal(container.tBodies.length,12,'Removing an unloaded/loaded entry must
 list.setItems([]);
 assert.deepEqual(container.children,[header],'The table header survives empty results');
 assert.equal(panel.hidden,true);
+const controlsOnly = {hidden:true,querySelector(selector){return selector==='button' ? button : null;}};
+const playlist = new ReportPagedList(container,controlsOnly,page,()=>{});
+playlist.setItems(records.slice(0,11));
+playlist.activate();
+assert.equal(controlsOnly.hidden,false);
+click();
+assert.equal(container.tBodies.length,11);
+assert.equal(controlsOnly.hidden,true,'A playlist with all tracks shown needs no pagination footer');
 """
         result = subprocess.run(['node', '-'], input=REPORT_PAGINATION_JS + '\n' + script, text=True, encoding='utf-8', capture_output=True)
         self.assertEqual(result.returncode, 0, result.stderr)

@@ -56,9 +56,10 @@ class ReportPagedList {
       }
       this.onMount(card, index);
     });
-    this.panel.hidden = this.items.length === 0;
-    this.button.hidden = next.length === this.items.length;
-    this.count.textContent = 'Показано ' + next.length.toLocaleString('ru-RU') + ' из ' + this.items.length.toLocaleString('ru-RU');
+    const hasMore = next.length < this.items.length;
+    this.panel.hidden = this.items.length === 0 || (!this.count && !hasMore);
+    this.button.hidden = !hasMore;
+    if (this.count) this.count.textContent = 'Показано ' + next.length.toLocaleString('ru-RU') + ' из ' + this.items.length.toLocaleString('ru-RU');
   }
 }
 """

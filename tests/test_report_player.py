@@ -16,6 +16,20 @@ class SharedPlayerTests(unittest.TestCase):
                                 capture_output=True, text=True, encoding='utf-8')
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_queue_batch_appends_in_order_and_notifies_once(self):
+        self.run_js(r'''
+const assert = require('node:assert/strict');
+let updates = 0;
+const player = new ReportPlayer({addEventListener() {}}, {
+  normalizePath: path => path,
+  onQueueChange: () => updates++,
+});
+assert.equal(player.enqueue({path: 'existing'}), true);
+assert.equal(player.enqueueTracks([{path: 'first'}, {path: 'second'}]), 2);
+assert.deepEqual(player.snapshot().manualQueue.map(track => track.path), ['existing', 'first', 'second']);
+assert.equal(updates, 2);
+''')
+
     def test_track_buttons_follow_play_pause_switch_and_end(self):
         import sys
         sys.path.insert(0, str(ROOT / 'scripts'))
@@ -173,6 +187,209 @@ const audio=new Audio();const player=new ReportPlayer(audio,{normalizePath:p=>p.
  assert.equal(player.canStep(1),false);await player.step(1);assert.equal(player.track.path,'1.flac');
  player.setQueue([{path:'other.flac'}]);assert.equal(player.canStep(-1),false);assert.equal(player.canStep(1),false);
 })().catch(e=>{console.error(e);process.exitCode=1;});
+''')
+
+    def test_shuffle_advances_without_replaying_tracks_and_repeat_takes_priority(self):
+        self.run_js(r'''
+const assert = require('node:assert/strict');
+class Audio extends EventTarget {
+  constructor(){super(); this.paused=true; this.loop=false;}
+  pause(){this.paused=true;}
+  load(){}
+}
+const audio=new Audio();
+const played=[];
+const player=new ReportPlayer(audio,{
+  normalizePath:path=>path.toLowerCase(),
+  play:async element=>{element.paused=false; played.push(player.track.path);},
+  seek:async()=>{},
+});
+const tracks=['A','B','C','D'].map(path=>({path}));
+const end=async()=>{
+  audio.paused=true;
+  audio.dispatchEvent(new Event('ended'));
+  await new Promise(resolve=>setImmediate(resolve));
+};
+(async()=>{
+  player.setQueue(tracks,'music');
+  await player.toggle(tracks[0]);
+  player.setShuffle(true);
+  player.setRepeat(true);
+  assert.equal(audio.loop,true);
+  await end();
+  assert.deepEqual(played,['A'],'Repeat must keep the current track even when shuffle is on');
+  player.setRepeat(false);
+  assert.equal(audio.loop,false);
+  await end();
+  player.setQueue([...tracks].reverse(),'music');
+  await end();
+  await end();
+  await end();
+  assert.equal(played.length,4);
+  assert.deepEqual([...new Set(played)].sort(),['A','B','C','D']);
+  assert.equal(player.canStep(1),false);
+  assert.equal(player.canStep(-1),true);
+  player.setQueue(tracks,'playlist:one');
+  await player.toggle(tracks[0]);
+  assert.equal(player.canStep(1),true,'A different playlist starts its own shuffle');
+  player.setShuffle(false);
+  assert.equal(player.neighbour(1).path,'B','Turning shuffle off restores the list order');
+  await end();
+  assert.equal(player.track.path,'B');
+})().catch(error=>{console.error(error);process.exitCode=1;});
+''')
+
+    def test_manual_queue_has_priority_and_resumes_the_ordered_source(self):
+        self.run_js(r'''
+const assert = require('node:assert/strict');
+class Audio extends EventTarget {
+  constructor(){super(); this.paused=true; this.ended=false; this.currentTime=0;}
+  pause(){this.paused=true;}
+  load(){this.currentTime=0; this.ended=false;}
+}
+const audio = new Audio();
+const listened = [];
+const player = new ReportPlayer(audio, {
+  normalizePath: path=>path.toLowerCase(),
+  play: async element=>{element.paused=false; element.ended=false; element.dispatchEvent(new Event('playing'));},
+  seek: async()=>{},
+  onListen: track=>listened.push(track.path),
+});
+const end = async()=>{
+  audio.paused=true;
+  audio.ended=true;
+  audio.dispatchEvent(new Event('ended'));
+  await new Promise(resolve=>setImmediate(resolve));
+};
+const [a,b,c,x] = ['A','B','C','X'].map(path=>({path}));
+(async()=>{
+  player.setQueue([a,b,c], 'music');
+  await player.toggle(a);
+  await player.toggle();
+  await player.toggle();
+  assert.deepEqual(listened, ['A'], 'Resuming is the same listening event');
+  player.enqueue(x);
+  player.enqueue(x);
+  player.enqueue(c);
+  player.removeQueued(2);
+  assert.deepEqual(player.manualQueue.map(track=>track.path), ['X','X']);
+  player.setRepeat(true);
+  await end();
+  assert.equal(player.track.path,'A');
+  assert.equal(player.manualQueue.length,2);
+  player.setRepeat(false);
+  await end();
+  assert.equal(player.track.path,'X');
+  await player.seek(x, 12);
+  assert.deepEqual(player.sourceUpcoming().map(track=>track.path), ['B','C']);
+  await player.step(1);
+  assert.equal(audio.currentTime,0);
+  assert.equal(audio.paused,false);
+  await end();
+  await end();
+  await end();
+  assert.deepEqual(listened, ['A','X','X','B','C']);
+  assert.equal(player.canStep(1),false);
+})().catch(error=>{console.error(error);process.exitCode=1;});
+''')
+
+    def test_idle_queue_starts_only_after_selecting_an_item(self):
+        self.run_js(r'''
+const assert = require('node:assert/strict');
+const audio = new EventTarget();
+audio.paused = true;
+audio.pause = () => {};
+audio.load = () => {};
+const player = new ReportPlayer(audio, {
+  normalizePath: path=>path,
+  play: async element=>{element.paused=false;},
+  seek: async()=>{},
+});
+(async()=>{
+  player.setQueue([{path:'Library track'}], 'music');
+  player.enqueue({path:'First'});
+  player.enqueue({path:'Was moved'});
+  player.enqueue({path:'Quarantined'});
+  player.updateQueuedTracks(new Map([['Was moved', {path:'Second'}], ['Quarantined', null]]));
+  assert.equal(player.track,null);
+  await player.playQueued(1);
+  assert.equal(player.track.path,'Second');
+  assert.deepEqual(player.manualQueue.map(track=>track.path),['First']);
+  await player.step(1);
+  assert.equal(player.track.path,'First');
+  assert.equal(player.canStep(1),false);
+})().catch(error=>{console.error(error);process.exitCode=1;});
+''')
+
+    def test_restored_session_preserves_position_order_and_stays_paused(self):
+        self.run_js(r'''
+const assert = require('node:assert/strict');
+class Audio extends EventTarget {
+  constructor() { super(); this.paused=true; this.currentTime=0; this.readyState=0; this.duration=90; }
+  pause() { this.paused=true; }
+  load() { this.currentTime=0; }
+}
+const [a,b,c] = ['A','B','C'].map(path=>({path}));
+const create = audio => new ReportPlayer(audio, {
+  normalizePath: path=>path.toLowerCase(),
+  play: async element=>{element.paused=false;},
+  seek: async()=>{},
+});
+const original = create(new Audio());
+original.setQueue([a,b,c], 'playlist:one');
+original.select(a);
+original.audio.currentTime=37;
+original.enqueue(b);
+original.enqueue(c, true);
+assert.deepEqual(original.manualQueue.map(track=>track.path), ['C','B']);
+original.moveQueued(1,0);
+assert.deepEqual(original.manualQueue.map(track=>track.path), ['B','C']);
+original.setShuffle(true);
+original.setRepeat(true);
+const snapshot=JSON.parse(JSON.stringify(original.snapshot()));
+const audio=new Audio();
+const player=create(audio);
+player.restore(snapshot, track=>track);
+assert.equal(player.position(),37);
+assert.equal(audio.paused,true);
+assert.equal(player.track.path,'A');
+assert.equal(player.queueScope,'playlist:one');
+assert.equal(player.repeat,true);
+assert.equal(player.shuffle,true);
+assert.deepEqual(player.sourceUpcoming().map(track=>track.path), original.sourceUpcoming().map(track=>track.path));
+assert.deepEqual(player.manualQueue.map(track=>track.path), ['B','C']);
+audio.readyState=1;audio.dispatchEvent(new Event('loadedmetadata'));
+assert.equal(audio.currentTime,37);
+assert.equal(audio.paused,true);
+''')
+
+    def test_recent_listens_keep_timestamps_across_reload_and_work_without_storage(self):
+        import sys
+        sys.path.insert(0, str(ROOT / 'scripts'))
+        from report_playback_panel import PLAYBACK_PANEL_JS
+
+        self.run_js(PLAYBACK_PANEL_JS + r'''
+const assert = require('node:assert/strict');
+const values = new Map();
+const storage = () => ({
+  getItem: key=>values.get(key),
+  setItem: (key,value)=>values.set(key,value),
+});
+const history = new ReportListeningHistory('library:A', storage);
+history.add({path:'A.flac', title:'Первый', artist:'Исполнитель', cover:'large artwork'}, 1700000000000);
+const secondTab = new ReportListeningHistory('library:A', storage);
+secondTab.add({path:'B.flac', title:'Второй', artist:''}, 1700000060000);
+history.add({path:'A.flac', title:'Первый', artist:'Исполнитель'}, 1700000120000);
+assert.deepEqual(new ReportListeningHistory('library:A', storage).entries, [
+  {path:'A.flac', title:'Первый', artist:'Исполнитель', playedAt:1700000120000},
+  {path:'B.flac', title:'Второй', artist:'', playedAt:1700000060000},
+  {path:'A.flac', title:'Первый', artist:'Исполнитель', playedAt:1700000000000},
+]);
+assert.deepEqual(new ReportListeningHistory('library:B', storage).entries, []);
+const limited = new ReportListeningHistory('blocked', () => { throw new Error('Storage unavailable'); });
+limited.add({path:'A.flac', title:'Первый'}, 1700000000000);
+assert.equal(limited.entries[0].playedAt, 1700000000000);
+assert.equal(limited.persistent, false);
 ''')
 
 

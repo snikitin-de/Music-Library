@@ -1,14 +1,19 @@
 from __future__ import annotations
 
+import json
+import os
 import re
 import sys
+import tempfile
 import unittest
 from pathlib import Path, PureWindowsPath
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 REPORT_SERVER = ROOT / "scripts" / "report_server.py"
 sys.path.insert(0, str(ROOT / "scripts"))
 
+import report_server
 from report_server import quarantine_path, trash_path
 
 
@@ -65,6 +70,20 @@ class ReportServerPathSourceTests(unittest.TestCase):
         self.assertIn('LIBRARY_ENV_VARS = ("MUSIC_LIBRARY_PATH", "MUSIC_LIBRARY_ROOT", "LIBRARY_PATH")', source)
         self.assertIn('configured = configured_library_paths()', source)
         self.assertIn('return str(existing)', source)
+
+    def test_startup_uses_configured_mount_when_the_saved_host_path_is_missing(self) -> None:
+        with (
+            tempfile.TemporaryDirectory() as mounted,
+            patch.dict(os.environ, {"MUSIC_LIBRARY_PATH": mounted}),
+            patch.object(report_server, "_SOURCE_OVERRIDE", ""),
+            patch.object(report_server, "report_library_path", return_value=str(Path(mounted) / "missing")),
+            patch.object(report_server, "SOURCE_SETTINGS", Path(mounted) / "source.json"),
+            patch.object(report_server, "ThreadingHTTPServer"),
+            patch.object(sys, "argv", ["report_server.py"]),
+        ):
+            report_server.SOURCE_SETTINGS.write_text(json.dumps({"path": str(Path(mounted) / "missing")}), encoding="utf-8")
+            report_server.main()
+            self.assertEqual(Path(report_server.library_path()), Path(mounted))
 
     def test_posix_storage_paths_are_expected_by_report_server(self) -> None:
         self.assertEqual(quarantine_path("/music/Library"), "/music/Duplicates")

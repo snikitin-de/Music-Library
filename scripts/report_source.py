@@ -1,10 +1,11 @@
 """Folder selection dialog for a report served by report_server.py."""
 
-SOURCE_DIALOG_HTML = r"""
+def source_dialog_html(close_icon: str) -> str:
+    return f"""
   <dialog class="source-dialog" id="sourceDialog" aria-labelledby="sourceTitle">
     <div class="source-dialog-head">
       <h2 id="sourceTitle">Источник музыки</h2>
-      <button class="source-close" id="sourceClose" type="button" aria-label="Закрыть выбор источника">×</button>
+      <button class="window-close" id="sourceClose" type="button" aria-label="Закрыть выбор источника" title="Закрыть">{close_icon}</button>
     </div>
     <div class="source-dialog-body">
       <form id="sourceBrowseForm">
@@ -95,6 +96,7 @@ globalThis.ReportScanProgress = {
 
 (() => {
   const source = document.getElementById('librarySource');
+  const settings = source.closest('details');
   const dialog = document.getElementById('sourceDialog');
   const path = document.getElementById('sourcePath');
   const folders = document.getElementById('sourceFolders');
@@ -175,6 +177,8 @@ globalThis.ReportScanProgress = {
 
   source.addEventListener('click', async () => {
     const attempt = ++opening;
+    settings.open = false;
+    settings.querySelector('summary').focus({preventScroll: true});
     dialog.showModal();
     progressPanel.hidden = true;
     folders.replaceChildren();

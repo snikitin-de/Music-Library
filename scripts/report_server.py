@@ -31,6 +31,7 @@ from urllib.parse import parse_qs, urlparse
 import yaml
 from library_source import SourceFiles, change_source, list_folders, saved_source, scan_library, validate_folder
 from scan_progress import ProgressStore, run_streaming
+from report_user_state import MAX_REQUEST_BYTES, ReportUserState, StateConflict
 
 from mutagen import File as MutagenFile
 
@@ -2174,6 +2175,12 @@ class ReportHandler(SimpleHTTPRequestHandler):
 
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
+        if parsed.path == "/api/player-state":
+            try:
+                self.send_json(200, {"ok": True, **ReportUserState(REPORT_HTML.parent).read()})
+            except (OSError, ValueError):
+                self.send_json(500, {"ok": False, "error": "Не удалось прочитать JSON с данными плеера."})
+            return
         if parsed.path in {"/api/library-source/progress", "/api/rescan-library/progress"}:
             scan_id = parse_qs(parsed.query).get("id", [""])[0]
             state = _SOURCE_PROGRESS.snapshot(scan_id)
@@ -2222,8 +2229,44 @@ class ReportHandler(SimpleHTTPRequestHandler):
         super().do_HEAD()
 
     def do_POST(self) -> None:
+        if self.path == "/api/player-state":
+            self.update_player_state()
+            return
         with _MUTATION_LOCK:
             self.handle_post()
+
+    def send_head(self):
+        file_name = Path(self.translate_path(self.path)).name.casefold()
+        if file_name in {"player-library.json", "player-session.json"}:
+            self.send_error(404)
+            return None
+        return super().send_head()
+
+    def update_player_state(self) -> None:
+        origin = self.headers.get("Origin")
+        if origin and (urlparse(origin).scheme not in {"http", "https"} or urlparse(origin).netloc != self.headers.get("Host")):
+            self.send_json(403, {"ok": False, "error": "Данные плеера доступны только из окна отчёта."})
+            return
+        if self.headers.get_content_type() != "application/json":
+            self.send_json(415, {"ok": False, "error": "Ожидается файл JSON."})
+            return
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+            if not 0 < length <= MAX_REQUEST_BYTES:
+                self.send_json(413, {"ok": False, "error": "Слишком большой JSON или отсутствует тело запроса."})
+                return
+            body = self.read_json()
+        except (ValueError, UnicodeError):
+            self.send_json(400, {"ok": False, "error": "Не удалось прочитать JSON."})
+            return
+        try:
+            self.send_json(200, {"ok": True, **ReportUserState(REPORT_HTML.parent).update(body)})
+        except StateConflict as exc:
+            self.send_json(409, {"ok": False, "error": str(exc)})
+        except RuntimeError as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        except (OSError, ValueError):
+            self.send_json(500, {"ok": False, "error": "Не удалось сохранить JSON с данными плеера."})
 
     def handle_post(self) -> None:
         try:
@@ -2309,7 +2352,8 @@ def main() -> int:
         else:
             _SOURCE_OVERRIDE = selected
     else:
-        _SOURCE_OVERRIDE = saved_source(SOURCE_SETTINGS, report_library_path())
+        saved = saved_source(SOURCE_SETTINGS, report_library_path())
+        _SOURCE_OVERRIDE = saved if saved and (path_is_dir(Path(saved)) or not configured_library_paths()) else ""
 
     server = ThreadingHTTPServer((args.host, args.port), ReportHandler)
     url = f"http://{args.host}:{args.port}/reports/library.html"

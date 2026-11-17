@@ -6,6 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 from generate_html_report import ReportRow, build_payload, render_html
+from report_playlists import PLAYLISTS_JS
 from test_report_interface import Elements
 
 
@@ -93,6 +94,39 @@ duplicateSearch.value='другой'; applyDuplicateFilters();
 assert.equal(matches.length,0,'Search and review filter must both match');
 duplicateFilter.value='duplicates'; applyDuplicateFilters();
 assert.equal(matches.length,24);
+'''
+        result = subprocess.run(['node', '-'], input=script, text=True, encoding='utf-8', capture_output=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_playlist_track_search_filters_tracks_beyond_the_first_page(self):
+        script = PLAYLISTS_JS + r'''
+const assert = require('node:assert/strict');
+const playlists = Object.create(ReportPlaylists.prototype);
+const rows = Array.from({length: 15}, (_, i) => ({
+  dataset: {musicSearch: i === 14 ? 'ёлка редкий альбом' : 'другой трек'},
+}));
+const search = {value: '  РЕДКИЙ  '};
+const table = {hidden: false};
+const empty = {classList: {toggle(_, visible) { this.visible = visible; }}};
+let displayed;
+playlists.rows = rows;
+playlists.ui = {playlistTrackSearch: search, playlistTracks: table, playlistTrackEmpty: empty};
+playlists.playlistSelection = {setItems(items) { displayed = items; }};
+
+playlists.filterTracks();
+assert.deepEqual(displayed, [rows[14]]);
+assert.equal(table.hidden, false);
+assert.equal(empty.classList.visible, false);
+search.value = 'Нет совпадений';
+playlists.filterTracks();
+assert.deepEqual(displayed, []);
+assert.equal(table.hidden, true);
+assert.equal(empty.classList.visible, true);
+search.value = '';
+playlists.filterTracks();
+assert.deepEqual(displayed, rows);
+assert.equal(table.hidden, false);
+assert.equal(empty.classList.visible, false);
 '''
         result = subprocess.run(['node', '-'], input=script, text=True, encoding='utf-8', capture_output=True)
         self.assertEqual(result.returncode, 0, result.stderr)

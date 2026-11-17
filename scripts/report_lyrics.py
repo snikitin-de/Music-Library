@@ -59,22 +59,30 @@ const ReportLyrics = (() => {
     return result;
   }
 
-  function activeLines(model, time) {
-    const cues = model.cues || [];
-    if (!Number.isFinite(time)) return [];
+  function cueLimit(cues, time) {
+    if (!Number.isFinite(time)) return 0;
     let low = 0, high = cues.length;
     while (low < high) {
       const middle = (low + high) >>> 1;
       if (cues[middle].time <= time) low = middle + 1;
       else high = middle;
     }
-    if (!low) return [];
-    const currentTime = cues[low - 1].time;
+    return low;
+  }
+
+  function linesAtCue(cues, limit) {
+    if (!limit) return [];
+    const currentTime = cues[limit - 1].time;
     const lines = new Set();
-    for (let i = low - 1; i >= 0 && cues[i].time === currentTime; i--) {
+    for (let i = limit - 1; i >= 0 && cues[i].time === currentTime; i--) {
       if (cues[i].line !== null) lines.add(cues[i].line);
     }
     return [...lines].sort((a, b) => a - b);
+  }
+
+  function activeLines(model, time) {
+    const cues = model.cues || [];
+    return linesAtCue(cues, cueLimit(cues, time));
   }
 
   function seekTime(model, index, currentTime = 0) {
@@ -175,16 +183,20 @@ const ReportLyrics = (() => {
     }
 
     update(forceScroll = false) {
-      const active = this.player && this.enabled && this.hasTiming && !this.player.ended && !this.player.error
-        ? activeLines(this.model, this.player.currentTime) : [];
-      const key = active.join(',');
+      const cues = this.model?.cues || [];
+      const limit = this.player && this.enabled && this.hasTiming && !this.player.error
+        ? cueLimit(cues, this.player.currentTime) : 0;
+      const active = this.player?.ended ? [] : linesAtCue(cues, limit);
+      const key = limit + ':' + active.join(',');
       const changed = key !== this.currentKey;
       if (changed) {
         this.currentKey = key;
         const indices = new Set(active);
+        const played = new Set(cues.slice(0, limit).map(cue => cue.line));
         this.lines.forEach((line, index) => {
           const current = indices.has(index);
           line.classList.toggle('is-current', current);
+          line.classList.toggle('is-played', !current && played.has(index));
           if (current) line.setAttribute('aria-current', 'true');
           else line.removeAttribute('aria-current');
         });
@@ -227,7 +239,11 @@ const ReportLyrics = (() => {
       this.player = null;
       this.hasTiming = false;
       this.currentKey = '';
-      this.lines.forEach(line => { line.classList.toggle('is-current', false); line.removeAttribute('aria-current'); });
+      this.lines.forEach(line => {
+        line.classList.toggle('is-current', false);
+        line.classList.toggle('is-played', false);
+        line.removeAttribute('aria-current');
+      });
       this.container.classList.toggle('is-synced', false);
     }
   }

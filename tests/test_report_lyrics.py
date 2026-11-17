@@ -99,7 +99,7 @@ const field=()=>({textContent:'',disabled:false,open:false,
  classList:{add(){},remove(){}},setAttribute(){}});
 const lyricsTitle=field(),lyricsArtist=field(),lyricsDetails=field(),lyricsPath=field(),
  lyricsSource=field(),lyricsText=field(),lyricsReading=field(),lyricsOriginal=field(),lyricsModal=field(),
- lyricsPlay=field(),lyricsClock=field(),lyricsFollow=field(),lyricsSyncNote=field(),lyricsPlaybackError=field();
+ lyricsPlay=field(),lyricsClock=field(),lyricsFollow=field(),lyricsPlaybackError=field();
 let lyricsRequestId=0,lyricsRawText='',lyricsDocument=null,lyricsAudio=null,rendered;
 const lyricsSync={dispose(){}};
 function cancelLyricsSeek(){}

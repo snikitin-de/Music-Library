@@ -1,0 +1,21 @@
+name: music-library-local
+
+services:
+  music-library:
+    image: music-library:local
+    build: .
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${MUSIC_LIBRARY_PORT:-8765}:8765"
+    volumes:
+      - type: bind
+        source: ./reports
+        target: /app/reports
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${MUSIC_LIBRARY_HOST:?Set MUSIC_LIBRARY_HOST to the music folder}
+        target: /music
+        read_only: true
+        bind:
+          create_host_path: false

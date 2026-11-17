@@ -23,12 +23,15 @@ from mutagen.mp4 import MP4Cover
 
 from report_styles import REPORT_CSS
 from report_assets import ICON_LICENSE_NOTICE, FONT_LICENSE_NOTICE
-from report_controls import REPORT_CONTROLS_JS
-from report_source import SOURCE_DIALOG_HTML, SOURCE_DIALOG_JS
+from report_controls import REPORT_CONTROLS_JS, REPORT_PANEL_LAYOUT_JS, page_actions_html
+from report_source import SOURCE_DIALOG_JS, source_dialog_html
 from report_pagination import REPORT_PAGINATION_JS
 from report_lyrics import REPORT_LYRICS_JS
 from report_player import REPORT_PLAYER_JS
+from report_user_storage import REPORT_USER_STORAGE_JS
+from report_playback_panel import PLAYBACK_PANEL_JS, playback_panel_html
 from report_duplicates import REPORT_DUPLICATES_JS
+from report_playlists import PLAYLISTS_CONTROLS_HTML, PLAYLISTS_JS, PLAYLISTS_SIDEBAR_HTML, playlists_page_html
 from genre_rules import normalized_genres, normalize_genre_counts
 from scan_progress import ProgressWriter, progress_files
 from find_duplicates import FORMAT_PRIORITY
@@ -54,7 +57,7 @@ MANAGED_STORAGE_FOLDERS = {"duplicates", "trash"}
 MAX_DISPLAY_TAG_LENGTH = 120
 LYRICS_FILE_EXTENSIONS = (".lrc", ".txt")
 COVER_FILE_NAMES = ("cover.jpg", "cover.jpeg", "cover.png", "folder.jpg", "folder.jpeg", "folder.png")
-FAVICON_VERSION = "library-green-3"
+FAVICON_VERSION = "library-brand-4"
 
 # Ready-made SVG paths from Lucide 1.28.0 (ISC):
 # https://cdn.jsdelivr.net/npm/lucide-static@1.28.0/icons/
@@ -62,11 +65,20 @@ LUCIDE_ICON_NODES = {
     "chevron-down": '<path d="m6 9 6 6 6-6"/>',
     "chevron-left": '<path d="m15 18-6-6 6-6"/>',
     "chevron-right": '<path d="m9 18 6-6-6-6"/>',
+    "ellipsis": '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
     "clock": '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
     "pause": '<path d="M6 4h4v16H6zM14 4h4v16h-4z"/>',
     "search": '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+    "shuffle": '<path d="M3 6h3c4 0 6 12 10 12h5m-4-4 4 4-4 4M3 18h3c4 0 6-12 10-12h5m-4-4 4 4-4 4"/>',
+    "repeat": '<path d="m17 2 4 4-4 4M21 6H7a4 4 0 0 0-4 4v1m4 11-4-4 4-4M3 18h14a4 4 0 0 0 4-4v-1"/>',
+    "queue": '<rect x="4" y="4" width="16" height="5" rx="1"/><path d="M4 14h16M4 19h16"/>',
+    "grip": '<path d="M9 5h.01M15 5h.01M9 12h.01M15 12h.01M9 19h.01M15 19h.01" stroke-width="3"/>',
+    "download": '<path d="M12 3v12m-4-4l4 4 4-4M4 16v4h16v-4"/>',
+    "upload": '<path d="M12 16V4m-4 4l4-4 4 4M4 16v4h16v-4"/>',
+    "sliders-horizontal": '<path d="M21 4h-7M10 4H3m18 8h-9M8 12H3m18 8h-5m-4 0H3m11-18v4M8 10v4m8 4v4"/>',
     "audio-lines": '<path d="M2 10v3"/><path d="M6 6v11"/><path d="M10 3v18"/><path d="M14 8v7"/><path d="M18 5v13"/><path d="M22 10v3"/>',
     "house": '<path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+    "folder": '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/>',
     "chart": '<path d="M5 21v-6"/><path d="M12 21V9"/><path d="M19 21V3"/>',
     "music": '<circle cx="8" cy="18" r="4"/><path d="M12 18V2l7 4"/>',
     "copy": '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
@@ -96,10 +108,11 @@ def lucide_icon(name: str, class_name: str = "app-icon") -> str:
 
 
 FAVICON_SVG = (
-    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" '
-    'stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
-    '<rect width="24" height="24" rx="12" fill="#28b969" stroke="none"/>'
-    f'{LUCIDE_ICON_NODES["audio-lines"]}</svg>'
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36">'
+    '<circle cx="18" cy="18" r="18" fill="#2bcf70"/>'
+    '<svg x="6.5" y="6.5" width="23" height="23" viewBox="0 0 24 24" '
+    'fill="none" stroke="#000" stroke-width="2.4" stroke-linecap="round">'
+    f'{LUCIDE_ICON_NODES["audio-lines"]}</svg></svg>'
 )
 FAVICON_DATA_URI = "data:image/svg+xml," + quote(FAVICON_SVG, safe="")
 
@@ -1013,9 +1026,11 @@ def shared_player() -> str:
       </div>
       <div class="global-controls">
         <div class="global-transport">
+          <button class="global-mode" id="globalShuffle" type="button" aria-label="Перемешать" title="Перемешать" aria-pressed="false">{lucide_icon("shuffle")}</button>
           <button class="global-skip" id="globalPrevious" type="button" aria-label="Предыдущий трек" title="Предыдущий трек" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h2v14H5zm14 0v14L8 12z"/></svg></button>
           <button class="audio-play" id="globalPlay" type="button" aria-label="Воспроизвести" aria-pressed="false">{lucide_icon("play", "audio-play-icon playback-icon")}{lucide_icon("pause", "audio-pause-icon playback-icon")}</button>
           <button class="global-skip" id="globalNext" type="button" aria-label="Следующий трек" title="Следующий трек" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 5h2v14h-2zM5 5l11 7-11 7z"/></svg></button>
+          <button class="global-mode" id="globalRepeat" type="button" aria-label="Повторять трек" title="Повторять трек" aria-pressed="false">{lucide_icon("repeat")}</button>
         </div>
         <div class="global-timeline">
           <span class="audio-time" id="globalCurrent">0:00</span>
@@ -1025,7 +1040,8 @@ def shared_player() -> str:
         </div>
       </div>
       <div class="global-extras">
-        <button class="global-lyrics" id="globalLyrics" type="button" aria-label="Текст текущей песни" title="Текст песни">{lucide_icon("file-text")}</button>
+        <button class="global-extra-button" id="globalLyrics" type="button" aria-label="Текст текущей песни" title="Текст песни">{lucide_icon("file-text")}</button>
+        <button class="global-extra-button queue-toggle" id="globalQueueToggle" type="button" aria-label="Очередь и история" title="Очередь и история" aria-controls="playbackPanel" aria-expanded="false">{lucide_icon("queue")}</button>
         <button class="audio-mute" id="globalMute" type="button" aria-label="Выключить звук">{lucide_icon("volume", "audio-volume-icon audio-volume-on")}{lucide_icon("volume-x", "audio-volume-icon audio-volume-off")}</button>
         <div class="audio-seek-wrap global-volume" id="globalVolumeWrap"><div class="audio-seek-track"><span class="audio-seek-fill"></span></div>
           <input class="audio-seek" id="globalVolume" type="range" min="0" max="100" value="100" step="1" aria-label="Громкость">
@@ -1096,28 +1112,44 @@ def render_format_bars(formats: dict) -> str:
     return horizontal_bars(list(formats.items()), "".join(parts), height=max(60, len(formats) * 29), label="Количество файлов по форматам")
 
 
-def render_artist_bars(artists: list) -> str:
-    if not artists:
+def render_ranking_row(place: int, name: str, value: str, bar_width: int | None = None) -> str:
+    bar = ""
+    if bar_width is not None:
+        bar = f'<span class="format-bar" aria-hidden="true"><span style="width:{bar_width}%"></span></span>'
+    return (
+        f'<li class="ranking-row"><span class="ranking-place" aria-hidden="true">{place}.</span>'
+        f'<span class="ranking-name">{html.escape(name)}</span>'
+        f'{bar}<span class="ranking-value">{html.escape(value)}</span></li>'
+    )
+
+
+def render_top_artists(artists: list) -> str:
+    ranked = [(str(artist), count) for artist, count in artists if not is_excluded_top_artist(str(artist))][:10]
+    if not ranked:
         return '<div class="format-empty">Исполнители не определены.</div>'
 
-    artists = [(artist, count) for artist, count in artists if not is_excluded_top_artist(str(artist))]
-    if not artists:
-        return '<div class="format-empty">Исполнители не определены.</div>'
+    max_count = max(1, max(count for _, count in ranked))
+    rows = [
+        render_ranking_row(place, artist, format_number(count), round(count / max_count * 100))
+        for place, (artist, count) in enumerate(ranked, start=1)
+    ]
+    return '<ol class="ranking-list artist-ranking" role="list" aria-label="Количество файлов по исполнителям">' + "".join(rows) + '</ol>'
 
-    max_count = max((count for _, count in artists), default=1)
-    parts = []
-    for artist, count in artists[:10]:
-        width = max(4, round(count / max_count * 100))
-        parts.append(
-            f"""
-            <div class="artist-row">
-              <div class="artist-name" title="{html.escape(str(artist))}">{html.escape(str(artist))}</div>
-              <div class="format-bar"><span style="width:{width}%"></span></div>
-              <div class="format-count">{format_number(count)}</div>
-            </div>
-            """
-        )
-    return horizontal_bars(artists[:10], "".join(parts), height=max(60, min(10, len(artists)) * 29), label="Количество файлов по исполнителям")
+
+def render_longest_tracks(tracks: list[dict]) -> str:
+    timed_tracks = [(duration_seconds(track.get("duration")), track) for track in tracks]
+    longest = sorted(timed_tracks, key=lambda entry: entry[0], reverse=True)[:10]
+    longest = [(seconds, track) for seconds, track in longest if seconds > 0]
+    if not longest:
+        return '<p class="format-empty">Длительность треков неизвестна.</p>'
+
+    rows = []
+    for place, (seconds, track) in enumerate(longest, start=1):
+        title = " · ".join(tag_values(track, "title")) or track.get("name") or "Без названия"
+        artist = " · ".join(tag_values(track, "artist") or tag_values(track, "albumartist"))
+        label = f"{title} — {artist}" if artist else str(title)
+        rows.append(render_ranking_row(place, label, format_duration(seconds)))
+    return '<ol class="ranking-list" role="list">' + "".join(rows) + '</ol>'
 
 
 def infer_top_artists_from_tracks(tracks: list[dict]) -> list[tuple[str, int]]:
@@ -1291,15 +1323,21 @@ def render_year_bars(years: dict) -> str:
             """
         )
 
+    era_labels = [label for label, _, _ in era_items]
     plot = plotly_chart([{
-        "type": "bar", "x": [label for label, _, _ in era_items], "y": [count for _, count, _ in era_items],
+        "type": "bar", "x": era_labels, "y": [count for _, count, _ in era_items],
         "customdata": [title for _, _, title in era_items],
         "marker": {"color": "#2bcf70", "line": {"width": 0}},
         "text": [str(count) for _, count, _ in era_items], "textposition": "outside", "cliponaxis": False,
         "hovertemplate": "%{customdata}<extra></extra>",
     }], {
         "margin": {"l": 4, "r": 4, "t": 24, "b": 28}, "bargap": 0.55, "barcornerradius": 0,
-        "xaxis": {"fixedrange": True, "showgrid": False, "showline": True, "linecolor": "#303030", "tickfont": {"size": 12}},
+        "xaxis": {
+            "fixedrange": True, "showgrid": False, "showline": True, "linecolor": "#303030",
+            "tickmode": "array", "tickvals": era_labels,
+            "ticktext": [label.replace(" ", "<br>", 1) for label in era_labels],
+            "tickangle": 0, "automargin": True, "tickfont": {"size": 12},
+        },
         "yaxis": {"visible": False, "fixedrange": True, "range": [0, max_count * 1.22]},
     }, '<div class="year-chart">' + "".join(bars) + '</div>', height=200, label="Эпохи по количеству файлов")
     peak_year, peak_count = max(all_year_items, key=lambda item: item[1])
@@ -1448,6 +1486,33 @@ def already_layouted(track: dict, library_path: str) -> bool:
     return source.stem == expected_stem or bool(re.fullmatch(re.escape(expected_stem) + r" \(\d+\)", source.stem))
 
 
+def render_track_search(field_id: str, table_id: str, label: str) -> str:
+    return f"""<div class="search-control page-search track-search" role="search" aria-label="{html.escape(label)}">
+      {lucide_icon("search", "search-icon")}
+      <input id="{field_id}" type="search" aria-controls="{table_id}" aria-label="{html.escape(label)}" placeholder="Исполнитель, альбом или трек">
+    </div>"""
+
+
+def render_music_table(table_id: str, label: str) -> str:
+    return f"""<div class="track-selection-bar" role="group" aria-label="Выбранные треки" hidden>
+      <span data-track-selection-count role="status"></span>
+      <button class="small" type="button" data-track-selection-actions aria-controls="playlistTrackMenu" aria-expanded="false">Действия</button>
+      <button class="small" type="button" data-track-selection-clear>Снять выделение</button>
+    </div>
+    <table class="music-list" id="{table_id}" aria-label="{html.escape(label)}" hidden>
+      <thead>
+        <tr>
+          <th class="music-track-number" scope="col"><button class="music-sort" type="button" data-music-sort="number" aria-label="Номер" title="Номер">#</button></th>
+          <th scope="col"><button class="music-sort" type="button" data-music-sort="name">Название</button></th>
+          <th class="music-track-artist" scope="col"><button class="music-sort" type="button" data-music-sort="artist">Исполнитель</button></th>
+          <th class="music-track-album" scope="col"><button class="music-sort" type="button" data-music-sort="album">Альбом</button></th>
+          <th class="music-track-duration" scope="col"><button class="music-sort" type="button" data-music-sort="duration" aria-label="Длительность" title="Длительность">{lucide_icon("clock")}</button></th>
+          <th class="music-track-control" scope="col" aria-label="Действия с треком"></th>
+        </tr>
+      </thead>
+    </table>"""
+
+
 def render_music_list(tracks: list[dict], duplicate_paths: set[str] | None = None, library_path: str = "") -> str:
     duplicate_paths = duplicate_paths or set()
     items = []
@@ -1484,7 +1549,7 @@ def render_music_list(tracks: list[dict], duplicate_paths: set[str] | None = Non
         identity_mismatch = bool(track.get("identity_mismatch"))
         identity = track.get("identity") or {}
         duplicate_note = (
-            '<div class="music-track-match">Есть совпадения в разделе «Дубли»</div>'
+            '<div class="music-track-match">Есть совпадения в разделе «Дубликаты»</div>'
             if track.get("path", "") in duplicate_paths
             else ""
         )
@@ -1532,7 +1597,10 @@ def render_music_list(tracks: list[dict], duplicate_paths: set[str] | None = Non
             f"""
             <tbody class="music-card" data-file-path="{html.escape(track.get("path", ""))}" data-layout-status="{layout_status}" data-music-search="{html.escape(search_text)}" data-music-genres="{genres_attr}" data-duration="{duration}" data-sort-number="{index}" data-sort-name="{html.escape(title.lower())}" data-sort-artist="{html.escape(lyrics_artist.lower())}" data-sort-album="{html.escape(album.lower())}">
               <tr class="music-track-row">
-                <td class="music-track-number">{index}</td>
+                <td class="music-track-number">
+                  <span class="music-track-index">{index}</span>
+                  <input class="music-track-select" type="checkbox" aria-label="Выбрать: {html.escape(title)}">
+                </td>
                 <th scope="row">
                   <div class="music-track-name">
                     <button class="music-play" type="button" title="Слушать" aria-label="Слушать: {html.escape(title)}" aria-pressed="false">
@@ -1553,9 +1621,14 @@ def render_music_list(tracks: list[dict], duplicate_paths: set[str] | None = Non
                 <td class="music-track-album" title="{html.escape(album)}">{html.escape(album or "—")}</td>
                 <td class="music-track-duration">{format_duration(duration)}</td>
                 <td class="music-track-control">
-                  <button class="music-details-toggle" type="button" aria-expanded="false" aria-controls="{details_id}" aria-label="Подробности: {html.escape(title)}" title="Подробности">
-                    {lucide_icon("chevron-down", "group-chevron")}
-                  </button>
+                  <div class="music-track-actions">
+                    <button class="music-track-menu-button" type="button" aria-expanded="false" aria-controls="playlistTrackMenu" aria-label="Действия: {html.escape(title)}" title="Действия с треком">
+                      {lucide_icon("ellipsis")}
+                    </button>
+                    <button class="music-details-toggle" type="button" aria-expanded="false" aria-controls="{details_id}" aria-label="Подробности: {html.escape(title)}" title="Подробности">
+                      {lucide_icon("chevron-down", "group-chevron")}
+                    </button>
+                  </div>
                 </td>
               </tr>
               <tr class="music-track-details" id="{details_id}" hidden>
@@ -1656,7 +1729,22 @@ def scan_progress_panel(panel_id: str) -> str:
       </div>'''
 
 
+def render_page_heading(title: str, icon: str, detail_html: str = "") -> str:
+    return f"""<div class="hero-layout">
+        <div class="collection-art" aria-hidden="true">{lucide_icon(icon)}</div>
+        <div class="hero-copy">
+          <h1>{html.escape(title)}</h1>
+          {detail_html}
+        </div>
+      </div>"""
+
+
 def render_html(payload: dict) -> str:
+    page_titles = {
+        "overview": "Моя медиатека",
+        "musicSection": "Музыка",
+        "duplicates": "Дубликаты",
+    }
     summary = payload["summary"]
     library = payload["library"]
     top_artists = library.get("top_artists") or infer_top_artists_from_tracks(library.get("tracks", []))
@@ -1666,12 +1754,7 @@ def render_html(payload: dict) -> str:
     library["years"] = years
     json_payload = json.dumps(payload, ensure_ascii=False)
     library_raw_path = library.get("path", "")
-    source_html = (
-        '<button class="sidebar-source" id="librarySource" type="button" aria-haspopup="dialog" '
-        'aria-controls="sourceDialog" aria-label="Изменить источник музыки"><span class="sidebar-source-label">Источник</span>'
-        f'<span class="sidebar-source-path" id="librarySourcePath" data-path="{html.escape(library_raw_path)}" '
-        f'title="{html.escape(library_raw_path)}">{html.escape(library_raw_path) if library_raw_path else "Выбрать папку"}</span></button>'
-    )
+    library_path_html = html.escape(library_raw_path)
     duplicate_paths = {
         path
         for group in payload.get("groups", [])
@@ -1757,6 +1840,22 @@ def render_html(payload: dict) -> str:
             """
         )
 
+    duplicate_summary = f"""<p class="music-summary">
+          Групп дублей: <span id="duplicatePageGroupsMetric">{format_number(summary["groups"])}</span>
+          · Дублей: <span id="duplicatePageFilesMetric">{format_number(summary["duplicates"])}</span>
+          · Возможных дублей: <span id="duplicatePageReviewMetric">{format_number(summary.get("review_groups", 0))}</span>
+        </p>"""
+    music_actions = page_actions_html("musicActions", "Действия с музыкой", """
+          <button id="tagVisible" type="button">Теги beets</button>
+          <button id="shazamTagVisible" type="button">Теги Shazam</button>
+          <button id="layoutVisible" type="button">Разложить по папкам</button>
+          <button id="coverVisible" type="button">Найти обложки</button>
+          <button id="lyricsVisible" type="button">Найти тексты</button>
+          <button id="rescanLibrary" type="button">Пересканировать библиотеку</button>""")
+    duplicate_actions = page_actions_html(
+        "duplicateActions", "Действия с дублями",
+        '<button id="findDuplicates" type="button">Найти дубли</button>',
+    )
     return f"""<!doctype html>
 <html lang="ru">
 <head>
@@ -1765,50 +1864,79 @@ def render_html(payload: dict) -> str:
 {ICON_LICENSE_NOTICE}
   -->
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Отчёт по музыкальной библиотеке</title>
+  <title>{page_titles["overview"]}</title>
   <link rel="icon" type="image/svg+xml" href="{FAVICON_DATA_URI}#v={FAVICON_VERSION}">
   <style>{REPORT_CSS}</style>
   <noscript><style>.report-view[hidden] {{ display: block !important; }}</style></noscript>
 </head>
 <body>
   <div class="app-shell">
-    <aside class="app-sidebar" aria-label="Навигация по отчёту">
-      <a class="app-brand" href="#overview" aria-label="Моя медиатека — к обзору">
-        <span class="brand-mark">{lucide_icon("audio-lines", "brand-icon")}</span>
-        <span><strong>Моя медиатека</strong></span>
-      </a>
+    <header class="app-topbar" aria-label="Инструменты отчёта">
+      <div class="topbar-search-area">
+        <a class="topbar-round topbar-home active" id="reportHome" href="#overview" aria-label="{page_titles["overview"]}" title="{page_titles["overview"]}" aria-current="page">
+          {lucide_icon("house")}
+        </a>
+        <form class="topbar-search search-control is-empty" role="search" aria-label="Поиск по музыке">
+          {lucide_icon("search", "search-icon")}
+          <input id="musicSearch" type="search" placeholder=" " aria-label="Исполнитель, альбом или трек">
+          <span class="search-placeholder" aria-hidden="true">Исполнитель, альбом или трек</span>
+        </form>
+        <button class="topbar-round queue-toggle" id="queueToggle" type="button" aria-label="Очередь и история" title="Очередь и история" aria-controls="playbackPanel" aria-expanded="false">{lucide_icon("queue")}</button>
+      </div>
+      <details class="topbar-settings" id="reportSettings">
+        <summary class="topbar-round" aria-label="Настройки" title="Настройки">{lucide_icon("sliders-horizontal")}</summary>
+        <div class="topbar-settings-panel report-menu">
+          <button id="librarySource" type="button" aria-haspopup="dialog" aria-controls="sourceDialog" aria-label="Изменить источник музыки">
+            {lucide_icon("folder")}
+            <span>Источник музыки<small id="librarySourcePath" data-path="{library_path_html}" title="{library_path_html}">{library_path_html or "Выбрать папку"}</small></span>
+          </button>
+          <button id="processingModeNote" type="button" data-mode="dry-run" aria-pressed="false" aria-live="polite" aria-label="Режим применения изменений" aria-describedby="processingModeDetail" title="Переключить на применение изменений">
+            {lucide_icon("circle-alert")}
+            <span><strong id="processingModeTitle">Режим проверки</strong><small id="processingModeDetail">Изменения и удаление отключены</small></span>
+          </button>
+          <button id="exportPlayerBackup" type="button">{lucide_icon("download")} Экспорт плейлистов и истории</button>
+          <button id="importPlayerBackup" type="button">{lucide_icon("upload")} Импорт плейлистов и истории</button>
+        </div>
+      </details>
+    </header>
+    <aside class="app-sidebar" id="appSidebar" aria-label="Навигация по отчёту">
+      <div class="app-sidebar-header">
+        <a class="app-brand" href="#overview">
+          <span class="brand-mark">{lucide_icon("audio-lines", "brand-icon")}</span>
+          <span><strong>{page_titles["overview"]}</strong></span>
+        </a>
+        <button class="sidebar-toggle" id="sidebarToggle" type="button" aria-controls="appSidebar" aria-expanded="true" aria-label="Свернуть меню" title="Свернуть меню" hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="4" y="4" width="16" height="16" rx=".7"/>
+            <path d="M9.5 4v16"/>
+            <path class="sidebar-toggle-chevron" d="m16 9-3 3 3 3"/>
+          </svg>
+        </button>
+      </div>
       <p class="nav-caption">Библиотека</p>
       <nav class="side-nav" aria-label="Разделы медиатеки">
-        <a href="#overview" class="active">
+        <a href="#overview" class="active" aria-label="{page_titles["overview"]}" title="{page_titles["overview"]}">
           {lucide_icon("house", "nav-icon")}
-          <span>Обзор</span>
+          <span>{page_titles["overview"]}</span>
         </a>
-        <a href="#musicSection">
-          {lucide_icon("music", "nav-icon")}
-          <span>Моя музыка</span>
+        <a href="#musicSection" aria-label="{page_titles["musicSection"]}" title="{page_titles["musicSection"]}">
+          {lucide_icon("disc", "nav-icon")}
+          <span>{page_titles["musicSection"]}</span>
         </a>
-        <a href="#duplicates">
-          {lucide_icon("copy", "nav-icon")}
-          <span>Дубли</span>
+        <a href="#duplicates" aria-label="{page_titles["duplicates"]}" title="{page_titles["duplicates"]}">
+          {lucide_icon("files", "nav-icon")}
+          <span>{page_titles["duplicates"]}</span>
         </a>
       </nav>
-      <div class="sidebar-footer">
-      {source_html}
-      <button class="sidebar-note" id="processingModeNote" type="button" data-mode="dry-run" aria-pressed="false" aria-live="polite" title="Переключить на применение изменений">
-        <strong id="processingModeTitle">Режим проверки</strong><small id="processingModeDetail">Изменения и удаление отключены</small>
-      </button>
-      </div>
+      {PLAYLISTS_SIDEBAR_HTML}
     </aside>
-    <div class="app-workspace">
-  <main class="page">
+    <div class="pane-divider pane-divider-sidebar" id="sidebarDivider" role="separator" aria-label="Ширина левого меню" aria-controls="appSidebar" aria-orientation="vertical" tabindex="0" hidden></div>
+    <main class="app-workspace">
+    <div class="workspace-scroll" tabindex="0">
+  <div class="page">
     <div class="report-view" data-page="overview">
     <section class="header" id="overview">
-      <div class="hero-layout">
-        <div class="collection-art" aria-hidden="true">{lucide_icon("audio-lines")}</div>
-        <div class="hero-copy">
-          <h1>Моя медиатека</h1>
-        </div>
-      </div>
+      {render_page_heading(page_titles["overview"], "audio-lines")}
       <div class="summary">
         <div class="metric metric-primary"><span class="metric-icon">{lucide_icon("files")}</span><span class="metric-label">Всего файлов</span><strong>{format_number(library.get("total_files"))}</strong></div>
         <div class="metric"><span class="metric-icon">{lucide_icon("disc")}</span><span class="metric-label">Альбомов</span><strong>{format_number(library.get("albums"))}</strong></div>
@@ -1820,7 +1948,7 @@ def render_html(payload: dict) -> str:
       </div>
     </section>
 
-    <div class="section-heading" id="insights"><span>Обзор библиотеки</span><h2>Ваша коллекция в цифрах</h2></div>
+    <div class="section-heading" id="insights"><h2>Ваша коллекция в цифрах</h2></div>
     <div class="analysis-grid">
       <section class="panel summary-panel">
         <h2>Сводка</h2>
@@ -1841,7 +1969,13 @@ def render_html(payload: dict) -> str:
       <section class="panel artist-panel">
         <h2>ТОП 10 исполнителей</h2>
         <div class="panel-body">
-          {render_artist_bars(top_artists)}
+          {render_top_artists(top_artists)}
+        </div>
+      </section>
+      <section class="panel">
+        <h2>ТОП 10 по времени</h2>
+        <div class="panel-body">
+          {render_longest_tracks(tracks)}
         </div>
       </section>
       <section class="panel genre-panel">
@@ -1862,68 +1996,38 @@ def render_html(payload: dict) -> str:
     </div>
 
     <section class="report-view music-section" data-page="musicSection" id="musicSection" hidden>
-      <header class="library-section-heading">
-        <h2 class="section-title">Моя музыка</h2>
-        <p class="music-summary" id="musicSummary"></p>
+      <header class="header">
+        {render_page_heading(page_titles["musicSection"], "disc", '<p class="music-summary" id="musicSummary"></p>')}
       </header>
-    <div class="search-control page-search is-empty">
-      {lucide_icon("search", "search-icon")}
-      <input id="musicSearch" type="search" placeholder=" " aria-label="Поиск по музыке">
-      <span class="search-placeholder" aria-hidden="true">Поиск: исполнитель, альбом, трек</span>
+    {render_track_search("musicPageSearch", "musicList", "Поиск в музыке")}
+    {music_actions}
+    <div class="operation-status" id="operationStatus" role="status"></div>
+    <div class="quarantine-panel scan-panel" id="scanPanel">
+      <p id="scanStatus" role="status"></p>
+      <span class="copy-status" id="scanCopyStatus"></span>
+      {scan_progress_panel("scanProgress")}
     </div>
-    <section class="music-operations music-toolbar" aria-labelledby="musicActionsTitle">
-      <h3 class="music-operations-title" id="musicActionsTitle">Действия</h3>
-      <div class="music-operations-row">
-        <button class="small" id="tagVisible" type="button">Теги beets</button>
-        <button class="small" id="shazamTagVisible" type="button">Теги Shazam</button>
-        <button class="small" id="layoutVisible" type="button">Разложить по папкам</button>
-        <button class="small" id="coverVisible" type="button">Найти обложки</button>
-        <button class="small" id="lyricsVisible" type="button">Найти тексты</button>
-        <button class="small" id="rescanLibrary" type="button">Пересканировать библиотеку</button>
-      </div>
-      <div class="operation-status" id="operationStatus" role="status"></div>
-      <div class="quarantine-panel scan-panel" id="scanPanel">
-        <p id="scanStatus" role="status"></p>
-        <span class="copy-status" id="scanCopyStatus"></span>
-        {scan_progress_panel("scanProgress")}
-      </div>
-    </section>
     <div class="music-genre-pagination" id="musicGenrePagination" role="group" aria-label="Фильтр по жанрам" hidden>
       <button class="music-genre-arrow" id="musicGenrePrevious" type="button" aria-label="Предыдущие жанры" aria-controls="musicGenreFilters" hidden>{lucide_icon("chevron-left")}</button>
       <div class="music-genre-filters" id="musicGenreFilters"></div>
       <button class="music-genre-arrow" id="musicGenreNext" type="button" aria-label="Следующие жанры" aria-controls="musicGenreFilters" hidden>{lucide_icon("chevron-right")}</button>
     </div>
-    <table class="music-list" id="musicList" aria-label="Моя музыка" hidden>
-      <thead>
-        <tr>
-          <th class="music-track-number" scope="col"><button class="music-sort" type="button" data-music-sort="number" aria-label="Номер" title="Номер">#</button></th>
-          <th scope="col" aria-sort="ascending"><button class="music-sort" type="button" data-music-sort="name">Название</button></th>
-          <th class="music-track-artist" scope="col"><button class="music-sort" type="button" data-music-sort="artist">Исполнитель</button></th>
-          <th class="music-track-album" scope="col"><button class="music-sort" type="button" data-music-sort="album">Альбом</button></th>
-          <th class="music-track-duration" scope="col"><button class="music-sort" type="button" data-music-sort="duration" aria-label="Длительность" title="Длительность">{lucide_icon("clock")}</button></th>
-          <th class="music-track-control" scope="col" aria-label="Подробности"></th>
-        </tr>
-      </thead>
-    </table>
+    {render_music_table("musicList", page_titles["musicSection"])}
     <template id="musicCardSource"><table>{music_html}</table></template>
     <div class="list-pagination" id="musicPagination" hidden><p role="status" aria-live="polite"></p><button class="small" type="button">Показать ещё 10 треков</button></div>
     <div class="empty" id="musicEmpty">{'Ничего не найдено по текущему фильтру музыки.' if tracks else 'Музыкальные файлы не найдены.'}</div>
     </section>
 
     <section class="report-view music-section duplicates-section" data-page="duplicates" id="duplicates" hidden>
-    <header class="library-section-heading">
-      <h2 class="section-title">Дубли</h2>
+    <header class="header">
+      {render_page_heading(page_titles["duplicates"], "files", duplicate_summary)}
     </header>
-    <div class="summary duplicate-summary" role="group" aria-label="Статистика дублей">
-      <div class="metric"><span class="metric-icon">{lucide_icon("copy")}</span><span class="metric-label">Групп дублей</span><strong id="duplicatePageGroupsMetric">{format_number(summary["groups"])}</strong></div>
-      <div class="metric metric-alert"><span class="metric-icon">{lucide_icon("copy-check")}</span><span class="metric-label">Дублей</span><strong id="duplicatePageFilesMetric">{format_number(summary["duplicates"])}</strong></div>
-      <div class="metric"><span class="metric-icon">{lucide_icon("circle-alert")}</span><span class="metric-label">Возможные дубли</span><strong id="duplicatePageReviewMetric">{format_number(summary.get("review_groups", 0))}</strong></div>
-    </div>
     <div class="search-control page-search is-empty">
       {lucide_icon("search", "search-icon")}
       <input id="duplicateSearch" type="search" placeholder=" " aria-label="Поиск по дублям">
       <span class="search-placeholder" aria-hidden="true">Поиск: исполнитель, альбом, трек</span>
     </div>
+    {duplicate_actions}
     <div class="toolbar duplicate-toolbar">
       <select id="duplicateFilter" aria-label="Фильтр групп дублей">
         <option value="all">Все группы</option>
@@ -1931,17 +2035,11 @@ def render_html(payload: dict) -> str:
         <option value="review">Возможные дубли</option>
       </select>
     </div>
-    <section class="music-operations music-toolbar" aria-labelledby="duplicateActionsTitle">
-      <h3 class="music-operations-title" id="duplicateActionsTitle">Действия</h3>
-      <div class="music-operations-row">
-        <button class="small" id="findDuplicates" type="button">Найти дубли</button>
-      </div>
-      <div class="quarantine-panel scan-panel" id="duplicateScanPanel">
-        <p id="duplicateScanStatus" role="status"></p>
-        <span class="copy-status" id="duplicateScanCopyStatus"></span>
-        {scan_progress_panel("duplicateScanProgress")}
-      </div>
-    </section>
+    <div class="quarantine-panel scan-panel" id="duplicateScanPanel">
+      <p id="duplicateScanStatus" role="status"></p>
+      <span class="copy-status" id="duplicateScanCopyStatus"></span>
+      {scan_progress_panel("duplicateScanProgress")}
+    </div>
     <div class="quarantine-panel" id="quarantinePanel">
       <p id="quarantineStatus">Готово к безопасному переносу дублей в карантин. Файлы не удаляются.</p>
       <span class="copy-status" id="copyStatus"></span>
@@ -1952,11 +2050,19 @@ def render_html(payload: dict) -> str:
     <div class="list-pagination" id="duplicatePagination" hidden><p role="status" aria-live="polite"></p><button class="small" type="button">Показать ещё 10 групп</button></div>
     <div class="empty{' visible' if not groups_html else ''}" id="empty">Дубли не найдены.</div>
     </section>
-  </main>
+    {playlists_page_html(
+        render_track_search("playlistTrackSearch", "playlistTracks", "Поиск в плейлисте"),
+        render_music_table("playlistTracks", "Треки плейлиста"),
+    )}
+  </div>
     </div>
+    </main>
+    {playback_panel_html(lucide_icon("x"), lucide_icon("music"), lucide_icon("grip"))}
+    <div class="pane-divider pane-divider-queue" id="queueDivider" role="separator" aria-label="Ширина очереди" aria-controls="playbackPanel" aria-orientation="vertical" tabindex="0" hidden></div>
   </div>
 
   {shared_player()}
+  {PLAYLISTS_CONTROLS_HTML}
   <div class="lyrics-modal" id="lyricsModal" aria-hidden="true">
     <div class="lyrics-dialog" role="dialog" aria-modal="true" aria-labelledby="lyricsTitle">
       <div class="lyrics-dialog-head">
@@ -1970,36 +2076,50 @@ def render_html(payload: dict) -> str:
             <div class="lyrics-dialog-path" id="lyricsPath"></div>
           </details>
         </div>
-        <button class="lyrics-close" id="lyricsClose" type="button" aria-label="Закрыть">{lucide_icon("x", "lyrics-close-icon")}</button>
+        <button class="window-close" id="lyricsClose" type="button" aria-label="Закрыть текст песни" title="Закрыть">{lucide_icon("x")}</button>
       </div>
       <div class="lyrics-toolbar" role="group" aria-label="Управление текстом и воспроизведением">
         <button class="small" id="lyricsReading" type="button" aria-pressed="true">Для чтения</button>
         <button class="small" id="lyricsOriginal" type="button" aria-pressed="false">Исходный</button>
         <button class="small" id="lyricsFollow" type="button" aria-pressed="true" hidden>Следить за музыкой</button>
-        <span class="lyrics-sync-note" id="lyricsSyncNote"></span>
       </div>
       <div class="lyrics-text" id="lyricsText" tabindex="0" aria-label="Текст песни"></div>
     </div>
   </div>
 
   <script id="payload" type="application/json">{html.escape(json_payload)}</script>
-  {SOURCE_DIALOG_HTML}
+  <dialog class="playlist-dialog" id="importPlayerBackupDialog" aria-labelledby="importPlayerBackupTitle">
+    <form id="importPlayerBackupForm">
+      <h2 id="importPlayerBackupTitle">Импорт плейлистов и истории</h2>
+      <label for="playerBackupFile">Файл резервной копии</label>
+      <input id="playerBackupFile" type="file" accept=".json,application/json" required>
+      <p class="playlist-hint" id="importPlayerBackupError" role="status"></p>
+      <div class="playlist-dialog-actions">
+        <button class="small" type="button" id="cancelPlayerBackup">Отмена</button>
+        <button class="small" type="submit">Импортировать</button>
+      </div>
+    </form>
+  </dialog>
+  {source_dialog_html(lucide_icon("x"))}
   <script id="fontLicense" type="text/plain">{html.escape(FONT_LICENSE_NOTICE)}</script>
   <script id="chartLicense" type="text/plain">{html.escape(PLOTLY_LICENSE)}</script>
   <script id="plotlyLibrary">{PLOTLY_JS}</script>
-  <script id="reportControls">{REPORT_CONTROLS_JS}</script>
+  <script id="reportControls">{REPORT_CONTROLS_JS}{REPORT_PANEL_LAYOUT_JS}</script>
   <script id="reportSource">{SOURCE_DIALOG_JS}</script>
   <script id="reportCharts">{REPORT_CHARTS_JS}</script>
   <script id="reportPagination">{REPORT_PAGINATION_JS}</script>
   <script id="reportLyrics">{REPORT_LYRICS_JS}</script>
   <script id="reportPlayer">{REPORT_PLAYER_JS}</script>
+  <script id="reportUserStorage">{REPORT_USER_STORAGE_JS}</script>
+  <script id="reportPlaybackPanel">{PLAYBACK_PANEL_JS}</script>
   <script id="reportDuplicates">{REPORT_DUPLICATES_JS}</script>
+  <script id="reportPlaylists">{PLAYLISTS_JS}</script>
   <script>
     let cards = Array.from(document.getElementById('duplicateCardSource').content.querySelectorAll('.group-card'));
     let musicCards = Array.from(document.getElementById('musicCardSource').content.querySelectorAll('.music-card'));
     const musicList = document.getElementById('musicList');
     const musicSortButtons = musicList.querySelectorAll('[data-music-sort]');
-    let musicSortKey = 'name';
+    let musicSortKey = null;
     let musicSortDirection = 1;
     const musicSummary = document.getElementById('musicSummary');
     const musicGenrePagination = document.getElementById('musicGenrePagination');
@@ -2010,6 +2130,7 @@ def render_html(payload: dict) -> str:
     const musicPlural = new Intl.PluralRules('ru');
     let musicGenre = '';
     const musicSearch = document.getElementById('musicSearch');
+    const musicPageSearch = document.getElementById('musicPageSearch');
     const duplicateSearch = document.getElementById('duplicateSearch');
     const duplicateFilter = document.getElementById('duplicateFilter');
     const musicEmpty = document.getElementById('musicEmpty');
@@ -2043,7 +2164,6 @@ def render_html(payload: dict) -> str:
     const lyricsReading = document.getElementById('lyricsReading');
     const lyricsOriginal = document.getElementById('lyricsOriginal');
     const lyricsFollow = document.getElementById('lyricsFollow');
-    const lyricsSyncNote = document.getElementById('lyricsSyncNote');
     const lyricsPath = document.getElementById('lyricsPath');
     const lyricsSource = document.getElementById('lyricsSource');
     const lyricsText = document.getElementById('lyricsText');
@@ -2055,21 +2175,35 @@ def render_html(payload: dict) -> str:
 
     const lyricsSync = new ReportLyrics.Sync(lyricsText, {{onSeek: seekLyricsLine, onState: updateLyricsPlaybackUI}});
     let lyricsSeekRequest = null;
-    const sharedUI = Object.fromEntries(['globalPlayer', 'globalAudio', 'globalPlay', 'globalPrevious', 'globalNext', 'globalCover', 'globalCoverPlaceholder', 'globalTitle', 'globalArtist', 'globalCurrent', 'globalDuration', 'globalSeek', 'globalSeekWrap', 'globalMute', 'globalVolume', 'globalVolumeWrap', 'globalLyrics', 'globalPlaybackError'].map(id => [id, document.getElementById(id)]));
+    const sharedUI = Object.fromEntries(['globalPlayer', 'globalAudio', 'globalPlay', 'globalPrevious', 'globalNext', 'globalShuffle', 'globalRepeat', 'globalCover', 'globalCoverPlaceholder', 'globalTitle', 'globalArtist', 'globalCurrent', 'globalDuration', 'globalSeek', 'globalSeekWrap', 'globalMute', 'globalVolume', 'globalVolumeWrap', 'globalLyrics', 'globalPlaybackError'].map(id => [id, document.getElementById(id)]));
     let cardPlaybackKey = '';
     let playbackContext = 'music';
+    let playingPlaylistId = '';
+    let playbackPanel;
+    let playbackSession;
+    const reportLibraryPath = document.getElementById('librarySourcePath').dataset.path;
+    const libraryKey = normalizePathForCompare(reportLibraryPath) || location.pathname;
+    const userStorage = new ReportLibraryStorage(libraryKey);
     const musicCardByPath = new Map(musicCards.map(card => [normalizePathForCompare(card.dataset.filePath), card]));
+    const trackCardForPath = path => musicCardByPath.get(normalizePathForCompare(path));
     const playback = new ReportPlayer(sharedUI.globalAudio, {{
       normalizePath: normalizePathForCompare,
       play: (audio, signal) => toggleAudioPlayback(audio, sharedUI.globalPlay, sharedUI.globalPlaybackError, signal),
       seek: (audio, seconds, signal) => seekAudioPlayback(audio, seconds, sharedUI.globalPlaybackError, signal),
       onChange: updateGlobalTrack,
       onUpdate: updateGlobalPlayer,
+      onQueueChange: () => {{
+        playbackPanel?.refresh();
+        playbackSession?.changed();
+      }},
+      onListen: track => {{
+        playbackPanel?.record(track);
+        playbackSession?.progress(true);
+      }},
     }});
 
     function trackForPath(path, source = null) {{
-      const card = musicCardByPath.get(normalizePathForCompare(path))
-        || source?.closest('.duplicate-track');
+      const card = trackCardForPath(path) || source?.closest('.duplicate-track');
       const lyrics = card?.querySelector('.lyrics-button');
       const name = card?.querySelector('.music-title')?.textContent || path.split(/[\\\\/]/).pop();
       return {{path, name, title: lyrics?.dataset.lyricsTitle || name.replace(/\\.[^.]+$/, ''),
@@ -2080,7 +2214,15 @@ def render_html(payload: dict) -> str:
       const tracks = playbackContext === 'music'
         ? musicCards.filter(card => !card.hidden)
         : cards.filter(card => !card.hidden).flatMap(card => Array.from(card.querySelectorAll('.duplicate-track')));
-      playback.setQueue(tracks.map(card => trackForPath(card.dataset.filePath, card)));
+      playback.setQueue(tracks.map(card => trackForPath(card.dataset.filePath, card)), playbackContext);
+    }}
+
+    function playReportTrack(card, restart = false) {{
+      if (!card) return;
+      playbackContext = card.matches('.duplicate-track') ? 'duplicates' : 'music';
+      updatePlaybackQueue();
+      const track = trackForPath(card.dataset.filePath, card);
+      return restart ? playback.start(track) : playback.toggle(track);
     }}
 
     function syncOpenLyricsPlayer() {{
@@ -2150,9 +2292,11 @@ def render_html(payload: dict) -> str:
       sharedUI.globalPlay.setAttribute('aria-busy', String(Boolean(playback.pending)));
       sharedUI.globalPrevious.disabled = !playback.canStep(-1);
       sharedUI.globalNext.disabled = !playback.canStep(1);
-      sharedUI.globalCurrent.textContent = formatAudioTime(audio.currentTime);
+      sharedUI.globalShuffle.setAttribute('aria-pressed', String(playback.shuffle));
+      sharedUI.globalRepeat.setAttribute('aria-pressed', String(playback.repeat));
+      sharedUI.globalCurrent.textContent = formatAudioTime(playback.position());
       sharedUI.globalDuration.textContent = formatAudioTime(audio.duration);
-      const progress = Number.isFinite(audio.duration) && audio.duration > 0 ? Math.min(100, audio.currentTime / audio.duration * 100) : 0;
+      const progress = Number.isFinite(audio.duration) && audio.duration > 0 ? Math.min(100, playback.position() / audio.duration * 100) : 0;
       sharedUI.globalSeek.value = Math.round(progress * 10);
       sharedUI.globalSeek.disabled = !(Number.isFinite(audio.duration) && audio.duration > 0);
       sharedUI.globalSeekWrap.style.setProperty('--audio-progress', progress + '%');
@@ -2167,9 +2311,14 @@ def render_html(payload: dict) -> str:
     sharedUI.globalPlay.addEventListener('click', () => playback.toggle());
     sharedUI.globalPrevious.addEventListener('click', () => playback.step(-1));
     sharedUI.globalNext.addEventListener('click', () => playback.step(1));
+    sharedUI.globalShuffle.addEventListener('click', () => playback.setShuffle(!playback.shuffle));
+    sharedUI.globalRepeat.addEventListener('click', () => playback.setRepeat(!playback.repeat));
     sharedUI.globalSeek.addEventListener('input', () => {{
-      if (Number.isFinite(playback.audio.duration) && playback.audio.duration > 0) playback.audio.currentTime = Number(sharedUI.globalSeek.value) / 1000 * playback.audio.duration;
+      if (Number.isFinite(playback.audio.duration) && playback.audio.duration > 0) {{
+        playback.audio.currentTime = Number(sharedUI.globalSeek.value) / 1000 * playback.audio.duration;
+      }}
     }});
+    sharedUI.globalSeek.addEventListener('change', () => playbackSession?.progress(true, true));
     sharedUI.globalMute.addEventListener('click', () => {{
       const muted = playback.audio.muted || playback.audio.volume === 0;
       if (playback.audio.volume === 0) playback.audio.volume = .5;
@@ -2183,31 +2332,148 @@ def render_html(payload: dict) -> str:
     }});
     new ResizeObserver(() => document.documentElement.style.setProperty('--player-height', sharedUI.globalPlayer.hidden ? '0px' : sharedUI.globalPlayer.offsetHeight + 'px')).observe(sharedUI.globalPlayer);
 
-    const sideNavLinks = Array.from(document.querySelectorAll('.side-nav a[href^="#"]'));
+    const sidebarToggle = document.getElementById('sidebarToggle');
+    const appShell = sidebarToggle.closest('.app-shell');
+    const appWorkspace = appShell.querySelector('.workspace-scroll');
+    appWorkspace.addEventListener('scroll', () => {{
+      appWorkspace.parentElement.style.setProperty('--workspace-background-offset', -appWorkspace.scrollTop + 'px');
+    }}, {{passive: true}});
+    setupReportPanelWidths(appShell);
+    sidebarToggle.hidden = false;
+    sidebarToggle.addEventListener('click', () => {{
+      const collapsed = appShell.classList.toggle('is-sidebar-collapsed');
+      if (collapsed) playlists.setSearchOpen(false, false);
+      const label = collapsed ? 'Развернуть меню' : 'Свернуть меню';
+      sidebarToggle.setAttribute('aria-expanded', String(!collapsed));
+      sidebarToggle.setAttribute('aria-label', label);
+      sidebarToggle.title = label;
+      window.dispatchEvent(new Event('resize'));
+    }});
+    const pageLinks = document.querySelectorAll('.side-nav a, #reportHome');
+    const reportSettings = document.getElementById('reportSettings');
     const reportPages = Array.from(document.querySelectorAll('.report-view[data-page]'));
-    const pageTitles = {{overview: 'Обзор', musicSection: 'Моя музыка', duplicates: 'Дубли'}};
+    const pageTitles = {json.dumps(page_titles, ensure_ascii=False)};
     const boundCards = new WeakSet();
     const musicPager = new ReportPagedList(musicList, document.getElementById('musicPagination'), document.getElementById('musicSection'), bindCardControls);
     const duplicatePager = new ReportPagedList(document.getElementById('cards'), document.getElementById('duplicatePagination'), document.getElementById('duplicates'), bindCardControls);
     const musicCollator = new Intl.Collator('ru', {{ numeric: true, sensitivity: 'base' }});
     duplicatePager.setItems(cards);
+    const playlists = new ReportPlaylists({{
+      libraryPath: reportLibraryPath,
+      reportTitle: pageTitles.overview,
+      musicPager,
+      normalizePath: normalizePathForCompare,
+      trackCard: trackCardForPath,
+      enqueueTracks: (tracks, next) => playback.enqueueTracks(tracks, next),
+      storage: userStorage,
+      resolveTrack: path => {{
+        const card = trackCardForPath(path);
+        if (!card) return null;
+        return {{...trackForPath(card.dataset.filePath, card), album: card.querySelector('.music-track-album').title}};
+      }},
+      playTracks: (track, queue, id) => {{
+        playbackContext = 'playlist';
+        playingPlaylistId = id;
+        playback.setQueue(queue, 'playlist:' + id);
+        playback.toggle(track);
+      }},
+      onTrackRemoved: (id, path) => {{
+        if (playbackContext !== 'playlist' || id !== playingPlaylistId) return;
+        const key = normalizePathForCompare(path);
+        playback.setQueue(playback.queue.filter(track => normalizePathForCompare(track.path) !== key));
+      }},
+      onPlaylistRemoved: id => {{
+        if (playbackContext !== 'playlist' || id !== playingPlaylistId) return;
+        playingPlaylistId = '';
+        playback.setQueue([]);
+      }},
+      bindTrack: bindCardControls,
+      sortTrackTable,
+      formatTrackSummary,
+    }});
+    playbackPanel = new ReportPlaybackPanel(playback, {{
+      libraryKey,
+      storage: userStorage,
+      resolveTrack: path => trackCardForPath(path) ? trackForPath(path) : null,
+      playHistoryTrack: path => playReportTrack(trackCardForPath(path), true),
+      sourceName: () => playbackContext === 'playlist'
+        ? playlists.items.find(item => item.id === playingPlaylistId)?.name
+        : pageTitles[playbackContext === 'music' ? 'musicSection' : 'duplicates'],
+    }});
+    if (userStorage.server) {{
+      playbackSession = new ReportSessionStorage(userStorage, playback, () => playlists.notify('Не удалось сохранить сеанс плеера.'));
+      playback.audio.addEventListener('timeupdate', () => playbackSession.progress());
+      playback.audio.addEventListener('pause', () => playbackSession.progress(true));
+      playback.audio.addEventListener('seeked', () => playbackSession.progress());
+      window.addEventListener('pagehide', () => playbackSession.progress(true));
+    }}
 
+    function restorePlaybackSession(session) {{
+      const duplicateTracks = new Map();
+      if (session.scope === 'duplicates') {{
+        for (const group of cards) {{
+          for (const card of group.querySelectorAll('.duplicate-track')) {{
+            duplicateTracks.set(normalizePathForCompare(card.dataset.filePath), card);
+          }}
+        }}
+      }}
+      const playlist = session.scope.startsWith('playlist:')
+        ? playlists.items.find(item => 'playlist:' + item.id === session.scope) : null;
+      if (playlist) {{
+        playbackContext = 'playlist';
+        playingPlaylistId = playlist.id;
+        const members = new Set(playlist.tracks.map(track => normalizePathForCompare(track.path)));
+        session = {{...session, source: session.source.filter(path => members.has(normalizePathForCompare(path)))}};
+      }} else {{
+        playbackContext = session.scope === 'duplicates' ? 'duplicates' : 'music';
+        if (session.scope.startsWith('playlist:')) session = {{...session, source: [], anchor: ''}};
+      }}
+      playback.restore(session, saved => {{
+        const card = trackCardForPath(saved.path) || duplicateTracks.get(normalizePathForCompare(saved.path));
+        return card ? {{...saved, ...trackForPath(card.dataset.filePath, card)}} : null;
+      }});
+    }}
+
+    async function initializePlaybackData() {{
+      let restored = null;
+      if (userStorage.server) {{
+        try {{
+          const saved = await userStorage.load(libraryBackup(playlists.items, playbackPanel.history.entries));
+          playlists.applyItems(saved.playlists);
+          playbackPanel.applyHistory(saved.history);
+          if (!playback.track && !playback.manualQueue.length && saved.session) {{
+            restorePlaybackSession(saved.session);
+            restored = saved.session;
+          }}
+          if (saved.migrationFailed) playlists.notify('Не удалось перенести данные браузера. Экспортируйте их из автономного отчёта.');
+        }} catch (error) {{
+          playlists.notify(error.message || 'Не удалось загрузить данные плеера.');
+        }}
+        playbackSession.enable(restored);
+        playbackSession.changed();
+      }}
+      activatePage(window.location.hash.slice(1) || 'overview');
+    }}
 
     function activatePage(requestedId) {{
-      const id = ['overview', 'musicSection', 'duplicates'].includes(requestedId) ? requestedId : 'overview';
+      const playlist = playlists.playlistForPage(requestedId);
+      const id = playlist ? 'playlist' : ['overview', 'musicSection', 'duplicates'].includes(requestedId) ? requestedId : 'overview';
       reportPages.forEach(page => {{ page.hidden = page.dataset.page !== id; }});
-      sideNavLinks.forEach(link => {{
+      pageLinks.forEach(link => {{
         const isActive = link.getAttribute('href') === '#' + id;
         link.classList.toggle('active', isActive);
         if (isActive) link.setAttribute('aria-current', 'page');
         else link.removeAttribute('aria-current');
       }});
-      document.title = pageTitles[id] + ' — Моя медиатека';
-      if (requestedId !== id) history.replaceState(null, '', '#overview');
+      if (!playlist) document.title = id === 'overview' ? pageTitles.overview : pageTitles[id] + ' — ' + pageTitles.overview;
+      if (!playlist && requestedId !== id) history.replaceState(null, '', '#overview');
+      reportSettings.open = false;
       closeLyricsModal();
+      appWorkspace.scrollTop = 0;
       window.scrollTo(0, 0);
       if (id === 'musicSection') musicPager.activate();
       if (id === 'duplicates') duplicatePager.activate();
+      playlists.show(playlist);
       window.dispatchEvent(new Event('report-page-change'));
     }}
 
@@ -2276,9 +2542,6 @@ def render_html(payload: dict) -> str:
       lyricsFollow.hidden = !lyricsSync.hasTiming || !lyricsSync.enabled || !lyricsAudio;
       lyricsFollow.setAttribute('aria-pressed', String(lyricsSync.follow));
       lyricsFollow.textContent = lyricsSync.follow ? 'Следить за музыкой' : 'К текущей строке';
-      const zeroTimes = lyricsDocument?.timingIssue === 'zero-timestamps';
-      lyricsSyncNote.textContent = lyricsSync.enabled ? (zeroTimes ? 'Все таймкоды — 00:00' : (lyricsSync.hasTiming ? 'По строкам' : 'Без таймкодов')) : 'Исходный текст';
-      lyricsSyncNote.title = zeroTimes ? 'У всех строк указано нулевое время. Для синхронизации нужен текст с настоящими таймкодами.' : '';
     }}
 
     function cancelLyricsSeek() {{
@@ -2291,7 +2554,8 @@ def render_html(payload: dict) -> str:
       const track = trackForPath(lyricsPath.textContent);
       const time = ReportLyrics.seekTime(lyricsDocument, index, getLyricsPlayer()?.currentTime || 0);
       if (time === null) return;
-      if (!playback.queue.some(item => normalizePathForCompare(item.path) === normalizePathForCompare(track.path))) {{
+      if (!playback.matches(track.path) &&
+          !playback.queue.some(item => normalizePathForCompare(item.path) === normalizePathForCompare(track.path))) {{
         playbackContext = 'music';
         updatePlaybackQueue();
       }}
@@ -2326,7 +2590,6 @@ def render_html(payload: dict) -> str:
       lyricsReading.disabled = true;
       lyricsOriginal.disabled = true;
       lyricsFollow.hidden = true;
-      lyricsSyncNote.textContent = '';
       lyricsReading.setAttribute('aria-pressed', 'true');
       lyricsOriginal.setAttribute('aria-pressed', 'false');
       lyricsText.textContent = 'Загружаю текст песни...';
@@ -2497,13 +2760,21 @@ def render_html(payload: dict) -> str:
     function removeMusicCardsByPaths(paths) {{
       const normalized = new Set((paths || []).map(normalizePathForCompare));
       if (!normalized.size) return;
+      playback.updateQueuedTracks(new Map(Array.from(normalized, path => [path, null])));
+      if (playbackContext === 'playlist') {{
+        playback.setQueue(playback.queue.filter(track => !normalized.has(normalizePathForCompare(track.path))));
+      }}
       musicCards = musicCards.filter(card => {{
         const remove = normalized.has(normalizePathForCompare(card.dataset.filePath || ''));
-        if (remove) card.remove();
+        if (remove) {{
+          musicCardByPath.delete(normalizePathForCompare(card.dataset.filePath));
+          card.remove();
+        }}
         return !remove;
       }});
       refreshMusicOverview();
       applyMusicFilters();
+      playlists.renderPage();
     }}
 
     function refreshGroupAfterComparisonRemoval(group) {{
@@ -2644,6 +2915,7 @@ def render_html(payload: dict) -> str:
       const play = card.querySelector('.music-play');
       play.setAttribute('aria-label', play.title + ': ' + trackTitle);
       card.querySelector('.music-details-toggle').setAttribute('aria-label', 'Подробности: ' + trackTitle);
+      card.querySelector('.music-track-menu-button').setAttribute('aria-label', 'Действия: ' + trackTitle);
       pathNode.textContent = path || folder;
       updateCoverPreview(card, track);
 
@@ -2698,6 +2970,10 @@ def render_html(payload: dict) -> str:
       card.querySelectorAll('.music-action-single, .trash-one').forEach(button => {{
         button.dataset.filePath = path;
       }});
+      if (normalizePathForCompare(previousPath) !== normalizePathForCompare(path)) {{
+        playlists.replacePaths([{{source: previousPath, destination: path}}]);
+      }}
+      playback.updateQueuedTracks(new Map([[normalizePathForCompare(previousPath), trackForPath(path, card)]]));
       if (playback.matches(previousPath)) {{
         const current = trackForPath(path, card);
         if (normalizePathForCompare(previousPath) === normalizePathForCompare(path)) playback.refresh(current);
@@ -2770,6 +3046,10 @@ def render_html(payload: dict) -> str:
         if (!response.ok || !result.ok) throw new Error(result.error || 'Команда не выполнена');
 
         operationStatus.textContent = result.message || 'Операция завершена.';
+        if (mode === 'real' && ['layout', 'shazam-tag'].includes(action)) {{
+          await playlists.replacePaths((result.items || []).filter(item =>
+            item.source && item.destination && (item.status === 'moved' || action === 'shazam-tag')));
+        }}
         if (mode === 'real' && result.reload) setTimeout(() => window.location.reload(), 900);
       }} catch (error) {{
         if (useCardStatus) setCardStatus(sourceCard, 'error', error.message || String(error));
@@ -2779,28 +3059,33 @@ def render_html(payload: dict) -> str:
       }}
     }}
 
-    function applySort() {{
-      const numeric = musicSortKey === 'number' || musicSortKey === 'duration';
+    function sortTrackTable(table, rows, selectedKey, direction) {{
+      const sortKey = selectedKey || 'number';
+      const numeric = sortKey === 'number' || sortKey === 'duration';
       const sortValue = card => {{
-        if (musicSortKey === 'duration') return Number(card.dataset.duration);
-        const value = card.getAttribute(`data-sort-${{musicSortKey}}`);
+        if (sortKey === 'duration') return Number(card.dataset.duration);
+        const value = card.getAttribute(`data-sort-${{sortKey}}`);
         return numeric ? Number(value) : value;
       }};
-      musicCards.sort((a, b) => {{
+      rows.sort((a, b) => {{
         const left = sortValue(a);
         const right = sortValue(b);
         if (Boolean(left) !== Boolean(right)) return left ? -1 : 1;
         const comparison = numeric ? left - right : musicCollator.compare(left, right);
-        return comparison * musicSortDirection || musicCollator.compare(a.dataset.sortName, b.dataset.sortName);
+        return comparison * direction || musicCollator.compare(a.dataset.sortName, b.dataset.sortName);
       }});
-      musicSortButtons.forEach(button => {{
+      table.querySelectorAll('[data-music-sort]').forEach(button => {{
         const header = button.closest('th');
-        if (button.dataset.musicSort === musicSortKey) {{
-          header.setAttribute('aria-sort', musicSortDirection === 1 ? 'ascending' : 'descending');
+        if (button.dataset.musicSort === selectedKey) {{
+          header.setAttribute('aria-sort', direction === 1 ? 'ascending' : 'descending');
         }} else {{
           header.removeAttribute('aria-sort');
         }}
       }});
+    }}
+
+    function applySort() {{
+      sortTrackTable(musicList, musicCards, musicSortKey, musicSortDirection);
       applyMusicFilters();
     }}
 
@@ -2837,23 +3122,18 @@ def render_html(payload: dict) -> str:
       rail.scrollBy({{ left: direction * pageWidth }});
     }}
 
-    function refreshMusicOverview() {{
-      const genres = new Map();
+    function formatTrackSummary(rows) {{
       let seconds = 0;
       let withDuration = 0;
-      musicCards.forEach(card => {{
+      rows.forEach(card => {{
         const duration = Number(card.dataset.duration);
-        if (duration > 0) {{
+        if (Number.isFinite(duration) && duration > 0) {{
           seconds += duration;
           withDuration += 1;
         }}
-        musicGenresForCard(card).forEach((label, key) => {{
-          if (!genres.has(key)) genres.set(key, {{ label, count: 0 }});
-          genres.get(key).count += 1;
-        }});
       }});
 
-      const total = musicCards.length;
+      const total = rows.length;
       const units = {{ one: 'трек', few: 'трека', many: 'треков', other: 'треков' }};
       let summary = `${{musicNumber.format(total)}} ${{units[musicPlural.select(total)]}}`;
       if (withDuration) {{
@@ -2867,8 +3147,18 @@ def render_html(payload: dict) -> str:
       }} else if (total) {{
         summary += ' · длительность неизвестна';
       }}
-      musicSummary.textContent = summary;
+      return summary;
+    }}
 
+    function refreshMusicOverview() {{
+      const genres = new Map();
+      musicCards.forEach(card => {{
+        musicGenresForCard(card).forEach((label, key) => {{
+          if (!genres.has(key)) genres.set(key, {{ label, count: 0 }});
+          genres.get(key).count += 1;
+        }});
+      }});
+      musicSummary.textContent = formatTrackSummary(musicCards);
       if (!genres.has(musicGenre)) musicGenre = '';
       const sortedGenres = [...genres.entries()].sort(([, a], [, b]) =>
         b.count - a.count || musicCollator.compare(a.label, b.label));
@@ -2887,6 +3177,7 @@ def render_html(payload: dict) -> str:
 
     function applyMusicFilters() {{
       updateSearchPlaceholder();
+      if (musicPageSearch.value !== musicSearch.value) musicPageSearch.value = musicSearch.value;
       const value = musicSearch.value.trim().toLowerCase();
       let visibleCount = 0;
       musicCards.forEach(card => {{
@@ -2898,7 +3189,7 @@ def render_html(payload: dict) -> str:
       }});
       musicEmpty.classList.toggle('visible', visibleCount === 0);
       musicList.hidden = visibleCount === 0;
-      musicPager.setItems(musicCards.filter(card => !card.hidden));
+      playlists.musicSelection.setItems(musicCards.filter(card => !card.hidden));
       if (playbackContext === 'music') updatePlaybackQueue();
     }}
 
@@ -3167,6 +3458,7 @@ def render_html(payload: dict) -> str:
     }}
 
     function bindCardControls(root) {{
+      if (root.classList.contains('playlist-unavailable')) return;
       const alreadyBound = boundCards.has(root);
       if (!alreadyBound && root.matches('.group-card')) ReportDuplicates.refresh(root);
       const playable = root.matches('.music-card, .duplicate-track') ? [root] : Array.from(root.querySelectorAll('.duplicate-track'));
@@ -3175,9 +3467,11 @@ def render_html(payload: dict) -> str:
       boundCards.add(root);
     playable.forEach(card => {{
       const activate = () => {{
-        playbackContext = card.matches('.duplicate-track') ? 'duplicates' : 'music';
-        updatePlaybackQueue();
-        playback.toggle(trackForPath(card.dataset.filePath, card));
+        if (card.closest('#playlistTracks')) {{
+          playlists.play(card.dataset.filePath);
+          return;
+        }}
+        playReportTrack(card);
       }};
       const musicPlay = card.querySelector('.music-play');
       if (musicPlay) {{
@@ -3274,9 +3568,84 @@ def render_html(payload: dict) -> str:
 
     processingModeNote.addEventListener('click', toggleProcessingMode);
     updateOperationStatus();
-    musicSearch.addEventListener('input', () => {{
-      updateSearchPlaceholder();
+
+    const settingsToggle = reportSettings.querySelector('summary');
+    const playerBackupDialog = document.getElementById('importPlayerBackupDialog');
+    const playerBackupForm = document.getElementById('importPlayerBackupForm');
+    const playerBackupFile = document.getElementById('playerBackupFile');
+    const playerBackupError = document.getElementById('importPlayerBackupError');
+    document.getElementById('exportPlayerBackup').addEventListener('click', async () => {{
+      reportSettings.open = false;
+      try {{
+        const data = userStorage.server ? await userStorage.request()
+          : {{playlists: playlists.read(), history: playbackPanel.history.entries}};
+        downloadLibraryBackup(libraryBackup(data.playlists, data.history));
+      }} catch (error) {{
+        playlists.notify(error.message || 'Не удалось экспортировать данные.');
+      }}
+    }});
+    document.getElementById('importPlayerBackup').addEventListener('click', () => {{
+      reportSettings.open = false;
+      if (!userStorage.server) {{
+        playlists.notify('Для импорта откройте отчёт через сервер.');
+        return;
+      }}
+      playerBackupForm.reset();
+      playerBackupError.textContent = '';
+      playerBackupDialog.showModal();
+    }});
+    document.getElementById('cancelPlayerBackup').addEventListener('click', () => playerBackupDialog.close());
+    playerBackupDialog.addEventListener('close', () => settingsToggle.focus({{preventScroll: true}}));
+    playerBackupFile.addEventListener('change', () => {{
+      playerBackupError.textContent = '';
+    }});
+    playerBackupForm.addEventListener('submit', async event => {{
+      event.preventDefault();
+      const file = playerBackupFile.files?.[0];
+      if (!file) return;
+      const submit = playerBackupForm.querySelector('button[type="submit"]');
+      if (submit.disabled) return;
+      submit.disabled = true;
+      playerBackupError.textContent = '';
+      try {{
+        const backup = JSON.parse(await file.text());
+        const saved = await userStorage.request({{action: 'import', backup}});
+        playlists.applyItems(saved.playlists);
+        playbackPanel.applyHistory(saved.history);
+        playerBackupDialog.close();
+        playlists.notify('Плейлисты и история импортированы.');
+      }} catch (error) {{
+        playerBackupError.textContent = error instanceof SyntaxError ? 'Не удалось прочитать резервную копию JSON.' : error.message;
+      }} finally {{
+        submit.disabled = false;
+      }}
+    }});
+    reportSettings.addEventListener('keydown', event => {{
+      if (event.key !== 'Escape' || !reportSettings.open) return;
+      reportSettings.open = false;
+      settingsToggle.focus();
+    }});
+    document.addEventListener('click', event => {{
+      if (reportSettings.open && !reportSettings.contains(event.target)) reportSettings.open = false;
+    }});
+
+    function searchMusic(openList) {{
       applyMusicFilters();
+      if (openList && window.location.hash !== '#musicSection') {{
+        history.pushState(null, '', '#musicSection');
+        activatePage('musicSection');
+      }} else if (window.location.hash === '#musicSection') {{
+        appWorkspace.scrollTop = 0;
+      }}
+    }}
+    musicSearch.addEventListener('input', () => searchMusic(Boolean(musicSearch.value.trim())));
+    musicPageSearch.addEventListener('input', () => {{
+      musicSearch.value = musicPageSearch.value;
+      applyMusicFilters();
+    }});
+    musicSearch.form.addEventListener('submit', event => {{
+      event.preventDefault();
+      searchMusic(true);
     }});
     musicGenreFilters.addEventListener('click', event => {{
       const button = event.target.closest('.music-genre');
@@ -3294,6 +3663,14 @@ def render_html(payload: dict) -> str:
     new ResizeObserver(updateMusicGenreArrows).observe(musicGenreFilters);
     duplicateSearch.addEventListener('input', () => applyDuplicateFilters());
     duplicateFilter.addEventListener('change', () => applyDuplicateFilters());
+    document.addEventListener('error', event => {{
+      if (!event.target.matches?.('.music-cover img')) return;
+      const cover = event.target.closest('.music-cover');
+      cover.classList.replace('music-cover-has', 'music-cover-empty');
+      cover.title = 'Обложка недоступна';
+      cover.setAttribute('aria-label', cover.title);
+      cover.innerHTML = '{lucide_icon("image-off", "empty-cover-icon")}';
+    }}, true);
     musicSortButtons.forEach(button => {{
       button.addEventListener('click', () => {{
         const key = button.dataset.musicSort;
@@ -3305,7 +3682,7 @@ def render_html(payload: dict) -> str:
     refreshMusicOverview();
     applySort();
     restoreDuplicateViewAfterMove();
-    activatePage(window.location.hash.slice(1) || 'overview');
+    void initializePlaybackData();
   </script>
 </body>
 </html>

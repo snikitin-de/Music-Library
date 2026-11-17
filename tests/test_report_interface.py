@@ -5,12 +5,14 @@ import base64
 import json
 import re
 import sys
+import tempfile
 import unittest
+import wave
 from html.parser import HTMLParser
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from generate_html_report import ReportRow, build_payload, render_html, render_genre_bars, render_year_bars, render_genre_era_heatmap, collect_genres_from_tracks, collect_genre_era_heatmap, genre_coverage
+from generate_html_report import ReportRow, analyze_library, build_payload, cover_api_url, render_html, render_genre_bars, render_year_bars, render_genre_era_heatmap, collect_genres_from_tracks, collect_genre_era_heatmap, genre_coverage
 
 
 class Elements(HTMLParser):
@@ -42,22 +44,20 @@ class Elements(HTMLParser):
 
 
 class ReportInterfaceTests(unittest.TestCase):
-    def test_duplicate_statistics_match_overview_and_appear_above_search(self):
+    def test_duplicate_statistics_match_overview_and_appear_under_page_title(self):
         rows = [ReportRow('Группа', 'a.flac', path, 'lower quality score', 'format=flac', 'format=mp3')
                 for path in ['b.mp3', 'c.mp3']]
         review = [ReportRow('Проверка', 'd.flac', 'e.flac', 'needs_review: same artist/title, tag key is not identical', '', '')]
         document = render_html(build_payload(rows, {'path': 'D:/Music', 'tracks': []}, review))
-        for ids, value in [(('duplicateGroupsMetric','duplicatePageGroupsMetric'),'1'),
-                           (('duplicateMetric','duplicatePageFilesMetric'),'2'),
-                           (('reviewGroupsMetric','duplicatePageReviewMetric'),'1')]:
-            for element_id in ids:
-                match = re.search(r'<strong id="' + element_id + r'">(.*?)</strong>', document)
-                self.assertIsNotNone(match, element_id)
-                self.assertEqual(match[1], value, element_id)
-        elements = Elements(document).pages['duplicates']
-        stats = next(i for i, (_, a) in enumerate(elements) if 'duplicate-summary' in a.get('class', '').split())
-        search = next(i for i, (_, a) in enumerate(elements) if a.get('id') == 'duplicateSearch')
-        self.assertLess(stats, search)
+        duplicates_page = document.split('id="duplicates" hidden>', 1)[1]
+        header = duplicates_page.split('</header>', 1)[0]
+        summary = re.search(r'<p class="music-summary">(.*?)</p>', header, re.S)
+        self.assertIsNotNone(summary)
+        self.assertIn('</h1>', header[:summary.start()])
+        text = "".join(Elements(summary[1]).texts)
+        self.assertEqual(" ".join(text.split()), "Групп дублей: 1 · Дублей: 2 · Возможных дублей: 1")
+        for element_id, value in [('duplicateGroupsMetric', '1'), ('duplicateMetric', '2'), ('reviewGroupsMetric', '1')]:
+            self.assertIn(f'<strong id="{element_id}">{value}</strong>', document)
 
     def render(self, tracks=None, rows=None):
         tracks = tracks or []
@@ -87,18 +87,184 @@ class ReportInterfaceTests(unittest.TestCase):
         self.assertFalse(any(tag=="input" and attrs.get("name")=="processMode" for tag,attrs in elements))
         self.assertIn("Музыкальные файлы не найдены", self.render())
 
-    def test_navigation_has_three_separate_pages_with_their_own_content(self):
+    def test_navigation_keeps_report_sections_and_playlist_page_separate(self):
         parsed = Elements(self.render(tracks=[{"path": "D:/Музыка/a.flac", "name": "Трек", "tags": []}]))
-        self.assertEqual(set(parsed.pages), {"overview", "musicSection", "duplicates"})
+        self.assertEqual(set(parsed.pages), {"overview", "musicSection", "duplicates", "playlist"})
         ids = {page: {a["id"] for _, a in elements if "id" in a} for page, elements in parsed.pages.items()}
         self.assertIn("insights", ids["overview"])
         self.assertNotIn("musicList", ids["overview"])
         self.assertNotIn("cards", ids["overview"])
-        self.assertTrue({"musicList", "musicSearch", "tagVisible"}.issubset(ids["musicSection"]))
+        self.assertTrue({"musicList", "tagVisible"}.issubset(ids["musicSection"]))
         self.assertTrue({"cards", "findDuplicates"}.issubset(ids["duplicates"]))
+        self.assertTrue({"playlistTitle", "playlistTracks"}.issubset(ids["playlist"]))
+        playlist_table = parsed.pages["playlist"]
+        self.assertTrue(any(tag == "table" and a.get("id") == "playlistTracks" for tag, a in playlist_table))
+        self.assertEqual(
+            [a["data-music-sort"] for _, a in playlist_table if "data-music-sort" in a],
+            [a["data-music-sort"] for _, a in parsed.pages["musicSection"] if "data-music-sort" in a],
+        )
         self.assertTrue({"checkExactDuplicates", "exactDuplicatesMetric", "quarantineCommand"}.isdisjoint(ids["duplicates"]))
         targets = [a["href"] for tag, a in parsed.elements if tag == "a" and a.get("href", "").startswith("#")]
         self.assertEqual(set(targets), {"#overview", "#musicSection", "#duplicates"})
+
+    def test_track_search_appears_between_each_page_heading_and_track_table(self):
+        pages = Elements(self.render()).pages
+        for page, field, table in [
+            ("musicSection", "musicPageSearch", "musicList"),
+            ("playlist", "playlistTrackSearch", "playlistTracks"),
+        ]:
+            with self.subTest(page=page):
+                elements = pages[page]
+                title_index = next(i for i, (tag, _) in enumerate(elements) if tag == "h1")
+                table_index = next(i for i, (_, a) in enumerate(elements) if a.get("id") == table)
+                searches = [a for tag, a in elements[title_index + 1:table_index]
+                            if tag == "input" and a.get("type") == "search"]
+                self.assertEqual([(a["id"], a.get("aria-controls")) for a in searches], [(field, table)])
+
+    def test_top_toolbar_contains_home_music_search_and_settings(self):
+        document = self.render()
+        toolbar = document.split('<header class="app-topbar"', 1)[1].split('</header>', 1)[0]
+        controls = {attrs["id"]: (tag, attrs) for tag, attrs in Elements(toolbar).elements if "id" in attrs}
+        self.assertEqual(controls["reportHome"][1]["href"], "#overview")
+        self.assertEqual(controls["musicSearch"][1]["type"], "search")
+        self.assertEqual(controls["reportSettings"][0], "details")
+        source_tag, source_control = controls["librarySource"]
+        self.assertEqual(source_tag, "button")
+        self.assertEqual(source_control["aria-haspopup"], "dialog")
+        self.assertEqual(source_control["aria-controls"], "sourceDialog")
+        self.assertEqual(controls["processingModeNote"][1]["aria-pressed"], "false")
+
+    def test_window_close_buttons_share_the_same_style_and_icon(self):
+        document = self.render()
+        icons = []
+        for element_id in ["lyricsClose", "sourceClose", "playbackPanelClose"]:
+            match = re.search(r'<button\b[^>]*\bid="' + element_id + r'"[^>]*>.*?</button>', document, re.S)
+            self.assertIsNotNone(match)
+            button = Elements(match[0]).elements[0][1]
+            self.assertIn("window-close", button.get("class", "").split())
+            self.assertTrue(button.get("aria-label"))
+            icon = re.search(r'<svg\b.*?</svg>', match[0], re.S)
+            self.assertIsNotNone(icon)
+            icons.append(icon[0])
+        self.assertEqual(len(set(icons)), 1)
+
+    def test_page_actions_use_collapsed_menus_under_search_with_progress_outside(self):
+        document = self.render()
+        for page, search, menu_id, actions, status in [
+            ("musicSection", "musicPageSearch", "musicActions",
+             {"tagVisible", "shazamTagVisible", "layoutVisible", "coverVisible", "lyricsVisible", "rescanLibrary"},
+             {"operationStatus", "scanPanel"}),
+            ("duplicates", "duplicateSearch", "duplicateActions", {"findDuplicates"}, {"duplicateScanPanel"}),
+        ]:
+            with self.subTest(page=page):
+                section = document.split(f'id="{page}" hidden>', 1)[1]
+                menu = re.search(r'<details\b[^>]*\bid="' + menu_id + r'"[^>]*>.*?</details>', section, re.S)
+                self.assertIsNotNone(menu)
+                self.assertLess(section.index(f'id="{search}"'), menu.start())
+                elements = Elements(menu[0]).elements
+                self.assertNotIn("open", elements[0][1])
+                self.assertEqual({a["id"] for tag, a in elements if tag == "button"}, actions)
+                for element_id in status:
+                    self.assertGreater(section.index(f'id="{element_id}"'), menu.end())
+
+    def test_playlist_controls_are_available_in_the_sidebar_and_each_track(self):
+        track = {"path": "D:/Музыка/a.flac", "name": "Трек.flac", "tags": []}
+        document = self.render(tracks=[track, dict(track, path="D:/Музыка/b.flac")])
+        sidebar = document.split('<aside class="app-sidebar"', 1)[1].split('</aside>', 1)[0]
+        self.assertLess(sidebar.index('class="side-nav"'), sidebar.index('id="playlistSectionTitle"'))
+        self.assertIn('id="playlistSearch"', sidebar)
+        self.assertRegex(sidebar, r'id="playlistSearchToggle"[^>]+aria-expanded="false"')
+        self.assertIn('id="playlistSort"', sidebar)
+        self.assertIn('<option value="date" data-label="По дате">По дате создания</option>', sidebar)
+        self.assertIn('<option value="name">По алфавиту</option>', sidebar)
+        self.assertIn('id="createPlaylist"', sidebar)
+        self.assertIn('id="playlistCoverButton"', document)
+        self.assertIn('id="playlistCoverInput" type="file"', document)
+        self.assertTrue('id="renamePlaylist"' in document)
+        self.assertTrue('id="deletePlaylist"' in document and 'id="playlistDeleteDialog"' in document)
+        playlist_actions = document.split('id="playlistActions"', 1)[1].split('</details>', 1)[0]
+        reset = next(attrs for _, attrs in Elements(playlist_actions).elements if attrs.get("id") == "resetPlaylistCover")
+        self.assertNotIn("hidden", reset)
+        self.assertIn("disabled", reset)
+        elements = Elements(document).pages["musicSection"]
+        triggers = [attrs for tag, attrs in elements
+                    if tag == "button" and "music-track-menu-button" in attrs.get("class", "").split()]
+        self.assertEqual(len(triggers), 2)
+        self.assertTrue(all(attrs.get("aria-controls") == "playlistTrackMenu" for attrs in triggers))
+        self.assertIn('id="addTrackToPlaylist"', document)
+        self.assertIn('id="removeTrackFromPlaylist"', document)
+        pagination = document.split('id="playlistPagination"', 1)[1].split('</div>', 1)[0]
+        self.assertNotIn('role="status"', pagination)
+
+    def test_queue_toggles_sit_by_search_and_volume_and_empty_tabs_have_no_hints(self):
+        document = self.render()
+        elements = Elements(document).elements
+        buttons = [a for tag, a in elements if tag == "button" and a.get("aria-controls") == "playbackPanel"]
+        self.assertEqual([(a["id"], a["aria-expanded"]) for a in buttons],
+                         [("queueToggle", "false"), ("globalQueueToggle", "false")])
+        search_area = document.split('<div class="topbar-search-area">', 1)[1].split("</div>", 1)[0]
+        self.assertLess(search_area.index('id="musicSearch"'), search_area.index('id="queueToggle"'))
+        player = document.split('<div class="global-extras">', 1)[1].split('id="globalVolumeWrap"', 1)[0]
+        extras = [a["id"] for tag, a in Elements(player).elements if tag == "button"]
+        self.assertEqual(extras, ["globalLyrics", "globalQueueToggle", "globalMute"])
+        panel = document.split('id="playbackPanel"', 1)[1].split('</aside>', 1)[0]
+        self.assertNotIn("Очередь пуста.", panel)
+        self.assertNotIn("Здесь появятся прослушанные треки.", panel)
+        tabs = [a["aria-controls"] for _, a in Elements(panel).elements if a.get("role") == "tab"]
+        self.assertEqual(tabs, ["playbackQueueView", "playbackHistoryView"])
+
+    def test_track_menu_shows_playlist_and_queue_actions_before_play_next(self):
+        document = self.render()
+        menu = document.split('id="playlistTrackMenu"', 1)[1].split('id="trackPlaylistPicker"', 1)[0]
+        actions = [a["id"] for tag, a in Elements(menu).elements if tag == "button"]
+        self.assertEqual(actions[:3], ["addTrackToPlaylist", "addTrackToQueue", "playTrackNext"])
+
+    def test_track_tables_have_batch_controls_and_only_playable_rows_can_be_selected(self):
+        track = {"path": "D:/Music/a.flac", "title": "Трек"}
+        document = self.render(tracks=[track])
+        pages = Elements(document).pages
+        for page in ("musicSection", "playlist"):
+            elements = pages[page]
+            actions = [a.get("aria-controls") for _, a in elements if "data-track-selection-actions" in a]
+            self.assertEqual(actions, ["playlistTrackMenu"])
+            self.assertTrue(any("data-track-selection-clear" in a for _, a in elements))
+        playable = document.split('id="musicCardSource"', 1)[1].split('</template>', 1)[0]
+        self.assertRegex(playable, r'<input class="music-track-select" type="checkbox"[^>]+aria-label="[^"]+"')
+        unavailable = document.split('id="playlistUnavailableTrack"', 1)[1].split('</template>', 1)[0]
+        self.assertNotIn('music-track-select', unavailable)
+
+    def test_resizable_panes_have_keyboard_accessible_separators(self):
+        elements = Elements(self.render()).elements
+        separators = [attrs for _, attrs in elements if attrs.get("role") == "separator"]
+        self.assertEqual(
+            [(item.get("aria-controls"), item.get("aria-orientation"), item.get("tabindex")) for item in separators],
+            [("appSidebar", "vertical", "0"), ("playbackPanel", "vertical", "0")],
+        )
+
+    def test_navigation_and_page_headers_share_titles(self):
+        document = self.render()
+        navigation = document.split('<nav class="side-nav"', 1)[1].split('</nav>', 1)[0]
+        expected_titles = ["Моя медиатека", "Музыка", "Дубликаты"]
+        self.assertEqual(re.findall(r"<span>(.*?)</span>", navigation), expected_titles)
+        headings = re.findall(
+            r'<div class="hero-layout">\s*'
+            r'<div class="collection-art" aria-hidden="true"><svg\b.*?</svg></div>\s*'
+            r'<div class="hero-copy">\s*<h1>(.*?)</h1>',
+            document, re.S,
+        )
+        self.assertEqual(headings, expected_titles)
+
+    def test_sidebar_toggle_controls_the_navigation_panel(self):
+        elements = Elements(self.render()).elements
+        tag, toggle = next((tag, attrs) for tag, attrs in elements if attrs.get("id") == "sidebarToggle")
+        self.assertEqual(tag, "button")
+        self.assertEqual(toggle["aria-label"], "Свернуть меню")
+        self.assertEqual(toggle["aria-expanded"], "true")
+        self.assertTrue(any(tag == "aside" and attrs.get("id") == toggle["aria-controls"]
+                            for tag, attrs in elements))
+        for target, title in [("#overview", "Моя медиатека"), ("#musicSection", "Музыка"), ("#duplicates", "Дубликаты")]:
+            self.assertTrue(any(tag == "a" and attrs.get("href") == target and attrs.get("aria-label") == title
+                                for tag, attrs in elements))
 
     def test_duplicate_groups_can_be_opened_individually(self):
         parsed = Elements(self.render(rows=[ReportRow("Группа", "D:/Музыка/a.flac", "D:/Музыка/a.mp3", "quality", "format=flac", "format=mp3")]))
@@ -126,8 +292,7 @@ class ReportInterfaceTests(unittest.TestCase):
         self.assertFalse(any(tag == "select" for tag, _ in elements))
         self.assertEqual([a["data-music-sort"] for tag, a in elements
                           if tag == "button" and "data-music-sort" in a], ["number", "name", "artist", "album", "duration"])
-        self.assertEqual([a["aria-sort"] for tag, a in elements
-                          if tag == "th" and "aria-sort" in a], ["ascending"])
+        self.assertFalse(any(tag == "th" and "aria-sort" in a for tag, a in elements))
         groups = [a for tag, a in elements if tag == "tbody" and a.get("data-file-path")]
         self.assertEqual([a["data-sort-number"] for a in groups], ["1", "2"])
         self.assertEqual([a["data-sort-name"] for a in groups], ["песня <версия>", "02.flac"])
@@ -146,6 +311,24 @@ class ReportInterfaceTests(unittest.TestCase):
             self.assertEqual(tag, "tr")
             self.assertIn("hidden", panel)
         self.assertNotEqual(toggles[0]["aria-controls"], toggles[1]["aria-controls"])
+
+    def test_library_report_uses_server_urls_for_covers(self):
+        with tempfile.TemporaryDirectory() as folder:
+            library = Path(folder)
+            track = library / "Песня.wav"
+            with wave.open(str(track), "wb") as audio:
+                audio.setparams((1, 2, 44100, 0, "NONE", "not compressed"))
+                audio.writeframes(b"\x00\x00" * 100)
+            (library / "cover.png").write_bytes(base64.b64decode(
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNgYPgPAAEDAQAIicLsAAAAAElFTkSuQmCC"
+            ))
+            stats = analyze_library(library)
+
+        self.assertTrue(stats["tracks"][0]["has_cover"])
+        self.assertEqual(stats["tracks"][0]["cover_data_uri"], "")
+        document = render_html(build_payload([], stats))
+        images = [a for tag, a in Elements(document).pages["musicSection"] if tag == "img"]
+        self.assertEqual([a["src"] for a in images], [cover_api_url(str(track))])
 
     def test_empty_duplicates_page_shows_an_empty_state(self):
         parsed = Elements(self.render())
@@ -332,19 +515,12 @@ class ReportInterfaceTests(unittest.TestCase):
         self.assertEqual(len(paths), 1)
         self.assertEqual(paths[0].get("title"), "D:/Музыка/Library")
 
-    def test_source_is_a_dialog_button_in_the_bottom_sidebar_block(self):
-        elements = Elements(self.render()).elements
-        source_index = next(i for i, (_, a) in enumerate(elements) if a.get("id") == "librarySource")
-        footer_index = next((i for i, (_, a) in enumerate(elements) if "sidebar-footer" in a.get("class", "").split()), -1)
-        mode_index = next(i for i, (_, a) in enumerate(elements) if a.get("id") == "processingModeNote")
-        self.assertGreaterEqual(footer_index, 0)
-        self.assertLess(footer_index, source_index)
-        self.assertLess(source_index, mode_index)
-        tag, button = elements[source_index]
-        self.assertEqual(tag, "button")
-        self.assertEqual(button.get("aria-haspopup"), "dialog")
-        self.assertEqual(button.get("aria-controls"), "sourceDialog")
-        ids = {a.get("id") for _, a in elements}
+    def test_sidebar_omits_settings_controls_and_source_dialog_remains_available(self):
+        document = self.render()
+        sidebar = document.split('<aside class="app-sidebar"', 1)[1].split('</aside>', 1)[0]
+        self.assertNotIn('id="librarySource"', sidebar)
+        self.assertNotIn('id="processingModeNote"', sidebar)
+        ids = {a.get("id") for _, a in Elements(document).elements}
         self.assertTrue({"sourceDialog", "sourcePath", "sourceFolders", "sourceApply", "sourceCancel"}.issubset(ids))
 
 
